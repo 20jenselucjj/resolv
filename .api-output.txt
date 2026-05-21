@@ -1,0 +1,4184 @@
+
+> @resolv/api@1.0.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 08:15:27 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+[08:15:28.254] [32mINFO[39m (12004): [36mServer listening at http://0.0.0.0:3001[39m
+[08:15:28.256] [32mINFO[39m (12004): [36mResolv API running on http://0.0.0.0:3001[39m
+[08:15:46.612] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/auth/login",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63685
+    }
+[08:15:46.627] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 13.200800001621246
+[08:15:46.630] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2"
+    req: {
+      "method": "POST",
+      "url": "/api/auth/login",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63685
+    }
+[08:15:48.754] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 2123.9237000010908
+[08:15:49.096] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63685
+    }
+[08:15:49.097] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7770000025629997
+[08:15:49.099] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63685
+    }
+[08:15:49.100] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.46380000188946724
+[08:15:49.101] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 63685
+    }
+[08:15:49.258] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 156.09010000154376
+[08:15:49.262] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 60055
+    }
+[08:15:49.382] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 119.44350000098348
+[08:19:20.453] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:20.454] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 1.5085000023245811
+[08:19:20.456] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-8"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:20.457] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-8"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7781000025570393
+[08:19:20.460] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-9"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:20.462] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-9"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 1.3779000006616116
+[08:19:20.464] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-a"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:20.467] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-b"
+    req: {
+      "method": "GET",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:20.877] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-b"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 409.8261000029743
+[08:19:20.946] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-a"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 482.2186999991536
+[08:19:20.947] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-c"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:21.064] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-c"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.35779999941587
+[08:19:50.018] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-d"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:50.019] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-d"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7729000002145767
+[08:19:50.019] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-e"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:50.020] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-e"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.48259999975562096
+[08:19:50.024] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-f"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:50.025] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-g"
+    req: {
+      "method": "GET",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:50.086] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-g"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 60.25799999758601
+[08:19:50.142] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-f"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 118.16459999978542
+[08:19:50.143] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-h"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:50.262] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-h"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 119.36920000240207
+[08:19:57.493] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-i"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:57.494] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-i"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6169999986886978
+[08:19:57.496] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-j"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:57.497] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-j"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6624000035226345
+[08:19:57.501] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-k"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:57.619] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-k"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 118.07090000063181
+[08:19:57.622] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-l"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:57.740] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-l"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 118.38399999961257
+[08:19:58.870] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-m"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:19:58.871] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-m"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5384999997913837
+[08:19:58.871] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-n"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:58.872] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-n"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.4976000003516674
+[08:19:58.872] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-o"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:19:58.873] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-o"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5136999972164631
+[08:19:58.873] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-p"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:19:58.874] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-p"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.46700000017881393
+[08:19:58.880] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-q"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:19:58.884] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-r"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:19:58.981] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-r"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 96.32959999889135
+[08:19:58.982] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-s"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:59.041] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-s"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 59.28510000184178
+[08:19:59.052] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-q"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 171.7137000001967
+[08:19:59.055] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-t"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:19:59.173] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-t"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.96489999815822
+[08:20:05.136] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-u"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:20:05.137] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-u"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.563000001013279
+[08:20:05.138] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-v"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:05.138] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-v"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6664000004529953
+[08:20:05.145] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-w"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:05.262] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-w"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.8918999992311
+[08:20:05.262] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-x"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:20:05.380] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-x"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 118.09989999979734
+[08:20:07.697] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-y"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:20:07.698] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-y"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.36639999970793724
+[08:20:07.698] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-z"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:07.698] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-z"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2752999998629093
+[08:20:07.702] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-10"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:07.761] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-10"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.57950000092387
+[08:20:07.762] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-11"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:20:07.820] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-11"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.27520000189543
+[08:20:12.196] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-12"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:20:12.196] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-12"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.4626000002026558
+[08:20:12.197] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-13"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:12.197] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-13"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.345600001513958
+[08:20:12.197] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-14"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:20:12.198] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-14"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.31790000200271606
+[08:20:12.198] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-15"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:20:12.198] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-15"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3684999980032444
+[08:20:12.206] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-16"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:20:12.208] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-17"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:20:12.331] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-17"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 122.45780000090599
+[08:20:12.332] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-18"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:12.446] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-18"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.00910000130534
+[08:20:12.685] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-16"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 478.4281000010669
+[08:20:12.688] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-19"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:20:13.148] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-19"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 459.56570000201464
+[08:21:05.972] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1a"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:05.973] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1a"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.36390000209212303
+[08:21:05.974] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1b"
+    req: {
+      "method": "GET",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:06.433] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1b"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 458.82919999957085
+[08:21:07.511] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1c"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:07.512] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1c"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.4789000004529953
+[08:21:07.512] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1d"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:07.513] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1d"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3618000000715256
+[08:21:07.517] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1e"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:07.634] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1e"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.29559999704361
+[08:21:07.636] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1f"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:07.752] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1f"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.25510000064969
+[08:21:13.655] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1g"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:13.656] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1g"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7205999977886677
+[08:21:13.657] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1h"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:13.658] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1h"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.834000002592802
+[08:21:13.662] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1i"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:13.780] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1i"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.82369999960065
+[08:21:13.786] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1j"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:13.905] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1j"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 118.78130000084639
+[08:21:15.260] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1k"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:15.261] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1k"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.45719999819993973
+[08:21:15.261] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1l"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:15.262] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1l"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3622000031173229
+[08:21:15.265] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1m"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:15.265] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1m"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.39479999989271164
+[08:21:15.265] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1n"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:15.266] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1n"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2923999987542629
+[08:21:15.266] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1o"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=al27dfux",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:15.266] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=al27dfux not found[39m
+    reqId: "req-1o"
+[08:21:15.267] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1o"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.6281000003218651
+[08:21:15.272] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1p"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:15.274] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1q"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:15.457] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1p"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 185.0161000005901
+[08:21:15.459] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1r"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:15.634] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1r"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 174.58439999818802
+[08:21:15.699] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1q"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 425.2208000011742
+[08:21:15.700] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1s"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:15.758] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1s"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 57.95050000026822
+[08:21:16.436] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1t"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=al34m8ss",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:16.436] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=al34m8ss not found[39m
+    reqId: "req-1t"
+[08:21:16.437] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1t"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.3260999992489815
+[08:21:19.376] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1u"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=al5eay46",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:19.376] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=al5eay46 not found[39m
+    reqId: "req-1u"
+[08:21:19.376] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1u"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.41939999908208847
+[08:21:24.391] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1v"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=al99ko3i",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:24.391] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=al99ko3i not found[39m
+    reqId: "req-1v"
+[08:21:24.391] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1v"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.4470999985933304
+[08:21:26.697] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1w"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:26.697] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1w"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.38929999992251396
+[08:21:26.698] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1x"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:26.698] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1x"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.25109999999403954
+[08:21:26.698] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1y"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:26.698] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1y"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.24139999970793724
+[08:21:26.699] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-1z"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:26.699] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-1z"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3544999994337559
+[08:21:26.709] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-20"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:26.711] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-21"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:26.825] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-21"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.15029999986291
+[08:21:26.827] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-20"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.56350000202656
+[08:21:26.828] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-22"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:26.830] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-23"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:26.888] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-22"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 60.56709999963641
+[08:21:26.950] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-23"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 119.16360000148416
+[08:21:28.271] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-24"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=Account%20&%20Access&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:28.272] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-24"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.9391000010073185
+[08:21:28.273] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-25"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:28.277] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-26"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=Account%20&%20Access&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:28.333] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-25"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 59.96169999986887
+[08:21:28.399] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-26"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 122.013900000602
+[08:21:28.823] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-27"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=Data%20&%20Backup&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:28.824] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-27"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6310999989509583
+[08:21:28.825] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-28"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:28.828] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-29"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=Data%20&%20Backup&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:28.939] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-28"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.67200000211596
+[08:21:28.945] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-29"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.88149999827147
+[08:21:29.178] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2a"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=Email%20&%20Communication&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:29.178] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2a"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3467999994754791
+[08:21:29.179] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2b"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:29.181] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2c"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=Email%20&%20Communication&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:29.239] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2b"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 60.00450000166893
+[08:21:29.298] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2c"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.39999999850988
+[08:21:29.397] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2d"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=ald4lw16",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:29.397] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=ald4lw16 not found[39m
+    reqId: "req-2d"
+[08:21:29.398] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2d"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.9142999984323978
+[08:21:29.876] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2e"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:29.877] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2f"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:29.934] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2f"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 57.07079999893904
+[08:21:29.990] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2e"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.58550000190735
+[08:21:30.934] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2g"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:30.935] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2g"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5793000012636185
+[08:21:30.936] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2h"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:30.936] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2h"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3280000016093254
+[08:21:30.938] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2i"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:31.056] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2i"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.32310000061989
+[08:21:31.059] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2j"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:31.175] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2j"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.29270000010729
+[08:21:32.147] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2k"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53377
+    }
+[08:21:32.147] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2k"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2912999987602234
+[08:21:32.147] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2l"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:32.147] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2l"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.15460000187158585
+[08:21:32.148] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2m"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:32.148] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2m"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.1421000026166439
+[08:21:32.148] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2n"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:32.148] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2n"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.17440000176429749
+[08:21:32.151] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2o"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:32.153] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2p"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:32.266] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2p"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 112.98829999938607
+[08:21:32.267] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2o"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.29149999842048
+[08:21:32.268] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2q"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:32.270] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2r"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:32.328] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2q"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 60.09850000217557
+[08:21:32.388] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2r"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.62730000168085
+[08:21:34.429] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2s"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=alh069rl",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:34.429] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=alh069rl not found[39m
+    reqId: "req-2s"
+[08:21:34.430] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2s"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 1.1649999991059303
+[08:21:39.449] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2t"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=alkvped8",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:39.449] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=alkvped8 not found[39m
+    reqId: "req-2t"
+[08:21:39.449] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2t"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.22140000015497208
+[08:21:43.132] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2u"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:43.132] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2u"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.26029999926686287
+[08:21:43.133] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2v"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:43.134] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2v"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.27380000054836273
+[08:21:43.135] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2w"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:43.250] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2w"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.98869999870658
+[08:21:43.251] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2x"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:43.369] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2x"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.23750000074506
+[08:21:44.454] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2y"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aloqq66v",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:44.454] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aloqq66v not found[39m
+    reqId: "req-2y"
+[08:21:44.455] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2y"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.4717999994754791
+[08:21:49.463] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-2z"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=alslrb0y",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:49.464] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=alslrb0y not found[39m
+    reqId: "req-2z"
+[08:21:49.465] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-2z"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 1.0943999998271465
+[08:21:51.792] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-30"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:51.793] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-30"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.38039999827742577
+[08:21:51.793] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-31"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:51.793] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-31"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3553999997675419
+[08:21:51.808] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-32"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:51.924] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-32"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.07200000062585
+[08:21:51.927] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-33"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:52.046] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-33"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 118.15720000118017
+[08:21:54.477] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-34"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=alwh1h2y",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:54.477] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=alwh1h2y not found[39m
+    reqId: "req-34"
+[08:21:54.478] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-34"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.7996999993920326
+[08:21:55.526] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-35"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:55.527] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-35"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.45340000092983246
+[08:21:55.530] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-36"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:55.532] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-36"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 1.0949000008404255
+[08:21:55.532] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-37"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:55.532] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-37"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2643999978899956
+[08:21:55.533] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-38"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:55.533] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-38"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.21009999886155128
+[08:21:55.538] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-39"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:21:55.539] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3a"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:21:55.598] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3a"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.140499997884035
+[08:21:55.598] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3b"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:55.711] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3b"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 112.76020000129938
+[08:21:55.712] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-39"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 173.6339000016451
+[08:21:55.713] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3c"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:55.886] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3c"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 172.3099999986589
+[08:21:59.496] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3d"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=am0ciw3x",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:21:59.496] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=am0ciw3x not found[39m
+    reqId: "req-3d"
+[08:21:59.497] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3d"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.8294999971985817
+[08:22:04.503] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3e"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=am47ngdp",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:04.503] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=am47ngdp not found[39m
+    reqId: "req-3e"
+[08:22:04.503] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3e"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.4853999987244606
+[08:22:09.512] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3f"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=am82xeqh",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:09.512] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=am82xeqh not found[39m
+    reqId: "req-3f"
+[08:22:09.512] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3f"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.3443000018596649
+[08:22:14.528] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3g"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amby8fx1",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:14.528] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amby8fx1 not found[39m
+    reqId: "req-3g"
+[08:22:14.529] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3g"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.5452999994158745
+[08:22:19.542] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3h"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amftke49",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:19.543] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amftke49 not found[39m
+    reqId: "req-3h"
+[08:22:19.543] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3h"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.7661999985575676
+[08:22:21.633] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3i"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:21.633] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3i"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6879999972879887
+[08:22:21.636] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3j"
+    req: {
+      "method": "PATCH",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:21.766] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3j"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 129.42110000178218
+[08:22:24.068] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3k"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:24.068] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3k"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5163999982178211
+[08:22:24.069] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3l"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:24.070] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3l"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.4114999994635582
+[08:22:24.075] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3m"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:24.191] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3m"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.971700001508
+[08:22:24.192] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3n"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:24.309] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3n"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 117.10550000146031
+[08:22:24.552] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3o"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amjopz5q",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:24.552] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amjopz5q not found[39m
+    reqId: "req-3o"
+[08:22:24.553] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3o"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.8803000003099442
+[08:22:29.565] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3p"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amnjthvm",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:29.565] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amnjthvm not found[39m
+    reqId: "req-3p"
+[08:22:29.565] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3p"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.2443000003695488
+[08:22:32.664] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3q"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:32.664] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3q"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.29029999673366547
+[08:22:32.668] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3r"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:32.669] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3r"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.8817999996244907
+[08:22:32.670] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3s"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:32.671] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3s"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3026000000536442
+[08:22:32.671] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3t"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:22:32.671] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3t"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2369999997317791
+[08:22:32.674] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3u"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:22:32.677] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3v"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:32.846] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3u"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 171.83430000022054
+[08:22:32.846] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3w"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:33.018] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3w"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 171.4902999997139
+[08:22:33.080] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3v"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 403.3344000019133
+[08:22:33.081] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3x"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:33.138] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3x"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 56.95679999887943
+[08:22:34.102] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3y"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:34.103] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3y"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.691100001335144
+[08:22:34.103] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-3z"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:34.103] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-3z"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5182999968528748
+[08:22:34.107] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-40"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:34.221] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-40"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.76580000296235
+[08:22:34.223] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-41"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:34.337] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-41"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.28739999979734
+[08:22:34.466] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-42"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:22:34.572] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-43"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amrewi0n",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:34.572] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amrewi0n not found[39m
+    reqId: "req-43"
+[08:22:34.572] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-43"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.3059999980032444
+[08:22:34.581] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-42"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.00340000167489
+[08:22:34.582] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-44"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:34.696] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-44"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 113.88039999827743
+[08:22:39.596] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-45"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amva0kwi",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:39.596] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amva0kwi not found[39m
+    reqId: "req-45"
+[08:22:39.597] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-45"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.2770000025629997
+[08:22:44.611] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-46"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=amz5p8y9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:44.611] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=amz5p8y9 not found[39m
+    reqId: "req-46"
+[08:22:44.611] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-46"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.7427999973297119
+[08:22:49.617] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-47"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=an30r5u9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:49.618] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=an30r5u9 not found[39m
+    reqId: "req-47"
+[08:22:49.618] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-47"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.4123000018298626
+[08:22:54.625] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-48"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=an6vxn30",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:54.625] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=an6vxn30 not found[39m
+    reqId: "req-48"
+[08:22:54.625] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-48"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.2718999981880188
+[08:22:59.630] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-49"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=anaqxg22",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:22:59.630] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=anaqxg22 not found[39m
+    reqId: "req-49"
+[08:22:59.630] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-49"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.39099999889731407
+[08:23:02.427] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4a"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:02.427] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4a"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6327999979257584
+[08:23:02.428] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4b"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:23:02.428] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4b"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.38199999928474426
+[08:23:02.431] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4c"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:23:02.546] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4c"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.68909999728203
+[08:23:02.547] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4d"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:02.661] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4d"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 113.62739999964833
+[08:23:04.639] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4e"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=anem3e3c",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:04.640] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=anem3e3c not found[39m
+    reqId: "req-4e"
+[08:23:04.640] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4e"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.314800001680851
+[08:23:09.661] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4f"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=anihalvf",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:09.661] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=anihalvf not found[39m
+    reqId: "req-4f"
+[08:23:09.662] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4f"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.6523000001907349
+[08:23:09.838] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4g"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:09.838] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4g"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7824000008404255
+[08:23:09.842] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4h"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:09.958] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4h"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.66629999876022
+[08:23:14.183] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4i"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:14.300] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4i"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.96209999918938
+[08:23:14.687] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4j"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=anmcusrf",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:14.687] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=anmcusrf not found[39m
+    reqId: "req-4j"
+[08:23:14.688] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4j"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 1.061200000345707
+[08:23:19.712] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4k"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=anq8h9i6",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:19.712] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=anq8h9i6 not found[39m
+    reqId: "req-4k"
+[08:23:19.713] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4k"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.29910000041127205
+[08:23:24.719] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4l"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=anu3yjui",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:24.719] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=anu3yjui not found[39m
+    reqId: "req-4l"
+[08:23:24.719] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4l"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.40949999913573265
+[08:23:25.800] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4m"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:25.800] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4m"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.31870000064373016
+[08:23:25.801] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4n"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49674
+    }
+[08:23:25.801] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4n"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.16609999909996986
+[08:23:25.801] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4o"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:23:25.801] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4o"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.14550000056624413
+[08:23:25.805] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4p"
+    req: {
+      "method": "GET",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:23:25.806] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4q"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:25.863] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4p"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 57.31859999895096
+[08:23:26.281] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4q"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 475.13539999723434
+[08:23:26.283] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4r"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100&status=open",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:23:26.398] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4r"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.89199999719858
+[08:23:43.222] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4s"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:23:43.223] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4s"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5493999980390072
+[08:23:43.224] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4t"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:43.225] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4t"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.4448999986052513
+[08:23:43.229] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4u"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:43.345] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4u"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.89669999852777
+[08:23:43.347] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4v"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:23:43.463] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4v"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.90149999782443
+[08:23:44.415] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4w"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 51248
+    }
+[08:23:44.529] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4w"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.11639999970794
+[08:23:44.530] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4x"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:44.647] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4x"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.82880000025034
+[08:23:59.703] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4y"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:59.703] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4y"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3409000001847744
+[08:23:59.705] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-4z"
+    req: {
+      "method": "GET",
+      "url": "/api/auth/me",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 58660
+    }
+[08:23:59.763] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-4z"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.21629999950528
+[08:24:32.988] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-50"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/notifications",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:32.989] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-50"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.5323999971151352
+[08:24:32.989] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-51"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/notifications",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:32.990] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-51"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.47749999910593033
+[08:24:32.994] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-52"
+    req: {
+      "method": "GET",
+      "url": "/api/notifications",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:33.423] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-52"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 428.7478000000119
+[08:24:33.425] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-53"
+    req: {
+      "method": "GET",
+      "url": "/api/notifications",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:33.484] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-53"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 59.00060000270605
+[08:24:36.382] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-54"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:36.382] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-54"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6130999997258186
+[08:24:36.383] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-55"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:36.383] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-55"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.41279999911785126
+[08:24:36.388] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-56"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:36.503] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-56"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.37739999964833
+[08:24:36.504] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-57"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:36.620] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-57"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.65599999949336
+[08:24:44.743] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-58"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:44.743] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-58"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6809999980032444
+[08:24:44.744] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-59"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:44.744] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-59"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.26489999890327454
+[08:24:44.747] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5a"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:44.861] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5a"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.27459999918938
+[08:24:44.862] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5b"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:44.979] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5b"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.73719999939203
+[08:24:46.288] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5c"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:46.288] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5c"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3418000005185604
+[08:24:46.288] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5d"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:46.289] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5d"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 1.0271000005304813
+[08:24:46.291] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5e"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:46.291] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5e"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.24420000240206718
+[08:24:46.291] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5f"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:46.292] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5f"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2085000015795231
+[08:24:46.294] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5g"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=apl1agcb",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:46.294] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=apl1agcb not found[39m
+    reqId: "req-5g"
+[08:24:46.294] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5g"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.3936000019311905
+[08:24:46.295] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5h"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:46.296] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5i"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:46.467] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5h"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 171.757199998945
+[08:24:46.468] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5j"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:46.639] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5j"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 171.56859999895096
+[08:24:46.704] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5i"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 407.8694000020623
+[08:24:46.706] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5k"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:46.765] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5k"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 59.05240000039339
+[08:24:47.359] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5l"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aplvd0i7",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:47.360] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aplvd0i7 not found[39m
+    reqId: "req-5l"
+[08:24:47.360] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5l"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.532600000500679
+[08:24:48.253] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5m"
+    req: {
+      "method": "PATCH",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:48.311] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5m"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.43479999899864
+[08:24:48.872] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5n"
+    req: {
+      "method": "PATCH",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:48.931] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5n"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.50239999964833
+[08:24:49.967] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5o"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=apnvvwl6",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:49.967] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=apnvvwl6 not found[39m
+    reqId: "req-5o"
+[08:24:49.967] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5o"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.5984000004827976
+[08:24:51.420] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5p"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:51.421] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5p"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.8357999995350838
+[08:24:51.423] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5q"
+    req: {
+      "method": "PATCH",
+      "url": "/api/tickets/b30632e0-ce31-4250-b83c-f505d47426d9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:51.543] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5q"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 119.42150000110269
+[08:24:52.486] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5r"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:52.487] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5r"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.8437000028789043
+[08:24:52.491] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5s"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:52.492] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5s"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.49300000071525574
+[08:24:52.496] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5t"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:52.613] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5t"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.05800000205636
+[08:24:52.614] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5u"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=100",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:52.731] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5u"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 116.30119999870658
+[08:24:53.876] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5v"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=apqwf7kq",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:53.876] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=apqwf7kq not found[39m
+    reqId: "req-5v"
+[08:24:53.876] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5v"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.36149999871850014
+[08:24:56.751] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5w"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 49667
+    }
+[08:24:56.752] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5w"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7237999998033047
+[08:24:56.753] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5x"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:56.755] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5x"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 1.141499999910593
+[08:24:56.755] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5y"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:56.756] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5y"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.541899997740984
+[08:24:56.756] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-5z"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52956
+    }
+[08:24:56.757] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-5z"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.45830000191926956
+[08:24:56.766] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-60"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52956
+    }
+[08:24:56.768] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-61"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:56.827] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-61"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.842000000178814
+[08:24:56.829] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-62"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:56.882] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-60"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.98699999973178
+[08:24:56.885] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-63"
+    req: {
+      "method": "GET",
+      "url": "/api/knowledge?category=&search=",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:56.889] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-62"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 59.69810000061989
+[08:24:56.999] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-63"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.33480000123382
+[08:24:58.881] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-64"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=apurhbaf",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:58.881] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=apurhbaf not found[39m
+    reqId: "req-64"
+[08:24:58.881] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-64"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.32519999891519547
+[08:24:58.955] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-65"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:58.957] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-65"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 1.910300001502037
+[08:24:58.957] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-66"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:58.958] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-66"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.48839999735355377
+[08:24:58.967] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-67"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:24:59.083] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-67"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.79120000079274
+[08:24:59.086] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-68"
+    req: {
+      "method": "GET",
+      "url": "/api/tickets?pageSize=1000",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:24:59.201] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-68"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.48890000209212
+[08:25:02.073] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-69"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:02.074] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-69"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.556599996984005
+[08:25:02.078] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6a"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:02.079] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6a"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.4488999992609024
+[08:25:02.085] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6b"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:02.144] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6b"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.33100000023842
+[08:25:02.146] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6c"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:02.258] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6c"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 112.29620000347495
+[08:25:03.202] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6d"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:03.203] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6d"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3279999978840351
+[08:25:03.205] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6e"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:03.205] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6e"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.2743000015616417
+[08:25:03.206] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6f"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52956
+    }
+[08:25:03.206] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6f"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.28600000217556953
+[08:25:03.207] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6g"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:03.208] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6g"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.42669999971985817
+[08:25:03.212] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6h"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:03.217] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6i"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 52956
+    }
+[08:25:03.332] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6i"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.31599999964237
+[08:25:03.333] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6j"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:03.447] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6j"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 113.7558999992907
+[08:25:03.674] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6h"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 461.36169999837875
+[08:25:03.677] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6k"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:03.888] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6l"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=apymi94x",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:03.888] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=apymi94x not found[39m
+    reqId: "req-6l"
+[08:25:03.888] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6l"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.6795000024139881
+[08:25:04.137] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6k"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 459.7313000001013
+[08:25:04.722] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6m"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:04.783] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6m"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 60.09760000184178
+[08:25:05.718] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6n"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/stats",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:05.719] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6o"
+    req: {
+      "method": "GET",
+      "url": "/api/admin/audit-log?limit=10",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59445
+    }
+[08:25:05.834] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6o"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 114.55200000107288
+[08:25:06.176] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6n"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 457.5938000008464
+[08:25:08.899] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6p"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aq2hq0lx",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:08.899] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aq2hq0lx not found[39m
+    reqId: "req-6p"
+[08:25:08.900] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6p"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.6772000007331371
+[08:25:08.999] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6q"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:09.000] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6q"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.30240000039339066
+[08:25:09.002] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6r"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:09.060] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6r"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.34580000117421
+[08:25:09.281] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6s"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:09.282] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6s"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.7660999968647957
+[08:25:09.287] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6t"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:09.402] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6t"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 115.36439999938011
+[08:25:10.525] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6u"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:10.583] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6u"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.44480000063777
+[08:25:13.918] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6v"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aq6d7kd0",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:13.918] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aq6d7kd0 not found[39m
+    reqId: "req-6v"
+[08:25:13.918] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6v"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.624499998986721
+[08:25:18.469] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6w"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:18.469] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6w"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.3187999986112118
+[08:25:18.472] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6x"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:18.532] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6x"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 59.78790000081062
+[08:25:18.939] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6y"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqa8nxgu",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:18.939] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqa8nxgu not found[39m
+    reqId: "req-6y"
+[08:25:18.940] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6y"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.6983000002801418
+[08:25:19.034] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-6z"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/sla-policies",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:19.035] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-6z"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.42590000107884407
+[08:25:19.039] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-70"
+    req: {
+      "method": "GET",
+      "url": "/api/sla-policies",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:19.103] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-70"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 63.515499997884035
+[08:25:19.548] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-71"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:19.549] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-71"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.40610000118613243
+[08:25:19.551] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-72"
+    req: {
+      "method": "GET",
+      "url": "/api/users",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:19.609] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-72"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 58.08509999886155
+[08:25:20.108] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-73"
+    req: {
+      "method": "GET",
+      "url": "/api/categories",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:20.222] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-73"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 113.80270000174642
+[08:25:23.951] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-74"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqe3v8rg",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:23.951] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqe3v8rg not found[39m
+    reqId: "req-74"
+[08:25:23.952] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-74"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.7774999998509884
+[08:25:28.732] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-75"
+    req: {
+      "method": "OPTIONS",
+      "url": "/api/users/6f3c7b1e-f0c2-4bd9-a3d9-e23a00a9e4da",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:28.733] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-75"
+    res: {
+      "statusCode": 204
+    }
+    responseTime: 0.6446000002324581
+[08:25:28.736] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-76"
+    req: {
+      "method": "PATCH",
+      "url": "/api/users/6f3c7b1e-f0c2-4bd9-a3d9-e23a00a9e4da",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:28.854] [31mERROR[39m (12004): [36mcolumn "user_id" of relation "audit_log" does not exist[39m
+    err: {
+      "type": "DatabaseError",
+      "message": "column \"user_id\" of relation \"audit_log\" does not exist",
+      "stack":
+          error: column "user_id" of relation "audit_log" does not exist
+              at C:\Users\lucas.jensen\Downloads\Resolv\node_modules\pg-pool\index.js:45:11
+              at processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at Object.<anonymous> (C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\routes\users.ts:134:7)
+      "length": 129,
+      "name": "error",
+      "severity": "ERROR",
+      "code": "42703",
+      "position": "24",
+      "file": "parse_target.c",
+      "line": "1065",
+      "routine": "checkInsertTargets"
+    }
+[08:25:28.871] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-76"
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 135.41409999877214
+[08:25:28.968] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-77"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqhz6nlc",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:28.968] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqhz6nlc not found[39m
+    reqId: "req-77"
+[08:25:28.969] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-77"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.7166000008583069
+[08:25:33.977] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-78"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqlugf58",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:33.977] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqlugf58 not found[39m
+    reqId: "req-78"
+[08:25:33.977] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-78"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.19690000265836716
+[08:25:39.003] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-79"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqppw6bq",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:39.003] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqppw6bq not found[39m
+    reqId: "req-79"
+[08:25:39.004] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-79"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.25939999893307686
+[08:25:44.021] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7a"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqtlhlts",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:44.021] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqtlhlts not found[39m
+    reqId: "req-7a"
+[08:25:44.022] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7a"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.309299997985363
+[08:25:49.033] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7b"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=aqxgn679",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:49.033] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=aqxgn679 not found[39m
+    reqId: "req-7b"
+[08:25:49.033] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7b"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.21930000185966492
+[08:25:54.038] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7c"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=ar1bpit9",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:54.038] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=ar1bpit9 not found[39m
+    reqId: "req-7c"
+[08:25:54.038] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7c"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.33960000053048134
+[08:25:59.047] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7d"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=ar56rrsb",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:25:59.047] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=ar56rrsb not found[39m
+    reqId: "req-7d"
+[08:25:59.048] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7d"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.8216000013053417
+[08:26:04.797] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7e"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=ar9md41b",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:26:04.797] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=ar9md41b not found[39m
+    reqId: "req-7e"
+[08:26:04.798] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7e"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.3319000005722046
+[08:26:10.791] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7f"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=are91ow0",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:26:10.791] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=are91ow0 not found[39m
+    reqId: "req-7f"
+[08:26:10.791] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7f"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.5315000005066395
+[08:26:16.793] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7g"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=arivi4gt",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:26:16.793] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=arivi4gt not found[39m
+    reqId: "req-7g"
+[08:26:16.795] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7g"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 1.3811999969184399
+[08:26:22.794] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7h"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=arnif1ua",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:26:22.794] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=arnif1ua not found[39m
+    reqId: "req-7h"
+[08:26:22.794] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7h"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.33660000190138817
+[08:26:28.787] [32mINFO[39m (12004): [36mincoming request[39m
+    reqId: "req-7i"
+    req: {
+      "method": "GET",
+      "url": "/socket.io/?EIO=4&transport=polling&t=ars4vdwx",
+      "hostname": "localhost:3001",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 59549
+    }
+[08:26:28.787] [32mINFO[39m (12004): [36mRoute GET:/socket.io/?EIO=4&transport=polling&t=ars4vdwx not found[39m
+    reqId: "req-7i"
+[08:26:28.788] [32mINFO[39m (12004): [36mrequest completed[39m
+    reqId: "req-7i"
+    res: {
+      "statusCode": 404
+    }
+    responseTime: 0.9945999979972839
+[INFO] 08:26:34 Restarting: C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts has been modified
+[08:26:35.198] [32mINFO[39m (12308): [36mServer listening at http://0.0.0.0:3001[39m
+[INFO] 08:26:46 Restarting: C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts has been modified
+[08:26:46.920] [32mINFO[39m (18076): [36mServer listening at http://0.0.0.0:3001[39m
+[INFO] 08:26:49 Restarting: C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts has been modified
+[08:26:50.365] [32mINFO[39m (3156): [36mServer listening at http://0.0.0.0:3001[39m
+[INFO] 08:31:16 Restarting: C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts has been modified
+[08:31:17.133] [32mINFO[39m (9684): [36mServer listening at http://0.0.0.0:3001[39m
+[08:31:17.134] [32mINFO[39m (9684): [36mResolv API running on http://0.0.0.0:3001[39m
