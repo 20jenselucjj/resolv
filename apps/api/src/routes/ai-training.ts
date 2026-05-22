@@ -461,10 +461,9 @@ export async function syncTicketToKnowledgeBase(ticketId: string, userId: string
     const { rows: tickets } = await pool.query(
       `SELECT t.id, t.title, t.description, t.close_notes, t.status, t.priority,
               c.name as category_name,
-              array_agg(DISTINCT tc.body ORDER BY tc.created_at ASC) FILTER (WHERE tc.body IS NOT NULL) as comments
+              (SELECT array_agg(body ORDER BY created_at ASC) FROM ticket_comments WHERE ticket_id = t.id AND body IS NOT NULL) as comments
        FROM tickets t
        LEFT JOIN categories c ON t.category_id = c.id
-       LEFT JOIN ticket_comments tc ON tc.ticket_id = t.id
        WHERE t.id = $1
        GROUP BY t.id, t.title, t.description, t.close_notes, t.status, t.priority, c.name`,
       [ticketId]
@@ -651,11 +650,24 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const { rows } = await pool.query(
       `UPDATE ai_knowledge_sources SET name=COALESCE($1,name), tags=COALESCE($2,tags),
        category=COALESCE($3,category), classification=COALESCE($4,classification),
-       is_active=COALESCE($5,is_active), updated_at=NOW() WHERE id=$6 RETURNING *`,
-      [body.name, body.tags, body.category, body.classification, body.is_active, id]
+       raw_content=COALESCE($5,raw_content),
+       is_active=COALESCE($6,is_active), updated_at=NOW() WHERE id=$7 RETURNING *`,
+      [body.name, body.tags, body.category, body.classification, body.raw_content, body.is_active, id]
     )
     if (rows.length === 0) return reply.status(404).send({ error: 'Source not found' })
-    return reply.send({ data: rows[0] })
+
+    const updated = rows[0]
+
+    // If raw_content changed, reprocess the source
+    if (body.raw_content !== undefined) {
+      const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
+      const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
+      const cfg = cfgRows[0] || null
+      const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+      processSource(id, body.raw_content, cfg, ragCfg).catch(console.error)
+    }
+
+    return reply.send({ data: updated })
   })
 
   // ── DELETE /ai/knowledge/sources/:id ───────────────────────────────────────
@@ -962,10 +974,9 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const { rows: tickets } = await pool.query(
       `SELECT t.id, t.title, t.description, t.close_notes, t.status, t.priority,
               c.name as category_name,
-              array_agg(DISTINCT tc.body ORDER BY tc.created_at ASC) FILTER (WHERE tc.body IS NOT NULL) as comments
+              (SELECT array_agg(body ORDER BY created_at ASC) FROM ticket_comments WHERE ticket_id = t.id AND body IS NOT NULL) as comments
        FROM tickets t
        LEFT JOIN categories c ON t.category_id = c.id
-       LEFT JOIN ticket_comments tc ON tc.ticket_id = t.id
        WHERE t.status IN ('resolved','closed')
        GROUP BY t.id, t.title, t.description, t.close_notes, t.status, t.priority, c.name
        ORDER BY t.updated_at DESC

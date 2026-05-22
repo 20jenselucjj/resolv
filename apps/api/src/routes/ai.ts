@@ -343,11 +343,30 @@ export async function aiRoutes(app: FastifyInstance) {
             const { rows } = await pool.query(q, params)
             result = { tickets: rows, count: rows.length }
           } else if (tc.function.name === 'search_knowledge') {
-            const { rows } = await pool.query(
+            // Search both knowledge_articles AND AI training sources (RAG chunks)
+            const query = args.query || ''
+            const likePattern = `%${query}%`
+            const terms = query.replace(/[^\w\s]/g, ' ').trim().split(/\s+/).filter(Boolean)
+            const likeConds = terms.map((_: string, i: number) => `c.content ILIKE $${i + 1}`).join(' AND ')
+
+            const { rows: articles } = await pool.query(
               `SELECT id, title, LEFT(body, 300) AS excerpt FROM knowledge_articles WHERE status='published' AND (title ILIKE $1 OR body ILIKE $1) LIMIT 5`,
-              [`%${args.query}%`]
+              [likePattern]
             )
-            result = { articles: rows, count: rows.length }
+            // Also search AI training chunks (RAG knowledge base)
+            let ragChunks: any[] = []
+            if (terms.length > 0 && likeConds) {
+              const { rows } = await pool.query(
+                `SELECT c.content, s.name as source_name, s.category
+                 FROM ai_knowledge_chunks c
+                 JOIN ai_knowledge_sources s ON c.source_id = s.id
+                 WHERE s.is_active = true AND s.status = 'ready' AND ${likeConds}
+                 LIMIT 5`,
+                 terms.map((t: string) => `%${t}%`)
+              )
+              ragChunks = rows
+            }
+            result = { articles, rag_chunks: ragChunks, count: articles.length + ragChunks.length }
           } else if (tc.function.name === 'get_stats') {
             if (user.role === 'user') {
               result = { error: 'Access denied' }

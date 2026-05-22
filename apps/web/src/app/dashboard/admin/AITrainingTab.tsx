@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import {
   Brain, Upload, Link, FileText, MessageSquare, Settings, FlaskConical,
   BarChart3, Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Clock,
-  Shield, ChevronDown, ChevronUp, X, Search, BookOpen, Zap, Eye, Flag, Activity
+  Shield, ChevronDown, ChevronUp, X, Search, BookOpen, Zap, Eye, Flag, Activity, Edit3
 } from 'lucide-react';
 
 interface KnowledgeSource {
@@ -104,6 +104,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
   // --- Sub-tab 1: Sources State ---
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [showAddSource, setShowAddSource] = useState(false);
+  const [editingSource, setEditingSource] = useState<KnowledgeSource | null>(null);
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
   const [sourceChunks, setSourceChunks] = useState<Record<string, Chunk[]>>({});
   const [loadingChunks, setLoadingChunks] = useState<Record<string, boolean>>({});
@@ -213,13 +214,23 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         source_type: sourceForm.source_type,
         category: sourceForm.category,
         classification: sourceForm.classification,
-        tags: sourceForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: sourceForm.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
         raw_content: sourceForm.source_type === 'manual' ? sourceForm.raw_content : undefined,
         url: sourceForm.source_type === 'url' ? sourceForm.url : undefined
       };
-      await api.post('/ai/knowledge/sources', payload);
-      showAlert('Knowledge source added successfully');
-      setShowAddSource(false);
+
+      if (editingSource) {
+        // Update existing source
+        await api.patch(`/ai/knowledge/sources/${editingSource.id}`, payload);
+        showAlert('Knowledge source updated');
+        setEditingSource(null);
+      } else {
+        // Create new source
+        await api.post('/ai/knowledge/sources', payload);
+        showAlert('Knowledge source added successfully');
+        setShowAddSource(false);
+      }
+
       setSourceForm({
         name: '',
         source_type: 'manual',
@@ -231,8 +242,36 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       });
       loadTabSpecificData();
     } catch (err: any) {
-      showAlert(err.message || 'Failed to create knowledge source', 'error');
+      showAlert(err.message || 'Failed to save knowledge source', 'error');
     }
+  };
+
+  const handleStartEditSource = (source: KnowledgeSource) => {
+    setSourceForm({
+      name: source.name,
+      source_type: source.source_type === 'url' ? 'url' : 'manual',
+      category: source.category || '',
+      classification: source.classification,
+      tags: (source.tags || []).join(', '),
+      raw_content: source.raw_content || '',
+      url: source.url || ''
+    });
+    setEditingSource(source);
+    setShowAddSource(true);
+  };
+
+  const handleCancelEditSource = () => {
+    setEditingSource(null);
+    setSourceForm({
+      name: '',
+      source_type: 'manual',
+      category: '',
+      classification: 'unclassified',
+      tags: '',
+      raw_content: '',
+      url: ''
+    });
+    setShowAddSource(false);
   };
 
   const toggleSourceActive = async (id: string, currentStatus: boolean) => {
@@ -609,8 +648,9 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
           {/* Add Source Inline Form */}
           {showAddSource && (
             <form onSubmit={handleAddSource} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-                Ingest New Knowledge Source
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                <span>{editingSource ? 'Edit Knowledge Source' : 'Ingest New Knowledge Source'}</span>
+                {editingSource && <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>Editing: {editingSource.name}</span>}
               </h4>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -724,7 +764,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAddSource(false)}
+                  onClick={editingSource ? handleCancelEditSource : () => setShowAddSource(false)}
                   style={{
                     padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
                     background: 'transparent', color: 'var(--text)', fontSize: '13px', cursor: 'pointer'
@@ -739,7 +779,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                     background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer'
                   }}
                 >
-                  Submit Ingestion
+                  {editingSource ? 'Save Changes' : 'Submit Ingestion'}
                 </button>
               </div>
             </form>
@@ -881,6 +921,15 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                                   transition: 'left 0.2s ease'
                                 }} />
                               </div>
+
+                              {/* Edit */}
+                              <button
+                                onClick={() => handleStartEditSource(source)}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                                title="Edit Source"
+                              >
+                                <Edit3 size={14} />
+                              </button>
 
                               {/* Reprocess */}
                               <button
