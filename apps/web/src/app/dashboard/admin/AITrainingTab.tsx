@@ -51,6 +51,7 @@ interface RAGConfig {
   chunk_overlap: number;
   citation_mode: 'inline' | 'footer' | 'none';
   inject_context: boolean;
+  semantic_weight: number;
 }
 
 interface TestResult {
@@ -144,7 +145,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
     chunk_size: 512,
     chunk_overlap: 64,
     citation_mode: 'inline',
-    inject_context: true
+    inject_context: true,
+    semantic_weight: 0.6
   });
   const [savingConfig, setSavingConfig] = useState(false);
 
@@ -1317,14 +1319,35 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                     </div>
                     <input
                       type="range"
-                      min="0.50"
-                      max="0.99"
-                      step="0.01"
+                      min="0.5"
+                      max="0.95"
+                      step="0.05"
                       value={ragConfig.similarity_threshold}
                       onChange={e => setRagConfig({ ...ragConfig, similarity_threshold: parseFloat(e.target.value) })}
                       style={{ accentColor: 'var(--accent)' }}
                     />
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Ignore retrieved vectors with scores lower than this percentage.</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Minimum cosine similarity threshold for vector retrieval.</span>
+                  </div>
+                )}
+
+                {ragConfig.retrieval_strategy === 'hybrid' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600 }}>
+                      <span>Semantic Weight</span>
+                      <span style={{ color: 'var(--accent)' }}>{(ragConfig.semantic_weight * 100).toFixed(0)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={ragConfig.semantic_weight}
+                      onChange={e => setRagConfig({ ...ragConfig, semantic_weight: parseFloat(e.target.value) })}
+                      style={{ accentColor: 'var(--accent)' }}
+                    />
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Balances semantic (vector) vs keyword (full-text) scores in hybrid retrieval. Higher = more emphasis on meaning over exact words.
+                    </span>
                   </div>
                 )}
 

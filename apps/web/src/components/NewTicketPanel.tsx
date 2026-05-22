@@ -14,6 +14,11 @@ const TICKET_TYPE_OPTIONS = [
   { value: 'change',          label: 'Change' },
 ];
 
+const USER_TICKET_TYPE_OPTIONS = [
+  { value: 'incident',        label: 'Incident' },
+  { value: 'service_request', label: 'Request' },
+];
+
 const PRIORITY_OPTIONS = [
   { value: 'low',      label: 'Low',      color: 'var(--priority-low)' },
   { value: 'medium',   label: 'Medium',   color: 'var(--priority-medium)' },
@@ -244,12 +249,12 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                   style={{ height: 28, fontSize: 12, padding: '0 24px 0 8px', minWidth: 130 }}
                   onClick={e => e.stopPropagation()}
                 >
-                  {TICKET_TYPE_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  {(user?.role === 'user' ? USER_TICKET_TYPE_OPTIONS : TICKET_TYPE_OPTIONS).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
 
-              {/* Template dropdown */}
-              {templates.length > 0 && (
+              {/* Template dropdown — agents+ only */}
+              {user?.role !== 'user' && templates.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Template</span>
                   <select
@@ -265,15 +270,17 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                 </div>
               )}
 
-              {/* Save template button */}
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setShowSaveTemplate(true); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 4, marginLeft: 'auto' }}
-                title="Save as Template"
-              >
-                <Sparkles size={14} />
-              </button>
+              {/* Save template button — agents+ only */}
+              {user?.role !== 'user' && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowSaveTemplate(true); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 4, marginLeft: 'auto' }}
+                  title="Save as Template"
+                >
+                  <Sparkles size={14} />
+                </button>
+              )}
             </>
           )}
 
@@ -331,44 +338,46 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                 />
               </div>
 
-              {/* Priority */}
-              <div>
-                <label style={panelLabelStyle}>Priority</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {PRIORITY_OPTIONS.map(p => (
-                    <button key={p.value} type="button"
-                      onClick={() => setForm(f => ({ ...f, priority: p.value }))}
-                      style={{
-                        flex: 1, padding: '5px 4px', borderRadius: 'var(--radius-sm)',
-                        border: `1px solid ${form.priority === p.value ? p.color : 'var(--border)'}`,
-                        background: form.priority === p.value ? `${p.color}18` : 'var(--bg-secondary)',
-                        cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                        color: form.priority === p.value ? p.color : 'var(--text-secondary)',
-                        transition: 'all 0.15s',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      }}
-                    >
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Status + Reporter row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {/* Priority — agents+ only */}
+              {user?.role !== 'user' && (
                 <div>
-                  <label style={panelLabelStyle}>Status</label>
-                  <select
-                    className="select"
-                    value={form.status}
-                    onChange={e => handleStatusChange(e.target.value)}
-                    style={{ width: '100%', fontSize: 12, height: 34 }}
-                  >
-                    {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
+                  <label style={panelLabelStyle}>Priority</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {PRIORITY_OPTIONS.map(p => (
+                      <button key={p.value} type="button"
+                        onClick={() => setForm(f => ({ ...f, priority: p.value }))}
+                        style={{
+                          flex: 1, padding: '5px 4px', borderRadius: 'var(--radius-sm)',
+                          border: `1px solid ${form.priority === p.value ? p.color : 'var(--border)'}`,
+                          background: form.priority === p.value ? `${p.color}18` : 'var(--bg-secondary)',
+                          cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                          color: form.priority === p.value ? p.color : 'var(--text-secondary)',
+                          transition: 'all 0.15s',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        }}
+                      >
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {user?.role !== 'user' && (
+              )}
+
+              {/* Status + Reporter row — agents+ only */}
+              {user?.role !== 'user' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={panelLabelStyle}>Status</label>
+                    <select
+                      className="select"
+                      value={form.status}
+                      onChange={e => handleStatusChange(e.target.value)}
+                      style={{ width: '100%', fontSize: 12, height: 34 }}
+                    >
+                      {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label style={panelLabelStyle}>Reporter</label>
                     <div className="select-wrapper" style={{ width: '100%' }}>
@@ -380,19 +389,19 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                       />
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Category + Assignee row */}
-              <div style={{ display: 'grid', gridTemplateColumns: user?.role !== 'user' ? '1fr 1fr' : '1fr', gap: 10 }}>
-                <div>
-                  <label style={panelLabelStyle}>Category</label>
-                  <select className="select" value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} style={{ width: '100%', fontSize: 12, height: 34 }}>
-                    <option value="">Select...</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
                 </div>
-                {user?.role !== 'user' && (
+              )}
+
+              {/* Category + Assignee row — hide category for users, whole row for agents+ */}
+              {user?.role !== 'user' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={panelLabelStyle}>Category</label>
+                    <select className="select" value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} style={{ width: '100%', fontSize: 12, height: 34 }}>
+                      <option value="">Select...</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label style={panelLabelStyle}>Assignee</label>
                     <div className="select-wrapper" style={{ width: '100%' }}>
@@ -404,8 +413,8 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                       />
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : null}
 
               {/* Due Date */}
               <div>

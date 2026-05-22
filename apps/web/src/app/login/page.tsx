@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore, User } from '@/lib/store';
 import { AlertTriangle, Eye, EyeOff, Building2, X } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUser, setToken } = useStore();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ email: '', password: '', name: '' });
@@ -21,19 +22,13 @@ export default function LoginPage() {
     return false;
   });
 
-  const [ssoEnabled, setSsoEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_enabled') === 'true';
-    }
-    return false;
-  });
-  const [ssoProvider, setSsoProvider] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_provider_name') || 'SSO';
-    }
-    return 'SSO';
-  });
-  const [ssoMessage, setSsoMessage] = useState('');
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+  const [ssoProvider, setSsoProvider] = useState('SSO');
+  const [ssoConfigLoading, setSsoConfigLoading] = useState(true);
+
+  // Login mode state: 'both' | 'sso_only' | 'password_only'
+  const [loginMode, setLoginMode] = useState<'both' | 'sso_only' | 'password_only'>('both');
+  const [emergencyKey, setEmergencyKey] = useState<string | null>(null);
 
   // Forgot password modal state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -51,14 +46,105 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Fetch SSO/OAuth config from backend (replaces localStorage stub)
+  useEffect(() => {
+    async function fetchSsoConfig() {
+      try {
+        const res = await api.get<{ data: { enabled: boolean; provider: string | null; provider_name: string | null; login_mode: string; has_emergency_bypass: boolean } }>('/auth/oauth/config');
+        if (res.data?.enabled) {
+          setSsoEnabled(true);
+          setSsoProvider(res.data.provider_name || 'Google');
+        } else {
+          setSsoEnabled(false);
+        }
+        // Read login mode from config
+        if (res.data?.login_mode) {
+          setLoginMode(res.data.login_mode as 'both' | 'sso_only' | 'password_only');
+        }
+      } catch {
+        setSsoEnabled(false);
+      } finally {
+        setSsoConfigLoading(false);
+      }
+    }
+    fetchSsoConfig();
+  }, []);
+
+  // Extract emergency key from URL params (for SSO-only bypass)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const emergency = searchParams?.get('emergency');
+    if (emergency) {
+      setEmergencyKey(emergency);
+      // Clean URL to keep the key hidden
+      router.replace('/login');
+    }
+  }, [searchParams, router]);
+
+  // Handle OAuth callback (token or error in URL params)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const token = searchParams?.get('token');
+    const errorCode = searchParams?.get('error');
+
+    if (token) {
+      // Store the token and redirect — the /auth/me call will populate user data
+      localStorage.setItem('resolv_token', token);
+      setToken(token);
+      // Fetch user data with the new token
+      api.get<{ data: User }>('/auth/me')
+        .then(res => {
+          setUser(res.data);
+          router.replace(res.data.role === 'user' ? '/dashboard/portal' : '/dashboard/tickets');
+        })
+        .catch(() => {
+          setError('SSO login succeeded but failed to load profile. Please try again.');
+        });
+      return;
+    }
+
+    if (errorCode) {
+      const errorMessages: Record<string, string> = {
+        sso_not_configured: 'SSO is not configured. Please contact your administrator.',
+        sso_config_error: 'SSO configuration is invalid.',
+        sso_denied: 'You denied the SSO login request.',
+        sso_invalid: 'The SSO login request was invalid. Please try again.',
+        sso_expired: 'The SSO login request has expired. Please try again.',
+        sso_token_failed: 'SSO token exchange failed.',
+        sso_no_id_token: 'No identity token received from SSO provider.',
+        sso_no_email: 'Could not retrieve your email from the SSO provider.',
+        sso_account_disabled: 'Your account has been disabled. Please contact your administrator.',
+        sso_error: 'An SSO error occurred. Please try again.',
+        sso_disabled: 'SSO sign-in is currently disabled. Please sign in with your email and password.',
+      };
+
+      // Check for a detailed error message from the backend
+      const errorDetail = searchParams?.get('error_detail');
+      const baseMsg = errorMessages[errorCode] || `SSO error: ${errorCode}`;
+      if (errorDetail && errorCode === 'sso_token_failed') {
+        setError(`${baseMsg} ${errorDetail}`);
+      } else {
+        setError(baseMsg);
+      }
+
+      // Clean the URL
+      router.replace('/login');
+    }
+  }, [searchParams, setToken, setUser, router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      const loginPayload: Record<string, string> = { email: form.email, password: form.password };
+      if (emergencyKey) {
+        loginPayload.emergency_key = emergencyKey;
+      }
       const res = await api.post<{ data: { user: User; token: string } }>(
         mode === 'login' ? '/auth/login' : '/auth/register',
-        mode === 'login' ? { email: form.email, password: form.password } : form
+        mode === 'login' ? loginPayload : form
       );
       setToken(res.data.token);
       setUser(res.data.user);
@@ -69,7 +155,7 @@ export default function LoginPage() {
         localStorage.removeItem('resolv_remember_me');
         localStorage.removeItem('resolv_remembered_email');
       }
-      router.push('/dashboard/tickets');
+      router.push(res.data.user.role === 'user' ? '/dashboard/portal' : '/dashboard/tickets');
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -82,10 +168,7 @@ export default function LoginPage() {
   }
 
   function handleSsoClick() {
-    setSsoMessage('Redirecting to SSO provider...');
-    setTimeout(() => {
-      setSsoMessage('');
-    }, 3000);
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/oauth/google/authorize`;
   }
 
   async function handleForgotSubmit(e: React.FormEvent) {
@@ -187,6 +270,8 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Conditionally show password form (hidden in SSO-only mode without emergency key) */}
+            {!(loginMode === 'sso_only' && !emergencyKey && mode === 'login') && (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {mode === 'register' && (
                 <div>
@@ -294,15 +379,31 @@ export default function LoginPage() {
                 {mode === 'login' ? 'Sign In' : 'Create Account'}
               </button>
             </form>
+            )}
 
-            {ssoEnabled && mode === 'login' && (
+                {/* SSO button — show when enabled and not in password_only mode */}
+                {ssoEnabled && !ssoConfigLoading && mode === 'login' && loginMode !== 'password_only' && (
               <div style={{ marginTop: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                  <div style={{ height: '1px', flex: 1, backgroundColor: '#334155' }} />
-                  <span style={{ color: '#64748B', fontSize: '13px' }}>or</span>
-                  <div style={{ height: '1px', flex: 1, backgroundColor: '#334155' }} />
-                </div>
+                {/* Show "or" divider only when both password form and SSO are visible */}
+                {loginMode !== 'sso_only' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ height: '1px', flex: 1, backgroundColor: '#334155' }} />
+                    <span style={{ color: '#64748B', fontSize: '13px' }}>or</span>
+                    <div style={{ height: '1px', flex: 1, backgroundColor: '#334155' }} />
+                  </div>
+                )}
                 
+                {loginMode === 'sso_only' && (
+                  <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+                    <p style={{ color: '#94A3B8', fontSize: '14px', margin: '0 0 4px 0' }}>
+                      Sign in with your organization account
+                    </p>
+                    <p style={{ color: '#64748B', fontSize: '12px', margin: 0 }}>
+                      Use your company credentials to access the system.
+                    </p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleSsoClick}
                   className="btn-sso"
@@ -326,23 +427,20 @@ export default function LoginPage() {
                   <Building2 size={18} color="#475569" />
                   Continue with {ssoProvider}
                 </button>
-                {ssoMessage && (
-                  <p style={{ color: '#60A5FA', fontSize: '13px', textAlign: 'center', marginTop: '12px', marginBottom: 0 }}>
-                    {ssoMessage}
-                  </p>
-                )}
               </div>
             )}
 
+            {!(loginMode === 'sso_only' && !emergencyKey && mode === 'login') && (
             <div style={{ marginTop: '32px', textAlign: 'center' }}>
               <button
                 onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
                 className="link-hover"
                 style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '14px', cursor: 'pointer' }}
               >
-                {mode === 'login' ? "Don't have an account? Register" : "Already have an account? Sign in"}
+                {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign in'}
               </button>
             </div>
+            )}
             </div>
           </div>
 
@@ -473,6 +571,18 @@ export default function LoginPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0F172A', color: '#94A3B8' }}>
+        Loading...
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
 

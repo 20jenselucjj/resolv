@@ -7,7 +7,7 @@ import {
   Plus, Search, ChevronUp, ChevronDown, ChevronsUpDown,
   Filter, X, RefreshCw, ArrowUpRight, Download,
   Clock, Calendar, Users, Settings2, Ghost, LayoutGrid,
-  AlertTriangle, Package, GitBranch, Book, Layers
+  AlertTriangle, Package, GitBranch, Book, Layers, FileText
 } from 'lucide-react';
 import { InlineSelect } from '@/components/InlineSelect';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
@@ -136,7 +136,12 @@ export default function TicketsPage() {
   const [status, setStatus] = useState(searchParams.get('status') || initialFilters.status || 'all');
   const [priority, setPriority] = useState(searchParams.get('priority') || initialFilters.priority || 'all');
   const [type, setType] = useState(searchParams.get('type') || initialFilters.type || 'all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try { return localStorage.getItem('resolv_ticket_search') || ''; } catch { return ''; }
+    }
+    return '';
+  });
   const [total, setTotal] = useState(0);
   const [showNewTicketPanel, setShowNewTicketPanel] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -154,15 +159,36 @@ export default function TicketsPage() {
   const searchRef = useRef<HTMLDivElement>(null);
   useClickOutside(searchRef as React.RefObject<HTMLElement>, () => setShowRecentSearch(false));
   
-  const [sortField, setSortField] = useState<SortField>('number');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const initialSort = useMemo(() => {
+    if (typeof window === 'undefined') return { field: 'number' as SortField, dir: 'desc' as SortDir };
+    try {
+      const saved = localStorage.getItem('resolv_ticket_sort');
+      return saved ? JSON.parse(saved) : { field: 'number', dir: 'desc' };
+    } catch {
+      return { field: 'number', dir: 'desc' };
+    }
+  }, []);
+
+  const [sortField, setSortField] = useState<SortField>(initialSort.field);
+  const [sortDir, setSortDir] = useState<SortDir>(initialSort.dir);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const initialVisibleCols = useMemo<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set(ALL_COLUMNS.map(c => c.id));
+    try {
+      const saved = localStorage.getItem('resolv_ticket_visible_cols');
+      if (saved) return new Set(JSON.parse(saved));
+      return new Set(ALL_COLUMNS.map(c => c.id));
+    } catch {
+      return new Set(ALL_COLUMNS.map(c => c.id));
+    }
+  }, []);
 
   // New features state
   const [currentView, setCurrentView] = useState(initialFilters.currentView || 'All');
   const [assigneeFilter, setAssigneeFilter] = useState(initialFilters.assigneeFilter || 'all');
   const [dateFilter, setDateFilter] = useState(initialFilters.dateFilter || 'all');
-  const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(ALL_COLUMNS.map(c => c.id)));
+  const [visibleCols, setVisibleCols] = useState<Set<string>>(initialVisibleCols);
   const [showColToggle, setShowColToggle] = useState(false);
   const colToggleRef = useRef<HTMLDivElement>(null);
   const [showBulkAssign, setShowBulkAssign] = useState(false);
@@ -189,6 +215,15 @@ export default function TicketsPage() {
   // Column resizing
 
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    if (typeof window === 'undefined') {
+      const initial: Record<string, number> = {};
+      ALL_COLUMNS.forEach(c => { if (c.width) initial[c.id] = c.width; });
+      return initial;
+    }
+    try {
+      const saved = localStorage.getItem('resolv_ticket_col_widths');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
     const initial: Record<string, number> = {};
     ALL_COLUMNS.forEach(c => { if (c.width) initial[c.id] = c.width; });
     return initial;
@@ -225,6 +260,7 @@ export default function TicketsPage() {
   }, []);
 
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
+  const isUser = user?.role === 'user';
 
   const viewCounts = useMemo<Record<string, number>>(() => {
     return {
@@ -291,6 +327,29 @@ export default function TicketsPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [fetchTickets]);
+
+  // Auto-save all filter, sort, search, and column state to localStorage
+  useEffect(() => {
+    const filters = { status, priority, type, currentView, assigneeFilter, dateFilter };
+    localStorage.setItem('resolv_ticket_filters', JSON.stringify(filters));
+  }, [status, priority, type, currentView, assigneeFilter, dateFilter]);
+
+  useEffect(() => {
+    if (search) localStorage.setItem('resolv_ticket_search', search);
+    else localStorage.removeItem('resolv_ticket_search');
+  }, [search]);
+
+  useEffect(() => {
+    localStorage.setItem('resolv_ticket_sort', JSON.stringify({ field: sortField, dir: sortDir }));
+  }, [sortField, sortDir]);
+
+  useEffect(() => {
+    localStorage.setItem('resolv_ticket_visible_cols', JSON.stringify([...visibleCols]));
+  }, [visibleCols]);
+
+  useEffect(() => {
+    localStorage.setItem('resolv_ticket_col_widths', JSON.stringify(colWidths));
+  }, [colWidths]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter(t => {
@@ -459,6 +518,152 @@ export default function TicketsPage() {
 
   const rowPad = density === 'compact' ? '7px 16px' : '11px 16px';
 
+  // ── Simplified user ticket view ──
+  if (isUser) {
+    const myTickets = sorted.filter(t =>
+      t.created_by_id === user?.id || t.assigned_to_id === user?.id || t.requested_by_name === user?.name
+    );
+    return (
+      <>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)' }}>
+        <style>{`
+          @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div style={{
+          padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex', alignItems: 'center', gap: 16, background: 'var(--bg-secondary)',
+        }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 4, height: 24, background: 'var(--accent)', borderRadius: 2 }} />
+            <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+              My Tickets
+              <span style={{
+                fontSize: 12, fontWeight: 600, marginLeft: 12, color: 'var(--text-muted)',
+                padding: '2px 10px', background: 'var(--bg)', borderRadius: 'var(--radius-full)',
+                border: '1px solid var(--border)',
+              }}>
+                {myTickets.length}
+              </span>
+            </h1>
+          </div>
+          <button
+            onClick={() => setShowNewTicketPanel(true)}
+            className="btn btn-primary"
+            style={{ boxShadow: '0 4px 12px rgba(var(--accent-rgb), 0.25)', padding: '0 20px', height: 40, fontSize: 14, fontWeight: 600, gap: 8 }}
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            New Ticket
+          </button>
+        </div>
+
+        {/* Search + List */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {myTickets.length === 0 ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '80px 24px', color: 'var(--text-muted)', gap: 12,
+            }}>
+              <FileText size={40} strokeWidth={1.5} opacity={0.3} />
+              <div style={{ fontSize: 16, fontWeight: 600 }}>No tickets yet</div>
+              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 }}>
+                When you submit a ticket through the portal, it will appear here.
+              </div>
+              <button
+                onClick={() => setShowNewTicketPanel(true)}
+                className="btn btn-primary"
+                style={{ marginTop: 8, padding: '0 20px', height: 40, fontSize: 14, fontWeight: 600, gap: 8 }}
+              >
+                <Plus size={16} />
+                Create Your First Ticket
+              </button>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0 }}>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'left', width: 60 }}>#</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'left' }}>Title</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'left', width: 110 }}>Type</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'left', width: 100 }}>Status</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'left', width: 110 }}>Due Date</th>
+                    <th style={{ padding: '10px 16px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'left', width: 130 }}>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myTickets.map((t, idx) => (
+                    <tr key={t.id}
+                      onClick={() => router.push(`/dashboard/tickets/${t.id}`)}
+                      style={{
+                        borderBottom: '1px solid var(--border-subtle)',
+                        background: 'var(--bg)',
+                        cursor: 'pointer',
+                        animation: `fadeUp 0.3s ease-out ${idx * 0.03}s both`,
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'var(--bg)'}
+                    >
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontWeight: 500, fontSize: 12 }}>#{t.number}</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text)' }}>{t.title}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{
+                          padding: '2px 10px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 600,
+                          background: TYPE_CONFIG[t.ticket_type || '']?.bg || 'var(--bg-tertiary)',
+                          color: TYPE_CONFIG[t.ticket_type || '']?.color || 'var(--text-muted)',
+                          border: TYPE_CONFIG[t.ticket_type || '']?.border || '1px solid var(--border)',
+                        }}>
+                          {TYPE_CONFIG[t.ticket_type || '']?.label || t.ticket_type}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span className={statusConfig[t.status]?.badgeClass || 'badge'} style={{ fontSize: 11 }}>
+                          {statusConfig[t.status]?.label || t.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: getDueDateColor(t.due_date || undefined) }}>
+                        {t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+                        {(() => {
+                          const d = new Date(t.updated_at);
+                          const now = new Date();
+                          const diff = now.getTime() - d.getTime();
+                          const mins = Math.floor(diff / 60000);
+                          if (mins < 1) return 'Just now';
+                          if (mins < 60) return `${mins}m ago`;
+                          const hours = Math.floor(mins / 60);
+                          if (hours < 24) return `${hours}h ago`;
+                          return d.toLocaleDateString();
+                        })()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+      {showNewTicketPanel && (
+        <NewTicketPanel
+          onClose={() => setShowNewTicketPanel(false)}
+          onCreated={() => {
+            setShowNewTicketPanel(false);
+            fetchTickets();
+          }}
+        />
+      )}
+    </>
+    );
+  }
+
+  // ── Agent/Admin ticket view ──
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)' }}>
       <style>{`

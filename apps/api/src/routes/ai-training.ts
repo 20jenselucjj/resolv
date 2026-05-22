@@ -14,18 +14,91 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB))
 }
 
-// ─── Utility: Chunk text ─────────────────────────────────────────────────────
-function chunkText(text: string, chunkSize = 512, overlap = 64): string[] {
-  const words = text.split(/\s+/).filter(w => w.length > 0)
-  const chunks: string[] = []
-  let i = 0
-  while (i < words.length) {
-    const chunk = words.slice(i, i + chunkSize).join(' ')
-    if (chunk.trim()) chunks.push(chunk.trim())
-    i += chunkSize - overlap
-    if (i >= words.length) break
+// ─── Utility: Recursive chunk text ───────────────────────────────────────────
+// Splits text on semantic boundaries (paragraphs → lines → sentences → words)
+// and reassembles into chunks of approximately `chunkSize` length with overlap
+function recursiveChunkText(text: string, chunkSize = 512, overlap = 64): string[] {
+  if (!text || text.trim().length === 0) return []
+
+  // Recursive splitter: try separators from most to least semantic
+  function splitRecursive(t: string, seps: string[]): string[] {
+    if (seps.length === 0) return t.split(/(?<=[.?!])\s+/).filter(s => s.trim().length > 0) // sentence fallback
+    if (t.length <= chunkSize * 1.5) return [t] // small enough, don't split further
+
+    const sep = seps[0]
+    if (!sep) return t.split(/(?<=[.?!])\s+/) // sentence split at last resort
+
+    const parts: string[] = []
+    let start = 0
+    let idx: number
+    while ((idx = t.indexOf(sep, start)) !== -1) {
+      if (idx > start) parts.push(t.slice(start, idx))
+      start = idx + sep.length
+    }
+    if (start < t.length) parts.push(t.slice(start))
+
+    // If we only got one part, try next separator
+    if (parts.length <= 1) return splitRecursive(t, seps.slice(1))
+
+    // Recursively split each part if still too large
+    const result: string[] = []
+    for (const part of parts) {
+      if (part.length > chunkSize * 1.5) {
+        result.push(...splitRecursive(part, seps.slice(1)))
+      } else if (part.trim()) {
+        result.push(part.trim())
+      }
+    }
+    return result
   }
-  return chunks
+
+  // Split into segments using recursive boundary detection
+  const separators = ['\n\n', '\n', '. ']
+  const segments = splitRecursive(text, separators)
+  if (segments.length === 0) return []
+
+  // Merge segments into chunks of approximately chunkSize characters
+  const chunks: string[] = []
+  let currentChunk = ''
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    // If adding this segment would exceed chunkSize, finalize current chunk
+    if (currentChunk.length > 0 && currentChunk.length + segment.length + 1 > chunkSize) {
+      if (currentChunk.trim()) chunks.push(currentChunk.trim())
+
+      // Start new chunk with overlap from previous
+      if (overlap > 0 && currentChunk.length > 0) {
+        const overlapStart = Math.max(0, currentChunk.length - overlap)
+        // Find nearest sentence/paragraph boundary near overlap point
+        const overlapText = currentChunk.slice(overlapStart)
+        currentChunk = overlapText + ' ' + segment
+      } else {
+        currentChunk = segment
+      }
+    } else {
+      currentChunk = currentChunk ? currentChunk + (segment.startsWith('\n') ? '' : ' ') + segment : segment
+    }
+  }
+  if (currentChunk.trim()) chunks.push(currentChunk.trim())
+
+  // Handle any chunks that still exceed chunkSize (force-split at word boundaries)
+  return chunks.flatMap(chunk => {
+    if (chunk.length <= chunkSize) return [chunk]
+    const forced: string[] = []
+    const words = chunk.split(/\s+/)
+    let sub = ''
+    for (const word of words) {
+      if (sub.length + word.length + 1 > chunkSize && sub) {
+        forced.push(sub.trim())
+        sub = word
+      } else {
+        sub = sub ? sub + ' ' + word : word
+      }
+    }
+    if (sub.trim()) forced.push(sub.trim())
+    return forced
+  })
 }
 
 // ─── Utility: Get embeddings from AI provider ────────────────────────────────
@@ -58,12 +131,13 @@ async function processSource(sourceId: string, rawContent: string, cfg: any, rag
     // Delete existing chunks
     await pool.query(`DELETE FROM ai_knowledge_chunks WHERE source_id=$1`, [sourceId])
 
-    const chunks = chunkText(rawContent, ragCfg.chunk_size || 512, ragCfg.chunk_overlap || 64)
+    const chunks = recursiveChunkText(rawContent, ragCfg.chunk_size || 512, ragCfg.chunk_overlap || 64)
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]
       const embedding = cfg?.api_key ? await getEmbedding(chunk, cfg) : null
-      const wordCount = chunk.split(/\s+/).length
+      // Calculate word count for content_tokens field
+      const wordCount = chunk.split(/\s+/).filter(Boolean).length
 
       await pool.query(
         `INSERT INTO ai_knowledge_chunks (source_id, chunk_index, content, content_tokens, embedding, embedding_model)
@@ -88,6 +162,16 @@ async function processSource(sourceId: string, rawContent: string, cfg: any, rag
   }
 }
 
+// ─── Score normalizer: min-max scale scores to [0, 1] ────────────────────────
+function normalizeScores(items: any[]): any[] {
+  if (items.length === 0) return items
+  const scores = items.map(i => i.score)
+  const min = Math.min(...scores)
+  const max = Math.max(...scores)
+  if (max - min < 0.001) return items.map(i => ({ ...i, score: 1 }))
+  return items.map(i => ({ ...i, score: (i.score - min) / (max - min) }))
+}
+
 // ─── RAG Retrieval (exported for use in ai.ts) ───────────────────────────────
 export async function retrieveContext(
   query: string,
@@ -97,6 +181,7 @@ export async function retrieveContext(
   const strategy = ragCfg.retrieval_strategy || 'hybrid'
   const topK = ragCfg.top_k || 5
   const threshold = parseFloat(ragCfg.similarity_threshold) || 0.70
+  const semanticWeight = parseFloat(ragCfg.semantic_weight) || 0.6 // weight for semantic vs keyword in hybrid
 
   let chunks: any[] = []
   let qaPairs: any[] = []
@@ -117,7 +202,7 @@ export async function retrieveContext(
            AND c.search_vector @@ to_tsquery('english', $1)
          ORDER BY rank DESC
          LIMIT $2`,
-        [tsQuery, topK * 2]
+        [tsQuery, topK * 3] // fetch more candidates for better hybrid coverage
       )
       chunks.push(...kwChunks.map(r => ({ ...r, score: parseFloat(r.rank), method: 'keyword' })))
 
@@ -135,68 +220,140 @@ export async function retrieveContext(
   }
 
   // ── Semantic search (if embeddings available) ──
+  // Uses two-stage approach for scalability:
+  //   1. Get candidate IDs from keyword results (or use a broader keyword query)
+  //   2. Re-rank those candidates with semantic similarity
+  // This avoids loading ALL embeddings into memory.
   if ((strategy === 'semantic' || strategy === 'hybrid') && cfg?.api_key) {
     const queryEmbedding = await getEmbedding(query, cfg)
     if (queryEmbedding) {
-      // Load all active chunks with embeddings
-      const { rows: allChunks } = await pool.query(
-        `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
-                s.name as source_name, s.category, s.classification
-         FROM ai_knowledge_chunks c
-         JOIN ai_knowledge_sources s ON c.source_id = s.id
-         WHERE s.is_active = true AND s.status = 'ready' AND c.embedding IS NOT NULL
-         LIMIT 2000`
-      )
-
-      const scored = allChunks
-        .map(row => {
-          const emb = typeof row.embedding === 'string' ? JSON.parse(row.embedding) : row.embedding
-          const score = cosineSimilarity(queryEmbedding, emb)
-          return { ...row, score, method: 'semantic' }
-        })
-        .filter(r => r.score >= threshold)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, topK)
-
-      // Merge with keyword results (deduplicate by id, prefer higher score)
-      for (const sc of scored) {
-        const existing = chunks.find(c => c.id === sc.id)
-        if (!existing) {
-          chunks.push(sc)
-        } else if (sc.score > existing.score) {
-          existing.score = sc.score
-          existing.method = 'hybrid'
-        }
+      // Collect candidate IDs from keyword results if in hybrid mode
+      let candidateIds: string[] = []
+      if (strategy === 'hybrid' && chunks.length > 0) {
+        candidateIds = chunks.map(c => c.id)
       }
 
-      // Q&A semantic search
-      const { rows: allQA } = await pool.query(
-        `SELECT id, question, answer, category, tags, embedding
-         FROM ai_knowledge_qa WHERE is_active = true AND embedding IS NOT NULL LIMIT 500`
-      )
-      const scoredQA = allQA
+      let semanticCandidates: any[]
+      if (candidateIds.length > 0) {
+        // Stage 1: Narrow search — only re-rank keyword candidates semantically
+        const placeholders = candidateIds.map((_, i) => `$${i + 1}`).join(',')
+        const { rows } = await pool.query(
+          `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
+                  s.name as source_name, s.category, s.classification
+           FROM ai_knowledge_chunks c
+           JOIN ai_knowledge_sources s ON c.source_id = s.id
+           WHERE c.id IN (${placeholders}) AND c.embedding IS NOT NULL`,
+          candidateIds
+        )
+        semanticCandidates = rows
+      } else {
+        // Pure semantic or hybrid without keyword matches — use a broader sample
+        // Fetch up to topK*4 chunks (more scalable than the previous 2000 limit)
+        const { rows } = await pool.query(
+          `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
+                  s.name as source_name, s.category, s.classification
+           FROM ai_knowledge_chunks c
+           JOIN ai_knowledge_sources s ON c.source_id = s.id
+           WHERE s.is_active = true AND s.status = 'ready' AND c.embedding IS NOT NULL
+           ORDER BY c.id
+           LIMIT $1`,
+          [topK * 4]
+        )
+        semanticCandidates = rows
+      }
+
+      // Score candidates with semantic similarity
+      const scored = semanticCandidates
         .map(row => {
           const emb = typeof row.embedding === 'string' ? JSON.parse(row.embedding) : row.embedding
           const score = cosineSimilarity(queryEmbedding, emb)
           return { ...row, score, method: 'semantic' }
         })
         .filter(r => r.score >= threshold)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, Math.ceil(topK / 2))
+
+      if (strategy === 'hybrid') {
+        // Hybrid scoring: normalize keyword scores, then combine with semantic
+        if (chunks.length > 0) {
+          const kwIds = new Set(chunks.map(c => c.id))
+          const kwOnly = chunks.filter(c => !scored.some(s => s.id === c.id))
+          const scoredByKwId = new Map(scored.map(s => [s.id, s]))
+
+          chunks = chunks.map(c => {
+            const sem = scoredByKwId.get(c.id)
+            if (!sem) return c // no semantic score, keep keyword score
+            // Normalize both scores to [0, 1] and combine with weighted average
+            const kwScore = c.score
+            const semScore = sem.score
+            const combined = (kwScore * (1 - semanticWeight) + semScore * semanticWeight)
+            return { ...c, score: combined, method: 'hybrid', original_scores: { keyword: kwScore, semantic: semScore } }
+          })
+
+          // Add chunks found only by semantic search
+          for (const sc of scored) {
+            if (!kwIds.has(sc.id)) {
+              chunks.push(sc)
+            }
+          }
+        } else {
+          // No keyword results — use semantic results directly
+          chunks.push(...scored)
+        }
+      } else {
+        // Pure semantic — use scored results directly
+        chunks = scored
+      }
+
+      // Q&A semantic search — two-stage with keyword candidates when possible
+      let qaCandidates: any[]
+      const qaKwIds = new Set(qaPairs.map(q => q.id))
+      if (qaKwIds.size > 0) {
+        // Re-rank keyword QA results semantically
+        const placeholders = [...qaKwIds].map((_, i) => `$${i + 1}`).join(',')
+        const { rows } = await pool.query(
+          `SELECT id, question, answer, category, tags, embedding
+           FROM ai_knowledge_qa WHERE id IN (${placeholders}) AND embedding IS NOT NULL`,
+          [...qaKwIds]
+        )
+        qaCandidates = rows
+      } else {
+        // Broader search — limited sample
+        const { rows } = await pool.query(
+          `SELECT id, question, answer, category, tags, embedding
+           FROM ai_knowledge_qa WHERE is_active = true AND embedding IS NOT NULL LIMIT $1`,
+          [Math.ceil(topK)]
+        )
+        qaCandidates = rows
+      }
+
+      const scoredQA = qaCandidates
+        .map(row => {
+          const emb = typeof row.embedding === 'string' ? JSON.parse(row.embedding) : row.embedding
+          const score = cosineSimilarity(queryEmbedding, emb)
+          return { ...row, score, method: 'semantic' }
+        })
+        .filter(r => r.score >= threshold)
 
       for (const sq of scoredQA) {
         const existing = qaPairs.find(q => q.id === sq.id)
-        if (!existing) qaPairs.push(sq)
+        if (!existing) {
+          qaPairs.push(sq)
+        } else {
+          // Update keyword QA with hybrid score if applicable
+          const combined = existing.score * (1 - semanticWeight) + sq.score * semanticWeight
+          existing.score = combined
+          existing.method = 'hybrid'
+          existing.original_scores = { keyword: existing.score, semantic: sq.score }
+        }
       }
     }
   }
 
-  // Sort and deduplicate final results
-  chunks = chunks
+  // Normalize all scores to [0, 1] for consistent ranking
+  chunks = normalizeScores(chunks)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
 
-  qaPairs = qaPairs
+  qaPairs = normalizeScores(qaPairs)
     .sort((a, b) => b.score - a.score)
     .slice(0, Math.ceil(topK / 2))
 
@@ -210,7 +367,10 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
   app.get('/ai/rag/config', { preHandler: [app.authenticate, app.requireRole(['admin'])] }, async (req, reply) => {
     const { rows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
     if (rows.length === 0) {
-      await pool.query('INSERT INTO ai_rag_config DEFAULT VALUES')
+      await pool.query(
+        `INSERT INTO ai_rag_config (enabled, retrieval_strategy, top_k, similarity_threshold, chunk_size, chunk_overlap, reranking_enabled, citation_mode, inject_context, semantic_weight)
+         VALUES (true, 'hybrid', 5, 0.70, 512, 64, false, 'inline', true, 0.6)`
+      )
       const { rows: r2 } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
       return reply.send({ data: r2[0] })
     }
@@ -224,22 +384,24 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
 
     if (existing.length === 0) {
       const { rows } = await pool.query(
-        `INSERT INTO ai_rag_config (enabled, retrieval_strategy, top_k, similarity_threshold, chunk_size, chunk_overlap, reranking_enabled, citation_mode, inject_context)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        `INSERT INTO ai_rag_config (enabled, retrieval_strategy, top_k, similarity_threshold, chunk_size, chunk_overlap, reranking_enabled, citation_mode, inject_context, semantic_weight)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
         [body.enabled ?? true, body.retrieval_strategy ?? 'hybrid', body.top_k ?? 5,
          body.similarity_threshold ?? 0.70, body.chunk_size ?? 512, body.chunk_overlap ?? 64,
-         body.reranking_enabled ?? false, body.citation_mode ?? 'inline', body.inject_context ?? true]
+         body.reranking_enabled ?? false, body.citation_mode ?? 'inline', body.inject_context ?? true,
+         body.semantic_weight ?? 0.6]
       )
       return reply.send({ data: rows[0] })
     }
 
     const { rows } = await pool.query(
       `UPDATE ai_rag_config SET enabled=$1, retrieval_strategy=$2, top_k=$3, similarity_threshold=$4,
-       chunk_size=$5, chunk_overlap=$6, reranking_enabled=$7, citation_mode=$8, inject_context=$9, updated_at=NOW()
-       WHERE id=$10 RETURNING *`,
+       chunk_size=$5, chunk_overlap=$6, reranking_enabled=$7, citation_mode=$8, inject_context=$9, semantic_weight=$10, updated_at=NOW()
+       WHERE id=$11 RETURNING *`,
       [body.enabled ?? true, body.retrieval_strategy ?? 'hybrid', body.top_k ?? 5,
        body.similarity_threshold ?? 0.70, body.chunk_size ?? 512, body.chunk_overlap ?? 64,
        body.reranking_enabled ?? false, body.citation_mode ?? 'inline', body.inject_context ?? true,
+       body.semantic_weight ?? 0.6,
        existing[0].id]
     )
 

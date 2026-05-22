@@ -6,6 +6,7 @@ import { useStore, Ticket, Category, Comment, User } from '@/lib/store';
 import { connectSocket } from '@/lib/socket';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import { DateTimePicker } from '@/components/DateTimePicker';
+import { SelectSearch } from '@/components/SelectSearch';
 import {
   ArrowLeft, Send, Lock, ChevronDown,
   Clock, Tag, AlertTriangle, CheckCircle,
@@ -475,15 +476,26 @@ export default function TicketDetailPage() {
 
         {/* Status Dropdown */}
         {isAdminOrAgent ? (
-          <div style={{ position: 'relative' }}>
-            <select 
-              style={{ appearance: 'none', background: currentStatus?.color, color: '#fff', padding: '6px 32px 6px 16px', borderRadius: '16px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', outline: 'none' }} 
-              value={ticket.status} 
-              onChange={e => handleStatusChange(e.target.value)}
-            >
-              {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#fff', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative', minWidth: 150 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: currentStatus?.color || 'var(--bg-tertiary)',
+              borderRadius: '16px', padding: '0 4px 0 12px',
+            }}>
+              <span style={{ color: '#fff', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {currentStatus?.icon && <currentStatus.icon size={12} style={{ marginRight: 6, display: 'inline', verticalAlign: 'middle' }} />}
+                {currentStatus?.label || ticket.status}
+              </span>
+              <div style={{ width: 100 }}>
+                <SelectSearch
+                  options={STATUS_OPTIONS}
+                  value={ticket.status}
+                  onChange={val => val && handleStatusChange(val)}
+                  placeholder="Change"
+                  hideClear
+                />
+              </div>
+            </div>
           </div>
         ) : (
           <span className={statusBadgeClass[ticket.status] || 'badge'}>{currentStatus?.label || ticket.status}</span>
@@ -577,9 +589,13 @@ export default function TicketDetailPage() {
               
               <PropField label="Priority">
                 {isAdminOrAgent ? (
-                  <select value={ticket.priority} onChange={(e) => updateField('priority', e.target.value)} className="select" style={{ width: '100%', fontSize: 13 }}>
-                    {PRIORITY_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
+                  <SelectSearch
+                    options={PRIORITY_OPTIONS.map(p => ({ ...p, dotColor: p.color }))}
+                    value={ticket.priority}
+                    onChange={val => val && updateField('priority', val)}
+                    placeholder="Select priority"
+                    hideClear
+                  />
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: currentPriority?.color }} />
@@ -603,18 +619,32 @@ export default function TicketDetailPage() {
 
               <PropField label="Category">
                 {isAdminOrAgent ? (
-                  <select value={ticket.category_id || ''} onChange={(e) => updateField('category_id', e.target.value)} className="select" style={{ width: '100%', fontSize: 13 }}>
-                    <option value="">Uncategorized</option>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <SelectSearch
+                    options={[
+                      { value: '', label: 'Uncategorized', dotColor: 'var(--text-muted)' },
+                      ...categories.map((c, i) => ({
+                        value: c.id,
+                        label: c.name,
+                        dotColor: CATEGORY_DOT_COLORS[i % CATEGORY_DOT_COLORS.length],
+                      }))
+                    ]}
+                    value={ticket.category_id || ''}
+                    onChange={val => updateField('category_id', val || null)}
+                    placeholder="Select category"
+                    allowClear
+                  />
                 ) : <span style={{ fontSize: 13 }}>{ticket.category_name || 'None'}</span>}
               </PropField>
 
               <PropField label="Type">
                 {isAdminOrAgent ? (
-                  <select value={ticket.ticket_type} onChange={(e) => updateField('ticket_type', e.target.value)} className="select" style={{ width: '100%', fontSize: 13 }}>
-                    {TICKET_TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                  <SelectSearch
+                    options={TICKET_TYPE_OPTIONS}
+                    value={ticket.ticket_type}
+                    onChange={val => val && updateField('ticket_type', val)}
+                    placeholder="Select type"
+                    hideClear
+                  />
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <currentType.icon size={14} color={currentType.color} />

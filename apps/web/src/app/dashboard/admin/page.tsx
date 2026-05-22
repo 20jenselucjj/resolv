@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { AITrainingTab } from './AITrainingTab';
+import { DirectorySyncTab } from './DirectorySyncTab';
 import {
   Users, Layers, Clock, Settings, FileText, LayoutDashboard,
   ShieldAlert, ShieldCheck, Shield, UserPlus, MoreVertical, Edit2, 
@@ -370,341 +371,7 @@ function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t?: 'suc
   );
 }
 
-function TagsTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
-  const [loading, setLoading] = useState(true);
-  const [tags, setTags] = useState<string[]>([]);
-  const [usedTags, setUsedTags] = useState<{ tag: string; count: number }[]>([]);
-  const [newTag, setNewTag] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const loadTags = () => {
-    setLoading(true);
-    api.get<{ data: { configured: string[]; used: { tag: string; count: number }[] } }>('/admin/tags')
-      .then(res => {
-        setTags(res.data.configured);
-        setUsedTags(res.data.used);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { loadTags(); }, []);
-
-  const saveTags = async (newTags: string[]) => {
-    setSaving(true);
-    try {
-      await api.patch('/admin/settings', { key: 'available_tags', value: JSON.stringify(newTags) });
-      setTags(newTags);
-      showAlert('Tags saved');
-    } catch {
-      showAlert('Failed to save tags', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addTag = () => {
-    const t = newTag.trim().toLowerCase().replace(/\s+/g, '-');
-    if (!t || tags.includes(t)) { setNewTag(''); return; }
-    const updated = [...tags, t];
-    setNewTag('');
-    saveTags(updated);
-  };
-
-  const removeTag = (tag: string) => {
-    saveTags(tags.filter(t => t !== tag));
-  };
-
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Hash size={16} color="var(--accent)" />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Tag Library</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Manage the tags available for tickets. Tags help categorize and filter tickets.</p>
-          </div>
-        </div>
-
-        {/* Add new tag */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          <input
-            className="input"
-            value={newTag}
-            onChange={e => setNewTag(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') addTag(); }}
-            placeholder="Add a new tag (e.g. vpn, hardware, urgent)"
-            style={{ flex: 1 }}
-          />
-          <button className="btn btn-primary" onClick={addTag} disabled={saving || !newTag.trim()}>
-            <Plus size={14} style={{ marginRight: 4 }} /> Add Tag
-          </button>
-        </div>
-
-        {/* Configured tags */}
-        {tags.length > 0 ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {tags.map(tag => (
-              <div key={tag} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 10px 4px 12px',
-                background: 'var(--accent-subtle)', border: '1px solid var(--accent-border)',
-                borderRadius: 20, fontSize: 12, fontWeight: 600, color: 'var(--accent)',
-              }}>
-                <Hash size={10} />
-                {tag}
-                <button onClick={() => removeTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', opacity: 0.6, display: 'flex', padding: 0, marginLeft: 2 }}>
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px dashed var(--border)' }}>
-            No tags configured yet. Add your first tag above.
-          </div>
-        )}
-      </div>
-
-      {/* Tags in use */}
-      {usedTags.length > 0 && (
-        <div className="card" style={{ padding: 24 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700 }}>Tags Currently Used in Tickets</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {usedTags.map(({ tag, count }) => (
-              <div key={tag} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 10px',
-                background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                borderRadius: 20, fontSize: 12, color: 'var(--text-secondary)',
-              }}>
-                <Hash size={10} />
-                {tag}
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '1px 5px', borderRadius: 10 }}>{count}</span>
-                {!tags.includes(tag) && (
-                  <button onClick={() => saveTags([...tags, tag])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 10, fontWeight: 600, padding: 0, marginLeft: 2 }}>
-                    + Add
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // --- Main Page ---
-
-function SSOTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
-  const [enabled, setEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_enabled') === 'true';
-    }
-    return false;
-  });
-  const [provider, setProvider] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_provider') || 'saml';
-    }
-    return 'saml';
-  });
-  const [providerName, setProviderName] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_provider_name') || 'Company SSO';
-    }
-    return 'Company SSO';
-  });
-  const [entityId, setEntityId] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_entity_id') || '';
-    }
-    return '';
-  });
-  const [ssoUrl, setSsoUrl] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_url') || '';
-    }
-    return '';
-  });
-  const [certificate, setCertificate] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_certificate') || '';
-    }
-    return '';
-  });
-  const [defaultRole, setDefaultRole] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_default_role') || 'user';
-    }
-    return 'user';
-  });
-  const [autoProvision, setAutoProvision] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resolv_sso_auto_provision') !== 'false';
-    }
-    return true;
-  });
-
-  const handleSave = () => {
-    localStorage.setItem('resolv_sso_enabled', String(enabled));
-    localStorage.setItem('resolv_sso_provider', provider);
-    localStorage.setItem('resolv_sso_provider_name', providerName);
-    localStorage.setItem('resolv_sso_entity_id', entityId);
-    localStorage.setItem('resolv_sso_url', ssoUrl);
-    localStorage.setItem('resolv_sso_certificate', certificate);
-    localStorage.setItem('resolv_sso_default_role', defaultRole);
-    localStorage.setItem('resolv_sso_auto_provision', String(autoProvision));
-    showAlert('SSO configuration saved');
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-      {/* Honest status banner */}
-      <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '16px 20px', background: 'var(--warning-bg)', border: '1px solid var(--warning-border)', borderRadius: 'var(--radius-md)' }}>
-        <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
-        <div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--warning)', marginBottom: 4 }}>Frontend configuration only — backend integration required</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            This UI saves your SSO settings and shows the SSO button on the login page. However, <strong>actual authentication</strong> (SAML assertions, OIDC token exchange, Azure AD redirects) requires backend middleware to be wired up in <code style={{ fontSize: 11, background: 'var(--bg-tertiary)', padding: '1px 5px', borderRadius: 4 }}>apps/api/src/routes/auth.ts</code>. The configuration you enter here is stored in your browser and will be used once the backend is connected.
-          </div>
-        </div>
-      </div>
-
-    <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div>
-        <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600 }}>SSO / Identity Provider</h3>
-        <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-muted)' }}>Configure single sign-on for your organization</p>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-        <div 
-          onClick={() => setEnabled(!enabled)}
-          style={{
-            width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
-            background: enabled ? 'var(--accent)' : 'var(--bg-tertiary)',
-            border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border)'}`,
-            position: 'relative', transition: 'all 0.2s ease', flexShrink: 0
-          }}
-        >
-          <div style={{
-            position: 'absolute', top: 2, 
-            left: enabled ? 22 : 2,
-            width: 18, height: 18, borderRadius: '50%',
-            background: enabled ? 'white' : 'var(--text-muted)',
-            transition: 'left 0.2s ease',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-          }} />
-        </div>
-        <div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>SSO Authentication</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Allow users to sign in with your identity provider</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', opacity: enabled ? 1 : 0.6, pointerEvents: enabled ? 'auto' : 'none' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Provider Configuration</div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 500 }}>Provider Type</label>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {['saml', 'oidc', 'azure_ad', 'google'].map(p => (
-                <button key={p} onClick={() => setProvider(p)}
-                  style={{
-                    padding: '8px 16px', borderRadius: 'var(--radius-full)',
-                    border: `1px solid ${provider === p ? 'var(--accent)' : 'var(--border)'}`,
-                    background: provider === p ? 'var(--accent-subtle)' : 'transparent',
-                    color: provider === p ? 'var(--accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer', fontSize: 13, fontWeight: provider === p ? 600 : 400
-                  }}
-                >
-                  {p === 'saml' ? 'SAML 2.0' : p === 'oidc' ? 'OIDC' : p === 'azure_ad' ? 'Azure AD' : 'Google Workspace'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 500 }}>Display Name</label>
-              <input className="input" value={providerName} onChange={e => setProviderName(e.target.value)} placeholder="e.g. Okta SSO" />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 500 }}>Entity ID / Client ID</label>
-              <input className="input" value={entityId} onChange={e => setEntityId(e.target.value)} />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 500 }}>SSO URL / Auth Endpoint</label>
-            <input className="input" value={ssoUrl} onChange={e => setSsoUrl(e.target.value)} />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 500 }}>Certificate / Client Secret</label>
-            <textarea className="input" style={{ minHeight: '100px', fontFamily: 'monospace', fontSize: '12px' }} value={certificate} onChange={e => setCertificate(e.target.value)} />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Provisioning</div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div 
-              onClick={() => setAutoProvision(!autoProvision)}
-              style={{
-                width: 36, height: 20, borderRadius: 10, cursor: 'pointer',
-                background: autoProvision ? 'var(--accent)' : 'var(--bg-tertiary)',
-                position: 'relative', transition: 'all 0.2s ease'
-              }}
-            >
-              <div style={{
-                position: 'absolute', top: 2, left: autoProvision ? 18 : 2,
-                width: 16, height: 16, borderRadius: '50%', background: 'white',
-                transition: 'left 0.2s ease'
-              }} />
-            </div>
-            <span style={{ fontSize: '13px' }}>Auto-provision new users</span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 500 }}>Default role for new SSO users</label>
-            <select className="select" value={defaultRole} onChange={e => setDefaultRole(e.target.value)} style={{ maxWidth: '200px' }}>
-              <option value="user">User</option>
-              <option value="agent">Agent</option>
-            </select>
-            <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-              Admins always use password login. SSO is available for Agents and Users.
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Login Page Preview</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>When enabled, users will see:</div>
-          <button className="btn" style={{ background: 'white', color: 'var(--text)', border: '1px solid var(--border)', padding: '10px', width: '100%', maxWidth: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 500 }}>
-            <Shield size={16} color="var(--accent)" />
-            Continue with {providerName}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: '8px' }}>
-        <button className="btn btn-primary" onClick={handleSave} style={{ padding: '12px 24px' }}>
-          Save SSO Configuration
-        </button>
-      </div>
-    </div>
-    </div>
-  );
-}
 
 function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
   const [config, setConfig] = useState<AIConfig>({
@@ -922,7 +589,6 @@ function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 'success'
   const [customStatuses, setCustomStatuses] = useState<CustomStatus[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newColor, setNewColor] = useState('default');
-  const [savingCustom, setSavingCustom] = useState(false);
 
   useEffect(() => {
     api.get<{ data: Record<string, string> }>('/admin/settings')
@@ -932,12 +598,15 @@ function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 'success'
         DEFAULT_STATUSES.forEach(st => {
           loaded[st.value] = s[`status_label_${st.value}`] || st.defaultLabel;
         });
-        setLabels(loaded);
-        // Load custom statuses
         try {
           const raw = s['custom_statuses'];
-          if (raw) setCustomStatuses(JSON.parse(raw));
+          if (raw) {
+            const parsed: CustomStatus[] = JSON.parse(raw);
+            setCustomStatuses(parsed);
+            parsed.forEach(cs => { loaded[cs.value] = cs.label; });
+          }
         } catch { /* ignore */ }
+        setLabels(loaded);
       })
       .catch(() => {
         const defaults: Record<string, string> = {};
@@ -950,33 +619,24 @@ function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 'success'
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Save default status labels
       await Promise.all(
         DEFAULT_STATUSES.map(st =>
           api.patch('/admin/settings', { key: `status_label_${st.value}`, value: labels[st.value] || st.defaultLabel })
         )
       );
-      showAlert('Status labels saved successfully');
+      // Save custom statuses with current labels (preserving order)
+      const updatedCustom = customStatuses.map(cs => ({
+        ...cs,
+        label: labels[cs.value] || cs.label,
+      }));
+      await api.patch('/admin/settings', { key: 'custom_statuses', value: JSON.stringify(updatedCustom) });
+      setCustomStatuses(updatedCustom);
+      showAlert('All status labels saved successfully');
     } catch {
       showAlert('Failed to save status labels', 'error');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleReset = (value: string, defaultLabel: string) => {
-    setLabels(prev => ({ ...prev, [value]: defaultLabel }));
-  };
-
-  const saveCustomStatuses = async (updated: CustomStatus[]) => {
-    setSavingCustom(true);
-    try {
-      await api.patch('/admin/settings', { key: 'custom_statuses', value: JSON.stringify(updated) });
-      setCustomStatuses(updated);
-      showAlert('Custom statuses saved');
-    } catch {
-      showAlert('Failed to save custom statuses', 'error');
-    } finally {
-      setSavingCustom(false);
     }
   };
 
@@ -988,168 +648,211 @@ function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 'success'
       showAlert('A status with this key already exists', 'error');
       return;
     }
-    const updated = [...customStatuses, { value, label, color: newColor }];
+    const newStatus = { value, label, color: newColor };
+    setCustomStatuses(prev => [...prev, newStatus]);
+    setLabels(prev => ({ ...prev, [value]: label }));
     setNewLabel('');
     setNewColor('default');
-    saveCustomStatuses(updated);
   };
 
   const removeCustomStatus = (value: string) => {
-    saveCustomStatuses(customStatuses.filter(s => s.value !== value));
+    setCustomStatuses(prev => prev.filter(s => s.value !== value));
+    setLabels(prev => {
+      const next = { ...prev };
+      delete next[value];
+      return next;
+    });
+  };
+
+  const moveCustomStatus = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= customStatuses.length) return;
+    setCustomStatuses(prev => {
+      const updated = [...prev];
+      [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+      return updated;
+    });
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Default Statuses */}
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Circle size={16} color="var(--accent)" />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Status Display Labels</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Customize how each ticket status appears to users. The underlying status values remain unchanged.</p>
-          </div>
+    <div className="card" style={{ padding: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Circle size={16} color="var(--accent)" />
         </div>
-        <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {DEFAULT_STATUSES.map(st => (
-            <div key={st.value} style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 12, alignItems: 'center', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Status Labels</h3>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Customize display labels and add custom statuses. Changes the tickets' underlying status value.</p>
+        </div>
+      </div>
+
+      {/* All statuses list */}
+      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Default statuses */}
+        {DEFAULT_STATUSES.map(st => (
+          <div key={st.value} style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 12, alignItems: 'center', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Status Key</div>
+              <code style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 }}>{st.value}</code>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>DISPLAY LABEL</label>
+              <input
+                className="input"
+                value={labels[st.value] || ''}
+                onChange={e => setLabels(prev => ({ ...prev, [st.value]: e.target.value }))}
+                placeholder={st.defaultLabel}
+                style={{ width: '100%' }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{st.description}</div>
+            </div>
+            <button
+              onClick={() => setLabels(prev => ({ ...prev, [st.value]: st.defaultLabel }))}
+              className="btn btn-ghost btn-sm"
+              title="Reset to default"
+              style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+            >
+              <RotateCcw size={13} />
+            </button>
+          </div>
+        ))}
+
+        {/* Separator with label */}
+        {customStatuses.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Custom Statuses</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+        )}
+
+        {/* Custom statuses */}
+        {customStatuses.map((cs, idx) => {
+          const colorOpt = COLOR_OPTIONS.find(o => o.id === cs.color) || COLOR_OPTIONS[0];
+          return (
+            <div key={cs.value} style={{ display: 'grid', gridTemplateColumns: 'auto 130px 1fr auto auto', gap: 8, alignItems: 'center', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              {/* Reorder arrows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <button
+                  onClick={() => moveCustomStatus(idx, 'up')}
+                  disabled={idx === 0}
+                  style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--border)' : 'var(--text-muted)', padding: 0, lineHeight: 1, fontSize: 10 }}
+                  title="Move up"
+                >▲</button>
+                <button
+                  onClick={() => moveCustomStatus(idx, 'down')}
+                  disabled={idx === customStatuses.length - 1}
+                  style={{ background: 'none', border: 'none', cursor: idx === customStatuses.length - 1 ? 'default' : 'pointer', color: idx === customStatuses.length - 1 ? 'var(--border)' : 'var(--text-muted)', padding: 0, lineHeight: 1, fontSize: 10 }}
+                  title="Move down"
+                >▼</button>
+              </div>
+              {/* Key */}
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Status Key</div>
-                <code style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 }}>{st.value}</code>
+                <code style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 }}>{cs.value}</code>
               </div>
+              {/* Label input */}
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>DISPLAY LABEL</label>
                 <input
                   className="input"
-                  value={labels[st.value] || ''}
-                  onChange={e => setLabels(prev => ({ ...prev, [st.value]: e.target.value }))}
-                  placeholder={st.defaultLabel}
+                  value={labels[cs.value] || ''}
+                  onChange={e => setLabels(prev => ({ ...prev, [cs.value]: e.target.value }))}
+                  placeholder={cs.value}
                   style={{ width: '100%' }}
                 />
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{st.description}</div>
               </div>
+              {/* Color selector */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>COLOR</label>
+                <select
+                  value={cs.color}
+                  onChange={e => {
+                    const newColorVal = e.target.value;
+                    setCustomStatuses(prev => prev.map((c, i) => i === idx ? { ...c, color: newColorVal } : c));
+                  }}
+                  style={{ padding: '4px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+                >
+                  {COLOR_OPTIONS.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Delete */}
               <button
-                onClick={() => handleReset(st.value, st.defaultLabel)}
+                onClick={() => removeCustomStatus(cs.value)}
                 className="btn btn-ghost btn-sm"
-                title="Reset to default"
-                style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                title="Remove custom status"
+                style={{ color: 'var(--danger)', flexShrink: 0 }}
               >
-                <RotateCcw size={13} />
+                <X size={13} />
               </button>
             </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 24px', fontSize: 14 }}>
-            {saving ? 'Saving...' : 'Save Status Labels'}
-          </button>
+          );
+        })}
+
+        {/* Empty state for custom */}
+        {customStatuses.length === 0 && (
+          <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px dashed var(--border)', fontSize: 12 }}>
+            No custom statuses yet. Add one below.
+          </div>
+        )}
+      </div>
+
+      {/* Inline add form */}
+      <div style={{ marginTop: 16, display: 'flex', gap: 8, alignItems: 'flex-end', padding: '14px 16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px dashed var(--border)' }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>ADD NEW STATUS LABEL</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className="input"
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addCustomStatus(); }}
+              placeholder="e.g. On Hold, Pending Review"
+              style={{ flex: 1 }}
+            />
+            <select
+              value={newColor}
+              onChange={e => setNewColor(e.target.value)}
+              style={{ width: 120, padding: '0 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
+            >
+              {COLOR_OPTIONS.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={addCustomStatus}
+              disabled={!newLabel.trim()}
+              style={{
+                height: 38, padding: '0 16px', borderRadius: 8,
+                background: 'var(--accent)', color: 'white', border: 'none',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                opacity: !newLabel.trim() ? 0.5 : 1, whiteSpace: 'nowrap',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              <Plus size={14} /> Add
+            </button>
+          </div>
+          {newLabel.trim() && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+              Key: <code style={{ background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3 }}>
+                {newLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}
+              </code>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Custom Statuses */}
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Plus size={16} color="var(--accent)" />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Custom Statuses</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Add your own ticket statuses beyond the defaults.</p>
-          </div>
-        </div>
-
-        {/* Add form */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'flex-end' }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>STATUS LABEL</label>
-              <input
-                className="input"
-                value={newLabel}
-                onChange={e => setNewLabel(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addCustomStatus(); }}
-                placeholder="e.g. On Hold, Pending Review, Escalated"
-                style={{ width: '100%' }}
-              />
-              {newLabel.trim() && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                  Key: <code style={{ background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3 }}>
-                    {newLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}
-                  </code>
-                </div>
-              )}
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={addCustomStatus}
-              disabled={savingCustom || !newLabel.trim()}
-              style={{ height: 38, padding: '0 20px', whiteSpace: 'nowrap' }}
-            >
-              <Plus size={14} style={{ marginRight: 4 }} /> Add Status
-            </button>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>COLOR</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {COLOR_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  onClick={() => setNewColor(opt.id)}
-                  style={{
-                    padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    background: newColor === opt.id ? opt.bg : 'transparent',
-                    color: newColor === opt.id ? opt.color : 'var(--text-muted)',
-                    border: `1px solid ${newColor === opt.id ? opt.border : 'var(--border)'}`,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Custom status list */}
-        {customStatuses.length === 0 ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px dashed var(--border)' }}>
-            No custom statuses yet. Add your first one above.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {customStatuses.map(cs => {
-              const colorOpt = COLOR_OPTIONS.find(o => o.id === cs.color) || COLOR_OPTIONS[0];
-              return (
-                <div key={cs.value} style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 12, alignItems: 'center', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Status Key</div>
-                    <code style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 }}>{cs.value}</code>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{
-                      fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
-                      background: colorOpt.bg, color: colorOpt.color, border: `1px solid ${colorOpt.border}`
-                    }}>
-                      {cs.label}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => removeCustomStatus(cs.value)}
-                    className="btn btn-ghost btn-sm"
-                    title="Remove custom status"
-                    style={{ color: 'var(--danger)', flexShrink: 0 }}
-                    disabled={savingCustom}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      {/* Save button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 28px', fontSize: 14 }}>
+          {saving ? 'Saving...' : 'Save All'}
+        </button>
       </div>
     </div>
   );
@@ -1296,7 +999,12 @@ function CannedResponsesTab({ showAlert }: { showAlert: (m: string, t?: 'success
 
 export default function AdminPage() {
   const { user } = useStore();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try { return localStorage.getItem('resolv_admin_tab') || 'overview'; } catch { return 'overview'; }
+    }
+    return 'overview';
+  });
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
@@ -1322,7 +1030,7 @@ export default function AdminPage() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await api.get<{ data: { api: boolean; db: boolean; queue: boolean } }>('/admin/health');
+        const res = await api.get<{ data: { api: boolean; db: boolean; queue: boolean } }>('/health');
         setHealthStatus(res.data || { api: true, db: true, queue: true });
       } catch {
         setHealthStatus({ api: false, db: false, queue: false });
@@ -1342,11 +1050,10 @@ export default function AdminPage() {
     // Roles
     { tab: 'roles', keywords: ['roles', 'permissions', 'access', 'rbac', 'admin', 'agent', 'privileges', 'security', 'manage users', 'delete tickets', 'assign tickets'] },
     // SSO
-    { tab: 'sso', keywords: ['sso', 'single sign-on', 'saml', 'oidc', 'azure', 'google workspace', 'identity', 'oauth', 'okta', 'login', 'auth', 'provision'] },
+    { tab: 'directory-sync', keywords: ['directory sync', 'directory', 'sync', 'provision', 'google workspace', 'azure ad', 'okta', 'ldap', 'active directory', 'scim', 'user provisioning', 'sso', 'single sign-on', 'oauth', 'identity', 'login', 'auth'] },
     // Categories
     { tab: 'categories', keywords: ['categories', 'category', 'ticket type', 'classification', 'routing', 'organize', 'color'] },
-    // Tags
-    { tab: 'tags', keywords: ['tags', 'tag', 'labels', 'label', 'metadata', 'filter'] },
+
     // Ticket Statuses
     { tab: 'ticket-statuses', keywords: ['ticket statuses', 'status labels', 'status names', 'progress text', 'open', 'in progress', 'waiting', 'closed', 'rename status'] },
     // SLA
@@ -1396,14 +1103,14 @@ export default function AdminPage() {
       items: [
         { id: 'users', label: 'Users', icon: <Users size={15} /> },
         { id: 'roles', label: 'Roles & Permissions', icon: <ShieldCheck size={15} /> },
-        { id: 'sso', label: 'SSO / Identity', icon: <Shield size={15} /> },
+        { id: 'directory-sync', label: 'Directory Sync', icon: <Building size={15} /> },
       ]
     },
     {
       group: 'TICKETING',
       items: [
         { id: 'categories', label: 'Categories', icon: <Layers size={15} /> },
-        { id: 'tags', label: 'Tags', icon: <Hash size={15} /> },
+
         { id: 'ticket-statuses', label: 'Ticket Statuses', icon: <Circle size={15} /> },
         { id: 'sla-policies', label: 'SLA Policies', icon: <Clock size={15} /> },
         { id: 'working-hours', label: 'Working Hours', icon: <CalendarClock size={15} /> },
@@ -1467,9 +1174,8 @@ export default function AdminPage() {
       case 'overview': return 'System monitoring, statistics, and recent activity overview';
       case 'users': return 'Manage user accounts, departments, and active statuses';
       case 'roles': return 'Define security roles, access permissions, and privileges';
-      case 'sso': return 'Configure Single Sign-On and enterprise identity providers';
+      case 'directory-sync': return 'Sync users and groups from your identity provider to automatically provision and manage accounts.';
       case 'categories': return 'Organize tickets into categories and define routing rules';
-      case 'tags': return 'Manage custom labels and metadata tags for ticketing';
       case 'ticket-statuses': return 'Customize the display labels for ticket status values';
       case 'sla-policies': return 'Set Service Level Agreement response and resolution targets';
       case 'working-hours': return 'Configure business calendars, hours of operation, and holidays';
@@ -1540,6 +1246,11 @@ export default function AdminPage() {
       loadTabData(activeTab);
     }
   }, [user, activeTab, auditPage, loadTabData]);
+
+  // Persist active admin tab across refreshes
+  useEffect(() => {
+    localStorage.setItem('resolv_admin_tab', activeTab);
+  }, [activeTab]);
 
   if (!user) return null;
   if (user.role !== 'admin' && user.role !== 'agent') {
@@ -1778,12 +1489,11 @@ export default function AdminPage() {
           )}
           {activeTab === 'ai-config' && <AIConfigTab showAlert={showAlert} />}
           {activeTab === 'ai-training' && <AITrainingTab showAlert={showAlert} />}
-          {activeTab === 'sso' && <SSOTab showAlert={showAlert} />}
+          {activeTab === 'directory-sync' && <DirectorySyncTab showAlert={showAlert} />}
           {activeTab === 'roles' && <RolesTab showAlert={showAlert} />}
           {activeTab === 'automation' && <AutomationTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}
           {activeTab === 'working-hours' && <WorkingHoursTab showAlert={showAlert} />}
           {activeTab === 'portal-customization' && <PortalCustomizationTab showAlert={showAlert} />}
-           {activeTab === 'tags' && <TagsTab showAlert={showAlert} />}
            {activeTab === 'ticket-statuses' && <TicketStatusesTab showAlert={showAlert} />}
            {activeTab === 'canned-responses' && <CannedResponsesTab showAlert={showAlert} />}
           {activeTab === 'reports' && <ReportsTab showAlert={showAlert} />}

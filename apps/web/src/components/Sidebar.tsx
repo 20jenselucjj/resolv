@@ -33,7 +33,16 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, toggleTheme, theme, unreadCount } = useStore();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('resolv_sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('resolv_sidebar_collapsed', String(collapsed));
+  }, [collapsed]);
 
   const w = collapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)';
 
@@ -124,30 +133,32 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
         {/* Quick actions */}
         {!collapsed && (
           <div style={{ padding: '10px 10px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button onClick={() => onAiOpen?.()} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 10px',
-              background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
-              color: 'white',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              fontSize: 13,
-              fontWeight: 600,
-              transition: 'opacity var(--transition)',
-              border: 'none',
-              cursor: 'pointer',
-              width: '100%',
-              boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
-              justifyContent: 'space-between',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Sparkles size={14} />
-                Ask AI
-              </div>
-            </button>
+            {isAgentOrAbove && (
+              <button onClick={() => onAiOpen?.()} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 10px',
+                background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+                color: 'white',
+                borderRadius: 'var(--radius-md)',
+                textDecoration: 'none',
+                fontSize: 13,
+                fontWeight: 600,
+                transition: 'opacity var(--transition)',
+                border: 'none',
+                cursor: 'pointer',
+                width: '100%',
+                boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
+                justifyContent: 'space-between',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={14} />
+                  Ask AI
+                </div>
+              </button>
+            )}
             {isAgentOrAbove && (
               <button onClick={() => onNewTicket?.()} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -174,24 +185,26 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
         )}
         {collapsed && (
           <div style={{ padding: '10px 10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <button onClick={() => onAiOpen?.()} data-tooltip="Ask AI" style={{
-              width: 34, height: 34,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
-              color: 'white',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              transition: 'opacity var(--transition)',
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            >
-              <div style={{ display: 'none' }}>⌘J</div>
-              <Sparkles size={15} />
-            </button>
+            {isAgentOrAbove && (
+              <button onClick={() => onAiOpen?.()} data-tooltip="Ask AI" style={{
+                width: 34, height: 34,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+                color: 'white',
+                borderRadius: 'var(--radius-md)',
+                textDecoration: 'none',
+                transition: 'opacity var(--transition)',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                <div style={{ display: 'none' }}>⌘J</div>
+                <Sparkles size={15} />
+              </button>
+            )}
             {isAgentOrAbove && (
               <button onClick={() => onNewTicket?.()} data-tooltip="New Ticket" style={{
                 width: 34, height: 34,

@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { pool } from '../db/pool';
 
 export default async function adminRoutes(fastify: FastifyInstance) {
@@ -146,9 +147,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'portal_qa_4_label', 'portal_qa_4_prompt',
       'portal_qa_5_label', 'portal_qa_5_prompt',
       'portal_qa_6_label', 'portal_qa_6_prompt',
-      'available_tags',
       'status_label_open', 'status_label_in_progress', 'status_label_waiting', 'status_label_resolved', 'status_label_closed',
-      'canned_responses',
+      'canned_responses', 'custom_statuses',
     ] as const;
 
     const body = z.object({
@@ -171,25 +171,6 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     );
 
     return reply.send({ data: result.rows[0] });
-  });
-
-  // GET /admin/tags
-  fastify.get('/admin/tags', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
-    // Get configured tags from settings
-    const settingResult = await pool.query("SELECT value FROM system_settings WHERE key = 'available_tags'");
-    const configuredTags: string[] = settingResult.rows[0]?.value ? JSON.parse(settingResult.rows[0].value) : [];
-    
-    // Get tags actually used in tickets
-    const usedResult = await pool.query(`
-      SELECT DISTINCT unnest(tags) as tag, COUNT(*) as count
-      FROM tickets 
-      WHERE array_length(tags, 1) > 0
-      GROUP BY tag
-      ORDER BY count DESC
-    `);
-    const usedTags = usedResult.rows.map(r => ({ tag: r.tag, count: parseInt(r.count) }));
-    
-    return reply.send({ data: { configured: configuredTags, used: usedTags } });
   });
 
   // GET /admin/automation-rules
@@ -293,7 +274,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'portal_qa_6_label', 'portal_qa_6_prompt',
     ];
     const result = await pool.query(
-      `SELECT key, value FROM system_settings WHERE key = ANY($1)`,
+      `SELECT key, value FROM system_settings WHERE key = ANY($1::text[])`,
       [keys]
     );
     const settings: Record<string, string> = {};
@@ -312,5 +293,86 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     ];
     if (raw) { try { responses = JSON.parse(raw); } catch {} }
     return reply.send({ data: responses });
+  });
+
+  // ─── Email Templates ───────────────────────────────────────────────────
+
+  async function loadEmailTemplates(): Promise<any[]> {
+    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'email_templates'");
+    if (result.rows.length === 0) return [];
+    try {
+      return JSON.parse(result.rows[0].value);
+    } catch {
+      return [];
+    }
+  }
+
+  async function saveEmailTemplates(templates: any[]): Promise<void> {
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ('email_templates', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(templates)]
+    );
+  }
+
+  // GET /admin/email-templates
+  fastify.get('/admin/email-templates', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const templates = await loadEmailTemplates();
+    return reply.send({ data: templates });
+  });
+
+  // POST /admin/email-templates
+  const emailTemplateSchema = z.object({
+    name: z.string().min(1).max(200),
+    subject: z.string().min(1).max(500),
+    body: z.string().default(''),
+  });
+
+  fastify.post('/admin/email-templates', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = emailTemplateSchema.parse(request.body);
+    const templates = await loadEmailTemplates();
+    const newTemplate = {
+      id: crypto.randomUUID(),
+      name: body.name,
+      subject: body.subject,
+      body: body.body,
+    };
+    templates.push(newTemplate);
+    await saveEmailTemplates(templates);
+    return reply.status(201).send({ data: newTemplate });
+  });
+
+  // PATCH /admin/email-templates/:id
+  const emailTemplateUpdateSchema = z.object({
+    name: z.string().min(1).max(200).optional(),
+    subject: z.string().min(1).max(500).optional(),
+    body: z.string().optional(),
+  });
+
+  fastify.patch('/admin/email-templates/:id', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = emailTemplateUpdateSchema.parse(request.body);
+    const templates = await loadEmailTemplates();
+    const index = templates.findIndex((t: any) => t.id === id);
+    if (index === -1) {
+      return reply.status(404).send({ error: 'Email template not found' });
+    }
+    templates[index] = { ...templates[index], ...body };
+    await saveEmailTemplates(templates);
+    return reply.send({ data: templates[index] });
+  });
+
+  // DELETE /admin/email-templates/:id
+  fastify.delete('/admin/email-templates/:id', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const templates = await loadEmailTemplates();
+    const index = templates.findIndex((t: any) => t.id === id);
+    if (index === -1) {
+      return reply.status(404).send({ error: 'Email template not found' });
+    }
+    templates.splice(index, 1);
+    await saveEmailTemplates(templates);
+    return reply.send({ success: true });
   });
 }

@@ -18,6 +18,9 @@ import { aiRoutes } from './routes/ai'
 import { aiTrainingRoutes } from './routes/ai-training'
 import { attachmentRoutes } from './routes/attachments'
 import templateRoutes from './routes/templates'
+import oauthRoutes from './routes/oauth';
+import directorySyncRoutes from './routes/directory-sync';
+import { pool } from './db/pool';
 
 const fastify = Fastify({
   logger: {
@@ -91,9 +94,18 @@ async function start() {
   await fastify.register(aiTrainingRoutes, { prefix: '/api' })
   await fastify.register(attachmentRoutes, { prefix: '/api' })
   await fastify.register(templateRoutes, { prefix: '/api' })
+  await fastify.register(oauthRoutes, { prefix: '/api' });
+  await fastify.register(directorySyncRoutes, { prefix: '/api' });
 
-  // Health check
-  fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+  // Health check (under /api prefix so the frontend api helper can reach it)
+  fastify.get('/api/health', async (request, reply) => {
+    let dbHealthy = false;
+    try {
+      await pool.query('SELECT 1');
+      dbHealthy = true;
+    } catch { /* db down */ }
+    return reply.send({ data: { api: true, db: dbHealthy, queue: true } });
+  });
 
   const port = parseInt(process.env.PORT || '3001');
   const host = process.env.HOST || '0.0.0.0';
