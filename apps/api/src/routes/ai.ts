@@ -6,7 +6,7 @@ export async function aiRoutes(app: FastifyInstance) {
   // GET /ai/config — admin only
   app.get('/ai/config', { preHandler: [app.authenticate, app.requireRole(['admin'])] }, async (req, reply) => {
     const { rows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    if (rows.length === 0) return reply.send({ data: {} })
+    if (rows.length === 0) return reply.send({ data: { enabled: false, provider: 'openai', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 2048, system_prompt: '', allowed_roles: ['admin', 'agent'], max_messages_per_day: 50 } })
     const cfg = { ...rows[0] }
     cfg.api_key = cfg.api_key ? '***' : ''
     return reply.send({ data: cfg })
@@ -266,7 +266,8 @@ export async function aiRoutes(app: FastifyInstance) {
     ]
 
     // Call AI API
-    const aiResponse = await fetch(`${cfg.base_url}/chat/completions`, {
+    const apiBase = (cfg.base_url || '').replace(/\/+$/, '')
+    const aiResponse = await fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -283,8 +284,9 @@ export async function aiRoutes(app: FastifyInstance) {
     })
 
     if (!aiResponse.ok) {
-      const err = await aiResponse.text()
-      return reply.status(502).send({ error: `AI API error: ${err}` })
+      const errBody = await aiResponse.text().catch(() => '')
+      const detail = errBody || `AI provider returned ${aiResponse.status} ${aiResponse.statusText}`
+      return reply.status(502).send({ error: `AI API error: ${detail}` })
     }
 
     const aiData = await aiResponse.json() as any
@@ -387,7 +389,7 @@ export async function aiRoutes(app: FastifyInstance) {
         ...toolResults.map(tr => ({ role: 'tool', content: tr.content, tool_call_id: tr.tool_call_id }))
       ]
 
-      const aiResponse2 = await fetch(`${cfg.base_url}/chat/completions`, {
+      const aiResponse2 = await fetch(`${apiBase}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.api_key}` },
         body: JSON.stringify({ model: cfg.model, messages: messages2, temperature: parseFloat(cfg.temperature), max_tokens: cfg.max_tokens })

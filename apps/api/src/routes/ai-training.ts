@@ -104,18 +104,40 @@ function recursiveChunkText(text: string, chunkSize = 512, overlap = 64): string
 // ─── Utility: Get embeddings from AI provider ────────────────────────────────
 async function getEmbedding(text: string, cfg: any): Promise<number[] | null> {
   try {
-    const res = await fetch(`${cfg.base_url}/embeddings`, {
+    // Fix #1: strip trailing slash to avoid double-slash URL (same bug as chat)
+    const apiBase = (cfg.base_url || '').replace(/\/+$/, '')
+    // Fix #2: default embedding model — detect provider to use appropriate default
+    const provider = (cfg.provider || '').toLowerCase()
+    const defaultEmbedModel = (provider === 'google' || provider === 'openrouter' || apiBase.includes('googleapis'))
+      ? 'gemini-embedding-001'
+      : 'text-embedding-3-small'
+    const embedModel = cfg.embedding_model || defaultEmbedModel
+
+    // Fix #3: add a 15-second timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    const res = await fetch(`${apiBase}/embeddings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${cfg.api_key}`
       },
       body: JSON.stringify({
-        model: cfg.embedding_model || 'text-embedding-3-small',
+        model: embedModel,
         input: text.substring(0, 8000)
-      })
+      }),
+      signal: controller.signal
     })
-    if (!res.ok) return null
+    clearTimeout(timeoutId)
+
+    if (!res.ok) {
+      // If embedding endpoint 404s (common for Gemini OpenAI compat), log and return null
+      if (res.status === 404) {
+        console.warn(`Embedding endpoint not found (404) — provider may not support /embeddings. Using keyword-only search.`)
+      }
+      return null
+    }
     const data = await res.json() as any
     return data.data?.[0]?.embedding || null
   } catch {
@@ -133,28 +155,81 @@ async function processSource(sourceId: string, rawContent: string, cfg: any, rag
 
     const chunks = recursiveChunkText(rawContent, ragCfg.chunk_size || 512, ragCfg.chunk_overlap || 64)
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]
-      const embedding = cfg?.api_key ? await getEmbedding(chunk, cfg) : null
-      // Calculate word count for content_tokens field
-      const wordCount = chunk.split(/\s+/).filter(Boolean).length
-
+    if (chunks.length === 0) {
       await pool.query(
-        `INSERT INTO ai_knowledge_chunks (source_id, chunk_index, content, content_tokens, embedding, embedding_model)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          sourceId, i, chunk, wordCount,
-          embedding ? JSON.stringify(embedding) : null,
-          embedding ? (cfg.embedding_model || 'text-embedding-3-small') : null
-        ]
+        `UPDATE ai_knowledge_sources SET status='error', error_message='No content chunks could be extracted.', updated_at=NOW() WHERE id=$1`,
+        [sourceId]
       )
+      return
     }
+
+    // Process chunks in parallel batches of 5 to avoid overwhelming the embedding API
+    const batchSize = 5
+    let embeddingsAttempted = false
+
+    for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
+      const batch = chunks.slice(batchStart, batchStart + batchSize)
+      const results = await Promise.all(
+        batch.map(async (chunk, batchIdx) => {
+          const chunkIndex = batchStart + batchIdx
+          const wordCount = chunk.split(/\s+/).filter(Boolean).length
+
+          let embedding = null
+          let embedModel = null
+          if (cfg?.api_key) {
+            embeddingsAttempted = true
+            try {
+              embedding = await getEmbedding(chunk, cfg)
+              if (embedding) {
+                const provider = (cfg.provider || '').toLowerCase()
+                const apiBase = (cfg.base_url || '').replace(/\/+$/, '')
+                embedModel = cfg.embedding_model || (
+                  (provider === 'google' || provider === 'openrouter' || apiBase.includes('googleapis'))
+                    ? 'gemini-embedding-001'
+                    : 'text-embedding-3-small'
+                )
+              }
+            } catch {
+              // embedding failure is non-fatal — chunk still works for keyword search
+            }
+          }
+
+          return {
+            chunkIndex,
+            content: chunk,
+            wordCount,
+            embedding: embedding ? JSON.stringify(embedding) : null,
+            embedModel,
+            hasEmbed: !!embedding
+          }
+        })
+      )
+
+      // Batch insert all chunks in this batch
+      for (const r of results) {
+        await pool.query(
+          `INSERT INTO ai_knowledge_chunks (source_id, chunk_index, content, content_tokens, embedding, embedding_model)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [sourceId, r.chunkIndex, r.content, r.wordCount, r.embedding, r.embedModel]
+        )
+      }
+    }
+
+    const embedCount = embeddingsAttempted
+      ? 'partial' // at least tried, some may have embeddings even if not all
+      : 'skipped'
 
     await pool.query(
       `UPDATE ai_knowledge_sources SET status='ready', chunk_count=$1, updated_at=NOW() WHERE id=$2`,
       [chunks.length, sourceId]
     )
+
+    console.log(
+      `[processSource] Source ${sourceId}: ${chunks.length} chunks created. ` +
+      `Embeddings: ${embedCount}. Keyword search available.`
+    )
   } catch (e: any) {
+    console.error(`[processSource] Error processing source ${sourceId}:`, e.message)
     await pool.query(
       `UPDATE ai_knowledge_sources SET status='error', error_message=$1, updated_at=NOW() WHERE id=$2`,
       [e.message, sourceId]
@@ -189,7 +264,8 @@ export async function retrieveContext(
   // ── Keyword search (always fast, always available) ──
   if (strategy === 'keyword' || strategy === 'hybrid') {
     const safeQuery = query.replace(/[^\w\s]/g, ' ').trim()
-    const tsQuery = safeQuery.split(/\s+/).filter(Boolean).join(' & ')
+    const terms = safeQuery.split(/\s+/).filter(Boolean)
+    const tsQuery = terms.join(' & ')
 
     if (tsQuery) {
       const { rows: kwChunks } = await pool.query(
@@ -202,7 +278,7 @@ export async function retrieveContext(
            AND c.search_vector @@ to_tsquery('english', $1)
          ORDER BY rank DESC
          LIMIT $2`,
-        [tsQuery, topK * 3] // fetch more candidates for better hybrid coverage
+        [tsQuery, topK * 3]
       )
       chunks.push(...kwChunks.map(r => ({ ...r, score: parseFloat(r.rank), method: 'keyword' })))
 
@@ -216,6 +292,24 @@ export async function retrieveContext(
         [tsQuery, Math.ceil(topK / 2)]
       )
       qaPairs.push(...kwQA.map(r => ({ ...r, score: parseFloat(r.rank), method: 'keyword' })))
+    }
+
+    // Fallback: if keyword search returned nothing and we have terms,
+    // try simple ILIKE matching (catches cases where stop words removed everything)
+    if (chunks.length === 0 && terms.length > 0) {
+      const likeConditions = terms.map((_, i) => `c.content ILIKE $${i + 2}`).join(' AND ')
+      const likeParams = terms.map(t => `%${t}%`)
+      const { rows: likeChunks } = await pool.query(
+        `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
+                s.name as source_name, s.category, s.classification, 0 as rank
+         FROM ai_knowledge_chunks c
+         JOIN ai_knowledge_sources s ON c.source_id = s.id
+         WHERE s.is_active = true AND s.status = 'ready'
+           AND ${likeConditions}
+         LIMIT $1`,
+        [topK, ...likeParams]
+      )
+      chunks.push(...likeChunks.map(r => ({ ...r, score: 0.5, method: 'keyword-fallback' })))
     }
   }
 
@@ -358,6 +452,69 @@ export async function retrieveContext(
     .slice(0, Math.ceil(topK / 2))
 
   return { chunks, qaPairs, strategy }
+}
+
+// ─── Exported helper: sync a single closed/resolved ticket into knowledge base ─
+// Used by the tickets PATCH handler so AI can learn from closed tickets.
+export async function syncTicketToKnowledgeBase(ticketId: string, userId: string) {
+  try {
+    const { rows: tickets } = await pool.query(
+      `SELECT t.id, t.title, t.description, t.close_notes, t.status, t.priority, t.category,
+              c.name as category_name,
+              array_agg(DISTINCT tc.body ORDER BY tc.created_at ASC) FILTER (WHERE tc.body IS NOT NULL) as comments
+       FROM tickets t
+       LEFT JOIN categories c ON t.category_id = c.id
+       LEFT JOIN ticket_comments tc ON tc.ticket_id = t.id
+       WHERE t.id = $1
+       GROUP BY t.id, t.title, t.description, t.close_notes, t.status, t.priority, t.category, c.name`,
+      [ticketId]
+    )
+    if (tickets.length === 0) return
+
+    const ticket = tickets[0]
+    const comments = Array.isArray(ticket.comments) ? ticket.comments : []
+    const content = [
+      `Title: ${ticket.title}`,
+      `Category: ${ticket.category_name || ticket.category || 'General'}`,
+      `Priority: ${ticket.priority}`,
+      `Status: ${ticket.status}`,
+      ticket.description ? `\nDescription:\n${ticket.description}` : '',
+      ticket.close_notes ? `\nClosing Notes:\n${ticket.close_notes}` : '',
+      comments.length > 0 ? `\nResolution Thread:\n${comments.join('\n\n')}` : ''
+    ].filter(Boolean).join('\n')
+
+    if (!content.trim()) return
+
+    const sourceName = `Ticket #${ticket.id}: ${ticket.title}`
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM ai_knowledge_sources WHERE source_type='ticket_sync' AND name=$1`,
+      [sourceName]
+    )
+
+    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
+    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
+    const cfg = cfgRows[0] || null
+    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+
+    if (existing.length > 0) {
+      await pool.query(
+        `UPDATE ai_knowledge_sources SET raw_content=$1, status='pending', updated_at=NOW() WHERE id=$2`,
+        [content, existing[0].id]
+      )
+      processSource(existing[0].id, content, cfg, ragCfg).catch(console.error)
+    } else {
+      const { rows: newSource } = await pool.query(
+        `INSERT INTO ai_knowledge_sources (name, source_type, content_type, raw_content, category, tags, uploaded_by, status)
+         VALUES ($1,'ticket_sync','text/plain',$2,$3,$4,$5,'pending') RETURNING id`,
+        [sourceName, content, ticket.category_name || 'Support Tickets',
+         ['ticket', ticket.priority, ticket.status].filter(Boolean),
+         userId]
+      )
+      processSource(newSource[0].id, content, cfg, ragCfg).catch(console.error)
+    }
+  } catch (err) {
+    console.error(`[syncTicketToKnowledgeBase] Error syncing ticket ${ticketId}:`, err)
+  }
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -653,7 +810,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     let testResponse = null
     if (cfg?.enabled && cfg?.api_key && contextPreview) {
       try {
-        const aiRes = await fetch(`${cfg.base_url}/chat/completions`, {
+        const aiRes = await fetch(`${(cfg.base_url || '').replace(/\/+$/, '')}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.api_key}` },
           body: JSON.stringify({

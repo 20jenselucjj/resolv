@@ -252,9 +252,11 @@ export default function TicketDetailPage() {
       });
       
       if (asResolution) {
+        // Don't set close_notes here — the comment itself IS the closing record.
+        // The Journey tab already shows comments, so duplicating as close_notes
+        // would show the same message twice.
         const resTicket = await api.patch<{ data: Ticket }>(`/tickets/${id}`, { 
-          status: 'closed', 
-          close_notes: comment 
+          status: 'closed'
         });
         setTicket((prev) => prev ? ({ ...prev, ...resTicket.data }) : null);
         updateTicket(id, resTicket.data);
@@ -474,28 +476,18 @@ export default function TicketDetailPage() {
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{ticket.assigned_to_name || 'Unassigned'}</span>
         </div>
 
-        {/* Status Dropdown */}
+        {/* Status Dropdown — SelectSearch already shows the current value with icon/color,
+            so no separate status label is needed (avoids duplicating "Open" or
+            "In Progress" text) */}
         {isAdminOrAgent ? (
           <div style={{ position: 'relative', minWidth: 150 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: currentStatus?.color || 'var(--bg-tertiary)',
-              borderRadius: '16px', padding: '0 4px 0 12px',
-            }}>
-              <span style={{ color: '#fff', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                {currentStatus?.icon && <currentStatus.icon size={12} style={{ marginRight: 6, display: 'inline', verticalAlign: 'middle' }} />}
-                {currentStatus?.label || ticket.status}
-              </span>
-              <div style={{ width: 100 }}>
-                <SelectSearch
-                  options={STATUS_OPTIONS}
-                  value={ticket.status}
-                  onChange={val => val && handleStatusChange(val)}
-                  placeholder="Change"
-                  hideClear
-                />
-              </div>
-            </div>
+            <SelectSearch
+              options={STATUS_OPTIONS}
+              value={ticket.status}
+              onChange={val => val && handleStatusChange(val)}
+              placeholder="Change"
+              hideClear
+            />
           </div>
         ) : (
           <span className={statusBadgeClass[ticket.status] || 'badge'}>{currentStatus?.label || ticket.status}</span>

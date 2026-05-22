@@ -391,9 +391,9 @@ function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'er
 
   const fetchConfig = useCallback(async () => {
     try {
-      const res = await api.get<{ data: AIConfig }>('/ai/config');
+      const res = await api.get<{ data: Partial<AIConfig> }>('/ai/config');
       if (res.data) {
-        setConfig(res.data);
+        setConfig(prev => ({ ...prev, ...res.data }));
       }
     } catch (err) {
       console.error('Failed to fetch AI config:', err);

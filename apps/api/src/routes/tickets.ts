@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
 import { JwtPayload } from '../plugins/auth';
+import { syncTicketToKnowledgeBase } from './ai-training';
 
 const createTicketSchema = z.object({
   title: z.string().min(3).max(500),
@@ -373,6 +374,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       // Emit real-time event
       fastify.io.emit(`ticket:updated:${id}`, { ticket: updated });
       fastify.io.emit('ticket:updated', { ticket: updated });
+
+      // Auto-sync closed/resolved tickets into AI knowledge base
+      if (body.status === 'closed' || body.status === 'resolved') {
+        syncTicketToKnowledgeBase(id, request.user.id).catch(console.error);
+      }
 
       return reply.send({ data: updated });
     } catch (error) {
