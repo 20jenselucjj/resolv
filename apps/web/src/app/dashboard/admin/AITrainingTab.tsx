@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import {
   Brain, Upload, Link, FileText, MessageSquare, Settings, FlaskConical,
   BarChart3, Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Clock,
-  Shield, ChevronDown, ChevronUp, X, Search, BookOpen, Zap, Eye, Flag, Activity, Edit3
+  Shield, ChevronDown, ChevronUp, X, Search, BookOpen, Zap, Eye, Flag, Activity, Edit3, Users
 } from 'lucide-react';
 
 interface KnowledgeSource {
@@ -112,13 +112,17 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
   const [syncingTickets, setSyncingTickets] = useState(false);
   const [sourceForm, setSourceForm] = useState({
     name: '',
-    source_type: 'manual' as 'manual' | 'url',
+    source_type: 'manual' as 'manual' | 'url' | 'file',
     category: '',
     classification: 'unclassified' as 'unclassified' | 'sensitive' | 'confidential' | 'secret',
     tags: '',
     raw_content: '',
     url: ''
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [sourceSearch, setSourceSearch] = useState('');
 
   // --- Sub-tab 2: Q&A Pairs State ---
   const [qaPairs, setQAPairs] = useState<QAPair[]>([]);
@@ -195,6 +199,57 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
   // --- Knowledge Source Functions ---
   const handleAddSource = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (sourceForm.source_type === 'file') {
+      // File upload path — uses multipart endpoint
+      if (!selectedFile) {
+        showAlert('Please select a file to upload', 'error');
+        return;
+      }
+      const allowedExts = ['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.md', '.json', '.html', '.htm'];
+      const ext = '.' + selectedFile.name.split('.').pop()?.toLowerCase();
+      if (!allowedExts.includes(ext)) {
+        showAlert(`Unsupported file type: ${ext}. Allowed: ${allowedExts.join(', ')}`, 'error');
+        return;
+      }
+
+      setUploading(true);
+      try {
+        const token = localStorage.getItem('resolv_token');
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('name', sourceForm.name.trim());
+        if (sourceForm.category) formData.append('category', sourceForm.category);
+        if (sourceForm.tags.trim()) formData.append('tags', sourceForm.tags);
+        if (sourceForm.classification) formData.append('classification', sourceForm.classification);
+
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const res = await fetch(`${baseUrl}/ai/knowledge/sources/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+          throw new Error(err.error || `Upload failed (${res.status})`);
+        }
+        showAlert('File uploaded and processing started');
+      } catch (err: any) {
+        showAlert(err.message || 'Failed to upload file', 'error');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+      setSelectedFile(null);
+      setShowAddSource(false);
+      setSourceForm({
+        name: '', source_type: 'manual', category: '',
+        classification: 'unclassified', tags: '', raw_content: '', url: ''
+      });
+      loadTabSpecificData();
+      return;
+    }
+
     if (!sourceForm.name.trim()) {
       showAlert('Source Name is required', 'error');
       return;
@@ -262,6 +317,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
 
   const handleCancelEditSource = () => {
     setEditingSource(null);
+    setSelectedFile(null);
     setSourceForm({
       name: '',
       source_type: 'manual',
@@ -304,6 +360,66 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       showAlert(err.message || 'Failed to delete knowledge source', 'error');
     }
   };
+
+  const handleBulkDeleteSources = async () => {
+    if (selectedSources.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedSources.size} knowledge source(s)?`)) return;
+    try {
+      await Promise.all([...selectedSources].map(id => api.delete(`/ai/knowledge/sources/${id}`)));
+      showAlert(`${selectedSources.size} knowledge sources deleted`);
+      setSources(sources.filter(s => !selectedSources.has(s.id)));
+      setSelectedSources(new Set());
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to delete sources', 'error');
+    }
+  };
+
+  const handleBulkReprocessSources = async () => {
+    if (selectedSources.size === 0) return;
+    try {
+      await Promise.all([...selectedSources].map(id => api.post(`/ai/knowledge/sources/${id}/reprocess`, {})));
+      showAlert(`Reprocess initiated for ${selectedSources.size} source(s)`);
+      setSelectedSources(new Set());
+      loadTabSpecificData();
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to reprocess sources', 'error');
+    }
+  };
+
+  const handleBulkToggleSources = async (activate: boolean) => {
+    if (selectedSources.size === 0) return;
+    try {
+      await Promise.all([...selectedSources].map(id => api.patch(`/ai/knowledge/sources/${id}`, { is_active: activate })));
+      showAlert(`${selectedSources.size} source(s) ${activate ? 'activated' : 'deactivated'}`);
+      setSources(sources.map(s => selectedSources.has(s.id) ? { ...s, is_active: activate } : s));
+      setSelectedSources(new Set());
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to update sources', 'error');
+    }
+  };
+
+  const toggleSourceSelection = (id: string) => {
+    setSelectedSources(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllSources = () => {
+    if (selectedSources.size === filteredSources.length) {
+      setSelectedSources(new Set());
+    } else {
+      setSelectedSources(new Set(filteredSources.map(s => s.id)));
+    }
+  };
+
+  const filteredSources = sources.filter(s =>
+    s.name.toLowerCase().includes(sourceSearch.toLowerCase()) ||
+    s.category?.toLowerCase().includes(sourceSearch.toLowerCase()) ||
+    s.source_type.toLowerCase().includes(sourceSearch.toLowerCase())
+  );
 
   const handleSyncKB = async () => {
     setSyncingKB(true);
@@ -515,134 +631,96 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Secondary Sub-tab Navigation */}
       <div style={{
-        display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)',
-        paddingBottom: '8px', marginBottom: '8px', overflowX: 'auto'
+        display: 'flex', gap: '4px', borderBottom: '1px solid var(--border)',
+        paddingBottom: '0', marginBottom: '0', overflowX: 'auto', background: 'var(--bg-secondary)',
+        borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: '6px 6px 0 6px'
       }}>
-        <button
-          onClick={() => setActiveSubTab('sources')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-            fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none',
-            color: activeSubTab === 'sources' ? 'var(--accent)' : 'var(--text-secondary)',
-            borderBottom: activeSubTab === 'sources' ? '2px solid var(--accent)' : '2px solid transparent',
-            cursor: 'pointer', whiteSpace: 'nowrap', paddingBottom: '10px', marginBottom: '-10px'
-          }}
-        >
-          <Upload size={14} />
-          Knowledge Sources
-        </button>
-        <button
-          onClick={() => setActiveSubTab('qa')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-            fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none',
-            color: activeSubTab === 'qa' ? 'var(--accent)' : 'var(--text-secondary)',
-            borderBottom: activeSubTab === 'qa' ? '2px solid var(--accent)' : '2px solid transparent',
-            cursor: 'pointer', whiteSpace: 'nowrap', paddingBottom: '10px', marginBottom: '-10px'
-          }}
-        >
-          <MessageSquare size={14} />
-          Q&A Pairs
-        </button>
-        <button
-          onClick={() => setActiveSubTab('rag')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-            fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none',
-            color: activeSubTab === 'rag' ? 'var(--accent)' : 'var(--text-secondary)',
-            borderBottom: activeSubTab === 'rag' ? '2px solid var(--accent)' : '2px solid transparent',
-            cursor: 'pointer', whiteSpace: 'nowrap', paddingBottom: '10px', marginBottom: '-10px'
-          }}
-        >
-          <Settings size={14} />
-          RAG Settings
-        </button>
-        <button
-          onClick={() => setActiveSubTab('test')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-            fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none',
-            color: activeSubTab === 'test' ? 'var(--accent)' : 'var(--text-secondary)',
-            borderBottom: activeSubTab === 'test' ? '2px solid var(--accent)' : '2px solid transparent',
-            cursor: 'pointer', whiteSpace: 'nowrap', paddingBottom: '10px', marginBottom: '-10px'
-          }}
-        >
-          <FlaskConical size={14} />
-          Test & Evaluate
-        </button>
-        <button
-          onClick={() => setActiveSubTab('analytics')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-            fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none',
-            color: activeSubTab === 'analytics' ? 'var(--accent)' : 'var(--text-secondary)',
-            borderBottom: activeSubTab === 'analytics' ? '2px solid var(--accent)' : '2px solid transparent',
-            cursor: 'pointer', whiteSpace: 'nowrap', paddingBottom: '10px', marginBottom: '-10px'
-          }}
-        >
-          <BarChart3 size={14} />
-          Analytics
-        </button>
+        {[
+          { key: 'sources', label: 'Knowledge Sources', icon: Upload },
+          { key: 'qa', label: 'Q&A Pairs', icon: MessageSquare },
+          { key: 'rag', label: 'RAG Settings', icon: Settings },
+          { key: 'test', label: 'Test & Evaluate', icon: FlaskConical },
+          { key: 'analytics', label: 'Analytics', icon: BarChart3 },
+        ].map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveSubTab(key as any)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+              fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none',
+              color: activeSubTab === key ? 'var(--accent)' : 'var(--text-secondary)',
+              borderBottom: activeSubTab === key ? '2.5px solid var(--accent)' : '2.5px solid transparent',
+              cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: '-1px',
+              borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* SUB-TAB 1: KNOWLEDGE SOURCES */}
       {activeSubTab === 'sources' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px',
+            padding: '20px 24px', background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 100%)',
+            borderRadius: 'var(--radius-lg)', border: '1px solid var(--accent-border)'
+          }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Knowledge Sources</h3>
-              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
-                Upload documents, paste text, or fetch URLs to build the AI's knowledge base
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BookOpen size={18} />
+                </div>
+                Knowledge Base
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '500px' }}>
+                Build the AI's knowledge foundation — upload documents, paste text, or sync from your help center and resolved tickets
               </p>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 disabled={syncingKB}
                 onClick={handleSyncKB}
                 style={{
-                  padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                  background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', fontWeight: 600,
-                  cursor: syncingKB ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                  padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                  background: 'var(--bg)', color: 'var(--text)', fontSize: '13px', fontWeight: 600,
+                  cursor: syncingKB ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                  opacity: syncingKB ? 0.6 : 1
                 }}
               >
                 <RefreshCw size={14} className={syncingKB ? 'animate-spin' : ''} />
-                {syncingKB ? 'Syncing...' : 'Sync KB Articles'}
+                {syncingKB ? 'Syncing...' : 'Sync KB'}
               </button>
               <button
                 disabled={syncingTickets}
                 onClick={handleSyncTickets}
                 style={{
-                  padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                  background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '13px', fontWeight: 600,
-                  cursor: syncingTickets ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                  padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                  background: 'var(--bg)', color: 'var(--text)', fontSize: '13px', fontWeight: 600,
+                  cursor: syncingTickets ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                  opacity: syncingTickets ? 0.6 : 1
                 }}
               >
                 <RefreshCw size={14} className={syncingTickets ? 'animate-spin' : ''} />
-                {syncingTickets ? 'Syncing...' : 'Sync Resolved Tickets'}
+                {syncingTickets ? 'Syncing...' : 'Sync Tickets'}
               </button>
               <button
                 onClick={() => setShowAddSource(!showAddSource)}
                 style={{
-                  padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none',
+                  padding: '9px 18px', borderRadius: 'var(--radius-md)', border: 'none',
                   background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                  boxShadow: '0 2px 8px rgba(var(--accent-rgb), 0.25)'
                 }}
               >
                 {showAddSource ? <X size={14} /> : <Plus size={14} />}
                 {showAddSource ? 'Cancel' : 'Add Source'}
               </button>
             </div>
-          </div>
-
-          {/* Government Classification Banner */}
-          <div style={{
-            display: 'flex', gap: '12px', padding: '12px 16px', background: 'var(--warning-bg)',
-            border: '1px solid var(--warning-border)', borderRadius: 'var(--radius-md)', alignItems: 'center'
-          }}>
-            <Shield size={16} color="var(--warning)" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>
-              <strong>Government Compliance:</strong> All documents are processed and stored securely. Classify documents appropriately before ingestion.
-            </span>
           </div>
 
           {/* Add Source Inline Form */}
@@ -682,6 +760,19 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                     >
                       <Link size={12} style={{ display: 'inline', marginRight: '6px' }} />
                       Paste URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSourceForm({ ...sourceForm, source_type: 'file' })}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: 'var(--radius-md)', fontSize: '12px', fontWeight: 600,
+                        border: sourceForm.source_type === 'file' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                        background: sourceForm.source_type === 'file' ? 'var(--accent-subtle)' : 'var(--bg-secondary)',
+                        color: sourceForm.source_type === 'file' ? 'var(--accent)' : 'var(--text)', cursor: 'pointer'
+                      }}
+                    >
+                      <Upload size={12} style={{ display: 'inline', marginRight: '6px' }} />
+                      Upload File
                     </button>
                   </div>
                 </div>
@@ -743,10 +834,53 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                     value={sourceForm.raw_content}
                     onChange={e => setSourceForm({ ...sourceForm, raw_content: e.target.value })}
                     placeholder="Paste full text knowledge content here..."
-                    rows={6}
-                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '13px' }}
+                    rows={18}
+                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '13px', minHeight: '300px' }}
                     required
                   />
+                </div>
+              ) : sourceForm.source_type === 'file' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600 }}>Upload File *</label>
+                  <div style={{
+                    border: `2px dashed ${selectedFile ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-md)', padding: '32px', textAlign: 'center',
+                    background: selectedFile ? 'var(--accent-subtle)' : 'var(--bg-secondary)',
+                    cursor: 'pointer', transition: 'all 0.2s'
+                  }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setSelectedFile(f); }}
+                    onClick={() => document.getElementById('file-upload-input')?.click()}
+                  >
+                    <Upload size={28} style={{ color: selectedFile ? 'var(--accent)' : 'var(--text-muted)', marginBottom: '8px' }} />
+                    {selectedFile ? (
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent)' }}>{selectedFile.name}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          {(selectedFile.size / 1024).toFixed(1)} KB &middot; Click or drop to replace
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Drop a file here, or click to browse</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          PDF, Excel (.xlsx/.xls), CSV, JSON, HTML, Text (.txt/.md) &mdash; max 25MB
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    id="file-upload-input"
+                    type="file"
+                    accept=".pdf,.xlsx,.xls,.csv,.txt,.md,.json,.html,.htm"
+                    style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setSelectedFile(f); }}
+                  />
+                  {sourceForm.name && !sourceForm.name.trim() && (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      Source name defaults to the filename if left blank
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -774,40 +908,82 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                 </button>
                 <button
                   type="submit"
+                  disabled={uploading}
                   style={{
                     padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none',
-                    background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer'
+                    background: uploading ? 'var(--text-muted)' : 'var(--accent)',
+                    color: '#fff', fontSize: '13px', fontWeight: 600, cursor: uploading ? 'default' : 'pointer'
                   }}
                 >
-                  {editingSource ? 'Save Changes' : 'Submit Ingestion'}
+                  {uploading ? 'Uploading...' : (sourceForm.source_type === 'file' ? 'Upload & Ingest' : (editingSource ? 'Save Changes' : 'Submit Ingestion'))}
                 </button>
               </div>
             </form>
           )}
 
           {/* Sources List */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Ingested Sources & Status</span>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{sources.length} total sources active</span>
-            </div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+<div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Ingested Sources</span>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 'var(--radius-full)', fontSize: '11px', fontWeight: 600,
+                    background: 'var(--accent-subtle)', color: 'var(--accent)'
+                  }}>
+                    {sources.length}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input
+                      className="input"
+                      value={sourceSearch}
+                      onChange={e => setSourceSearch(e.target.value)}
+                      placeholder="Search sources..."
+                      style={{ paddingLeft: '32px', width: '180px', height: '32px', fontSize: '12px' }}
+                    />
+                  </div>
+                  {selectedSources.size > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px', background: 'var(--accent-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)' }}>{selectedSources.size} selected</span>
+                      <button onClick={handleBulkToggleSources.bind(null, true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--success)', fontSize: '12px', fontWeight: 600, padding: '2px 4px' }} title="Activate">Enable</button>
+                      <button onClick={handleBulkToggleSources.bind(null, false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--warning)', fontSize: '12px', fontWeight: 600, padding: '2px 4px' }} title="Deactivate">Disable</button>
+                      <button onClick={handleBulkReprocessSources} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: '12px', fontWeight: 600, padding: '2px 4px' }} title="Reprocess">Reprocess</button>
+                      <button onClick={handleBulkDeleteSources} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '12px', fontWeight: 600, padding: '2px 4px' }} title="Delete">Delete</button>
+                    </div>
+                  )}
+                </div>
+              </div>
 
             {loading ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
-                Loading sources database...
+              <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--accent)' }} />
+                <div style={{ fontSize: '14px', fontWeight: 600 }}>Loading knowledge sources...</div>
               </div>
             ) : sources.length === 0 ? (
-              <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-                <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No knowledge sources found</p>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Click "Add Source" or "Sync KB Articles" to populate the AI database.</p>
+              <div style={{ padding: '60px 40px', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <FileText size={28} style={{ color: 'var(--text-muted)' }} />
+                </div>
+                <p style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>No knowledge sources yet</p>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', maxWidth: 360, marginLeft: 'auto', marginRight: 'auto' }}>
+                  Start by adding a knowledge source, syncing KB articles, or importing resolved tickets
+                </p>
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ padding: '12px 16px', width: '40px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSources.size === filteredSources.length && filteredSources.length > 0}
+                          onChange={toggleAllSources}
+                          style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                        />
+                      </th>
                       <th style={{ padding: '12px 16px', fontWeight: 600 }}>Source Name</th>
                       <th style={{ padding: '12px 16px', fontWeight: 600 }}>Category</th>
                       <th style={{ padding: '12px 16px', fontWeight: 600 }}>Type</th>
@@ -818,14 +994,23 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                     </tr>
                   </thead>
                   <tbody>
-                    {sources.map(source => {
+                    {filteredSources.map(source => {
                       const cStyle = getClassificationStyles(source.classification);
                       const sStyle = getStatusStyles(source.status);
                       const tStyle = getSourceTypeStyles(source.source_type);
                       const isExpanded = expandedSourceId === source.id;
+                      const isSelected = selectedSources.has(source.id);
 
                       return (
-                        <tr key={source.id} style={{ borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }}>
+                        <tr key={source.id} style={{ borderBottom: '1px solid var(--border)', verticalAlign: 'middle', background: isSelected ? 'var(--accent-subtle)' : 'transparent' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSourceSelection(source.id)}
+                              style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                            />
+                          </td>
                           <td style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <button
@@ -964,19 +1149,30 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       {/* SUB-TAB 2: Q&A PAIRS */}
       {activeSubTab === 'qa' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px',
+            padding: '20px 24px', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg) 100%)',
+            borderRadius: 'var(--radius-lg)', border: '1px solid rgba(16, 185, 129, 0.2)'
+          }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Q&A Pairs</h3>
-              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MessageSquare size={18} />
+                </div>
+                Q&A Pairs
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '500px' }}>
                 Author precise question-answer pairs for high-confidence responses on critical topics
               </p>
             </div>
             <button
               onClick={() => setShowAddQA(!showAddQA)}
               style={{
-                padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none',
-                background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                padding: '9px 18px', borderRadius: 'var(--radius-md)', border: 'none',
+                background: '#10b981', color: '#fff', fontSize: '13px', fontWeight: 600,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
               }}
             >
               {showAddQA ? <X size={14} /> : <Plus size={14} />}
@@ -1063,17 +1259,21 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
           )}
 
           {/* Q&A List */}
-          <div className="card" style={{ padding: 0 }}>
+          <div className="card" style={{ padding: 0, borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
             {loading ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
-                Loading QA registry...
+              <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--accent)' }} />
+                <div style={{ fontSize: '14px', fontWeight: 600 }}>Loading Q&A registry...</div>
               </div>
             ) : qaPairs.length === 0 ? (
-              <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <MessageSquare size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-                <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No custom Q&A pairs recorded</p>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Create precise question-and-answer pairs to override automated RAG on critical topics.</p>
+              <div style={{ padding: '60px 40px', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                  <MessageSquare size={28} style={{ color: 'var(--text-muted)' }} />
+                </div>
+                <p style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>No custom Q&A pairs yet</p>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', maxWidth: 360, marginLeft: 'auto', marginRight: 'auto' }}>
+                  Create precise question-and-answer pairs to override automated RAG on critical topics
+                </p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1221,30 +1421,32 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       {/* SUB-TAB 3: RAG SETTINGS */}
       {activeSubTab === 'rag' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Retrieval Configuration</h3>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Configure how document-based retrieval integrates context safely with the large language models
-            </p>
-          </div>
-
+          {/* Header */}
           <div style={{
-            display: 'flex', gap: '12px', padding: '12px 16px', background: 'var(--warning-bg)',
-            border: '1px solid var(--warning-border)', borderRadius: 'var(--radius-md)', alignItems: 'center'
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px',
+            padding: '20px 24px', background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, var(--bg) 100%)',
+            borderRadius: 'var(--radius-lg)', border: '1px solid rgba(79, 70, 229, 0.2)'
           }}>
-            <Shield size={16} color="var(--warning)" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>
-              <strong>Government Compliance:</strong> These settings control how the AI retrieves and uses your knowledge base. Hybrid retrieval is recommended for government use.
-            </span>
+            <div>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#4f46e5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Settings size={18} />
+                </div>
+                Retrieval Configuration
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '500px' }}>
+                Configure how document-based retrieval integrates context safely with the large language models
+              </p>
+            </div>
           </div>
 
-          <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', borderRadius: 'var(--radius-lg)' }}>
             {/* Global Enable RAG */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', background: ragConfig.enabled ? 'var(--bg-secondary)' : 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: `1px solid ${ragConfig.enabled ? 'var(--border)' : 'var(--border-subtle)'}` }}>
               <div
                 onClick={() => setRagConfig({ ...ragConfig, enabled: !ragConfig.enabled })}
                 style={{
-                  width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
+                  width: 48, height: 26, borderRadius: 13, cursor: 'pointer',
                   background: ragConfig.enabled ? 'var(--accent)' : 'var(--bg-tertiary)',
                   border: `1px solid ${ragConfig.enabled ? 'var(--accent)' : 'var(--border)'}`,
                   position: 'relative', transition: 'all 0.2s ease', flexShrink: 0
@@ -1252,16 +1454,16 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
               >
                 <div style={{
                   position: 'absolute', top: 2,
-                  left: ragConfig.enabled ? 22 : 2,
-                  width: 18, height: 18, borderRadius: '50%',
+                  left: ragConfig.enabled ? 24 : 2,
+                  width: 20, height: 20, borderRadius: '50%',
                   background: ragConfig.enabled ? 'white' : 'var(--text-muted)',
                   transition: 'left 0.2s ease',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
                 }} />
               </div>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>Enable retrieval augmented generation (RAG)</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>When disabled, the AI will answer queries using its default pre-trained model knowledge.</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>Enable RAG</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>When disabled, the AI will answer using its pre-trained model knowledge only.</div>
               </div>
             </div>
 
@@ -1472,14 +1674,26 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       {/* SUB-TAB 4: TEST & EVALUATE */}
       {activeSubTab === 'test' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Test Retrieval</h3>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Test your knowledge base retrieval and review matching vector chunks before going live
-            </p>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px',
+            padding: '20px 24px', background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, var(--bg) 100%)',
+            borderRadius: 'var(--radius-lg)', border: '1px solid rgba(249, 115, 22, 0.2)'
+          }}>
+            <div>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#f97316', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FlaskConical size={18} />
+                </div>
+                Test & Evaluate
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '500px' }}>
+                Test your knowledge base retrieval and review matching vector chunks before going live
+              </p>
+            </div>
           </div>
 
-          <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', borderRadius: 'var(--radius-lg)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600 }}>Test Prompt Query</label>
               <div style={{ display: 'flex', gap: '12px' }}>
@@ -1496,31 +1710,36 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                   onClick={handleRunTest}
                   style={{
                     padding: '12px 24px', borderRadius: 'var(--radius-md)', border: 'none',
-                    background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 700,
+                    background: testing ? 'var(--text-muted)' : '#f97316', color: '#fff', fontSize: '13px', fontWeight: 700,
                     cursor: testing ? 'not-allowed' : 'pointer', alignSelf: 'stretch', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', gap: '8px'
+                    alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    boxShadow: testing ? 'none' : '0 2px 8px rgba(249, 115, 22, 0.3)'
                   }}
                 >
                   {testing ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
-                  Run Test
+                  {testing ? 'Running...' : 'Run Test'}
                 </button>
               </div>
             </div>
           </div>
 
           {testing && (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <RefreshCw size={32} className="animate-spin" style={{ margin: '0 auto 12px', color: 'var(--accent)' }} />
-              <div style={{ fontWeight: 600 }}>Querying Knowledge Model...</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Executing vector similarity search and compiling response.</div>
+            <div style={{ padding: '60px 40px', textAlign: 'center', borderRadius: 'var(--radius-lg)', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+              <RefreshCw size={36} className="animate-spin" style={{ margin: '0 auto 16px', color: '#f97316' }} />
+              <div style={{ fontWeight: 600, fontSize: '15px' }}>Querying Knowledge Model...</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>Executing vector similarity search and compiling response.</div>
             </div>
           )}
 
           {!testing && !testResult && (
-            <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-muted)' }} className="card">
-              <FlaskConical size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-              <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Retrieval sandbox is empty</p>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Type a query in the test prompt above to run vector matching analysis.</p>
+            <div style={{ padding: '60px 40px', textAlign: 'center', borderRadius: 'var(--radius-lg)', background: 'var(--bg-secondary)', border: '1px dashed var(--border)' }}>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <FlaskConical size={28} style={{ color: 'var(--text-muted)' }} />
+              </div>
+              <p style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>Retrieval sandbox is empty</p>
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', maxWidth: 360, marginLeft: 'auto', marginRight: 'auto' }}>
+                Type a query in the test prompt above to run vector matching analysis
+              </p>
             </div>
           )}
 
@@ -1655,67 +1874,83 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
 
       {/* SUB-TAB 5: ANALYTICS */}
       {activeSubTab === 'analytics' && !analytics && !loading && (
-        <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-muted)' }} className="card">
-          <BarChart3 size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No analytics data available</p>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Analytics will populate once the AI assistant begins processing queries.</p>
+        <div style={{ padding: '60px 40px', textAlign: 'center', borderRadius: 'var(--radius-lg)', background: 'var(--bg-secondary)', border: '1px dashed var(--border)' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <BarChart3 size={28} style={{ color: 'var(--text-muted)' }} />
+          </div>
+          <p style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>No analytics data available</p>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', maxWidth: 360, marginLeft: 'auto', marginRight: 'auto' }}>
+            Analytics will populate once the AI assistant begins processing queries
+          </p>
         </div>
       )}
       {activeSubTab === 'analytics' && analytics && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Retrieval & Generation Analytics</h3>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
-              Monitor model query hits, vector matching confidence, and flag anomalies for manual remediation
-            </p>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px',
+            padding: '20px 24px', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, var(--bg) 100%)',
+            borderRadius: 'var(--radius-lg)', border: '1px solid rgba(139, 92, 246, 0.2)'
+          }}>
+            <div>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: '#8b5cf6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Activity size={18} />
+                </div>
+                Retrieval Analytics
+              </h3>
+              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '500px' }}>
+                Monitor model query hits, vector matching confidence, and flag anomalies for manual review
+              </p>
+            </div>
           </div>
 
           {/* Core KPI metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
-            <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+            <div style={{ padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>TOTAL RAG QUERIES</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'var(--accent-subtle)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Activity size={16} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Queries</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: 'var(--accent-subtle)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Activity size={18} />
                 </div>
               </div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text)' }}>
-                {analytics.summary.total_queries}
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)' }}>
+                {analytics.summary.total_queries.toLocaleString()}
               </div>
             </div>
 
-            <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>AVG CONFIDENCE SCORE</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'var(--success-bg)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Zap size={16} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Confidence</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: 'var(--success-bg)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Zap size={18} />
                 </div>
               </div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text)' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)' }}>
                 {(analytics.summary.avg_confidence * 100).toFixed(1)}%
               </div>
             </div>
 
-            <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>FLAGGED FOR REVIEW</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Flag size={16} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Flagged</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Flag size={18} />
                 </div>
               </div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text)' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)' }}>
                 {analytics.summary.flagged_count}
               </div>
             </div>
 
-            <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>ACTIVE SOURCES</span>
-                <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-md)', background: 'rgba(147, 51, 234, 0.1)', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FileText size={16} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Sources</span>
+                <div style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', background: 'rgba(147, 51, 234, 0.1)', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={18} />
                 </div>
               </div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text)' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)' }}>
                 {analytics.summary.active_sources}
               </div>
             </div>
@@ -1723,21 +1958,21 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
             {/* Daily Volume Bar Chart */}
-            <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>Daily Retrieval Volume (Last 7 Days)</h4>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '200px', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Daily Retrieval Volume</h4>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '180px', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                 {analytics.daily_volume.map((d, index) => {
-                  const maxCount = Math.max(...analytics.daily_volume.map(day => day.count));
-                  const percentageHeight = maxCount > 0 ? (d.count / maxCount) * 100 : 0;
+                  const maxCount = Math.max(...analytics.daily_volume.map(day => day.count), 1);
+                  const percentageHeight = (d.count / maxCount) * 100;
                   return (
                     <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
-                      <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-secondary)' }}>{d.count}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)' }}>{d.count}</span>
                       <div
                         style={{
-                          width: '70%',
-                          height: `${percentageHeight * 1.4}px`, // scale height comfortably
-                          maxHeight: '150px',
-                          background: 'linear-gradient(to top, var(--accent) 70%, var(--accent-border))',
+                          width: '60%',
+                          height: `${Math.max(percentageHeight * 1.2, 4)}px`,
+                          maxHeight: '140px',
+                          background: `linear-gradient(to top, var(--accent) 0%, var(--accent-mid) 100%)`,
                           borderRadius: '4px 4px 0 0',
                           minHeight: '4px'
                         }}
@@ -1750,24 +1985,24 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
             </div>
 
             {/* Source Usage Matrix */}
-            <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>Source Retrieval Density</h4>
+            <div style={{ padding: '20px', background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Source Retrieval Density</h4>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                      <th style={{ padding: '8px 12px', fontWeight: 600 }}>Source Document</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600, textAlign: 'right' }}>Query Hits</th>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ padding: '8px 0', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Source</th>
+                      <th style={{ padding: '8px 0', fontWeight: 600, color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Hits</th>
                     </tr>
                   </thead>
                   <tbody>
                     {analytics.source_stats.map((src, index) => (
-                      <tr key={index} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '8px 12px' }}>
-                          <div style={{ fontWeight: 600 }}>{src.name}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{src.category} • {src.chunk_count} chunks</div>
+                      <tr key={index} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '10px 0' }}>
+                          <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>{src.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{src.category} · {src.chunk_count} chunks</div>
                         </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--accent)' }}>
+                        <td style={{ padding: '10px 0', textAlign: 'right', fontWeight: 700, fontSize: '14px', color: 'var(--accent)' }}>
                           {src.query_hits}
                         </td>
                       </tr>
@@ -1779,10 +2014,10 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
           </div>
 
           {/* Recent Queries / Flagged Area */}
-          <div className="card" style={{ padding: 0 }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>Recent Model Inquiries</h4>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Live query logging pipeline</span>
+          <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Recent Model Inquiries</h4>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-full)' }}>Live</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1790,37 +2025,39 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
                 const conf = Math.round((q.confidence_score || 0) * 100) / 100;
                 const confColor = conf > 85 ? 'var(--success)' : conf > 70 ? 'var(--warning)' : 'var(--danger)';
                 return (
-                  <div key={q.id} style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                  <div key={q.id} style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', transition: 'background 0.15s' }}>
                     <div style={{ flex: 1 }}>
-                      <p style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 600, color: 'var(--text)', fontStyle: 'italic' }}>
                         "{q.query}"
                       </p>
                       <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                        <span>User: {q.user_name || 'Unknown'}</span>
-                        <span>•</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Users size={11} /> {q.user_name || 'Unknown'}
+                        </span>
+                        <span>·</span>
                         <span>{new Date(q.created_at).toLocaleString()}</span>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>CONFIDENCE</div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: confColor }}>{conf.toFixed(1)}%</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                      <div style={{ textAlign: 'center', padding: '8px 16px', background: conf > 85 ? 'var(--success-bg)' : conf > 70 ? 'var(--warning-bg)' : 'var(--danger-bg)', borderRadius: 'var(--radius-md)', minWidth: '70px' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confidence</div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: confColor }}>{conf.toFixed(0)}%</div>
                       </div>
 
                       <button
                         disabled={q.flagged_for_review}
                         onClick={() => handleFlagQuery(q.id)}
                         style={{
-                          padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border)',
+                          padding: '8px 14px', borderRadius: 'var(--radius-md)', border: `1px solid ${q.flagged_for_review ? 'var(--danger-border)' : 'var(--border)'}`,
                           background: q.flagged_for_review ? 'var(--danger-bg)' : 'transparent',
                           color: q.flagged_for_review ? 'var(--danger)' : 'var(--text-secondary)',
-                          fontSize: '11px', fontWeight: 600, cursor: q.flagged_for_review ? 'not-allowed' : 'pointer',
-                          display: 'flex', alignItems: 'center', gap: '4px'
+                          fontSize: '12px', fontWeight: 600, cursor: q.flagged_for_review ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.15s'
                         }}
                       >
-                        <Flag size={12} />
-                        {q.flagged_for_review ? 'Flagged' : 'Flag Query'}
+                        <Flag size={13} />
+                        {q.flagged_for_review ? 'Flagged' : 'Flag'}
                       </button>
                     </div>
                   </div>

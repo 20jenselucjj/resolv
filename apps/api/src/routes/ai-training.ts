@@ -1,5 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import { pool } from '../db/pool'
+import path from 'path'
+import { PDFParse } from 'pdf-parse'
+import * as XLSX from 'xlsx'
 
 // ─── Utility: Cosine Similarity ──────────────────────────────────────────────
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -503,8 +506,8 @@ export async function syncTicketToKnowledgeBase(ticketId: string, userId: string
       processSource(existing[0].id, content, cfg, ragCfg).catch(console.error)
     } else {
       const { rows: newSource } = await pool.query(
-        `INSERT INTO ai_knowledge_sources (name, source_type, content_type, raw_content, category, tags, uploaded_by, status)
-         VALUES ($1,'ticket_sync','text/plain',$2,$3,$4,$5,'pending') RETURNING id`,
+        `INSERT INTO ai_knowledge_sources (name, source_type, content_type, raw_content, category, tags, uploaded_by, status, is_active)
+         VALUES ($1,'ticket_sync','text/plain',$2,$3,$4,$5,'pending',false) RETURNING id`,
         [sourceName, content, ticket.category_name || 'Support Tickets',
          ['ticket', ticket.priority, ticket.status].filter(Boolean),
          userId]
@@ -626,6 +629,110 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
       `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data)
        VALUES ($1, 'create_knowledge_source', 'ai_knowledge_sources', $2, $3)`,
       [user.id, source.id, JSON.stringify({ name, source_type })]
+    )
+
+    return reply.status(201).send({ data: source })
+  })
+
+  // ── POST /ai/knowledge/sources/upload ───────────────────────────────────────
+  // Upload a file (PDF, Excel, CSV, text, markdown) and extract text content
+  app.post('/ai/knowledge/sources/upload', { preHandler: [app.authenticate, app.requireRole(['admin'])] }, async (req, reply) => {
+    const user = (req as any).user
+
+    const data = await (req as any).file()
+    if (!data) return reply.status(400).send({ error: 'No file uploaded' })
+
+    // Read file stream into buffer
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = []
+      data.file.on('data', (chunk: Buffer) => chunks.push(chunk))
+      data.file.on('end', () => resolve(Buffer.concat(chunks)))
+      data.file.on('error', reject)
+    })
+
+    const ext = path.extname(data.filename).toLowerCase()
+    const maxSize = 25 * 1024 * 1024 // 25MB
+    if (buffer.length > maxSize) return reply.status(400).send({ error: 'File too large (max 25MB)' })
+
+    // Extract text based on file type
+    let extractedText = ''
+    let contentType = data.mimetype || 'application/octet-stream'
+
+    try {
+      if (ext === '.pdf') {
+        const pdf = new PDFParse({ data: buffer, verbosity: 0 })
+        await (pdf as any).load()
+        const result = await (pdf as any).getText()
+        extractedText = (typeof result === 'string' ? result : (result?.text || result?.content || '')) || ''
+        contentType = 'application/pdf'
+      } else if (ext === '.xlsx' || ext === '.xls') {
+        const workbook = XLSX.read(buffer, { type: 'buffer' })
+        extractedText = workbook.SheetNames
+          .map(name => `--- Sheet: ${name} ---\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`)
+          .join('\n\n')
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      } else if (ext === '.csv') {
+        extractedText = buffer.toString('utf-8')
+        contentType = 'text/csv'
+      } else if (ext === '.txt' || ext === '.md' || ext === '.text') {
+        extractedText = buffer.toString('utf-8')
+        contentType = 'text/plain'
+      } else if (ext === '.json') {
+        const raw = buffer.toString('utf-8')
+        // Try to pretty-print JSON for better chunking
+        try { extractedText = JSON.stringify(JSON.parse(raw), null, 2) }
+        catch { extractedText = raw }
+        contentType = 'application/json'
+      } else if (ext === '.html' || ext === '.htm') {
+        const html = buffer.toString('utf-8')
+        extractedText = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+        contentType = 'text/html'
+      } else {
+        return reply.status(400).send({
+          error: `Unsupported file type: ${ext}. Supported: .pdf, .xlsx, .xls, .csv, .txt, .md, .json, .html`
+        })
+      }
+    } catch (e: any) {
+      return reply.status(400).send({ error: `Failed to parse file: ${e.message}` })
+    }
+
+    if (!extractedText.trim()) {
+      return reply.status(400).send({ error: 'Could not extract any text content from the file' })
+    }
+
+    // Get metadata fields from multipart (or derive from filename)
+    const fields = data.fields || {}
+    const name = fields.name?.value || data.filename.replace(ext, '')
+    const category = fields.category?.value || null
+    const tags = fields.tags?.value ? fields.tags.value.split(',').map((t: string) => t.trim()).filter(Boolean) : []
+    const classification = fields.classification?.value || 'unclassified'
+
+    const { rows } = await pool.query(
+      `INSERT INTO ai_knowledge_sources (name, source_type, content_type, original_filename, raw_content, category, tags, classification, uploaded_by, status)
+       VALUES ($1,'file',$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING *`,
+      [name.trim(), contentType, data.filename, extractedText, category, tags, classification, user.id]
+    )
+
+    const source = rows[0]
+
+    // Load configs for processing
+    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
+    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
+    const cfg = cfgRows[0] || null
+    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+
+    // Process asynchronously
+    processSource(source.id, extractedText, cfg, ragCfg).catch(console.error)
+
+    await pool.query(
+      `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data)
+       VALUES ($1, 'create_knowledge_source', 'ai_knowledge_sources', $2, $3)`,
+      [user.id, source.id, JSON.stringify({ name, source_type: 'file', original_filename: data.filename })]
     )
 
     return reply.status(201).send({ data: source })
@@ -805,7 +912,27 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const ragCfg = ragRows[0] || { retrieval_strategy: 'hybrid', top_k: 5, similarity_threshold: 0.70 }
 
     const startTime = Date.now()
-    const { chunks, qaPairs, strategy } = await retrieveContext(query, cfg, ragCfg)
+    let chunks: any[] = []
+    let qaPairs: any[] = []
+    let strategy = 'error'
+    try {
+      const result = await retrieveContext(query, cfg, ragCfg)
+      chunks = result.chunks
+      qaPairs = result.qaPairs
+      strategy = result.strategy
+    } catch (e: any) {
+      console.error('[Test] RAG retrieval error:', e)
+      return reply.send({
+        data: {
+          query, strategy: 'error',
+          retrieval_ms: Date.now() - startTime,
+          error: e.message || 'RAG retrieval failed',
+          chunks: [], qa_pairs: [],
+          context_preview: '', test_response: null,
+          total_results: 0
+        }
+      })
+    }
     const retrievalMs = Date.now() - startTime
 
     // Build context string for preview
@@ -847,6 +974,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
         query,
         strategy,
         retrieval_ms: retrievalMs,
+        error: null,
         chunks: chunks.map(c => ({
           id: c.id,
           source_name: c.source_name,
@@ -1018,8 +1146,8 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
         processSource(existing[0].id, content, cfg, ragCfg).catch(console.error)
       } else {
         const { rows: newSource } = await pool.query(
-          `INSERT INTO ai_knowledge_sources (name, source_type, content_type, raw_content, category, tags, uploaded_by, status)
-           VALUES ($1,'ticket_sync','text/plain',$2,$3,$4,$5,'pending') RETURNING id`,
+          `INSERT INTO ai_knowledge_sources (name, source_type, content_type, raw_content, category, tags, uploaded_by, status, is_active)
+           VALUES ($1,'ticket_sync','text/plain',$2,$3,$4,$5,'pending',false) RETURNING id`,
           [sourceName, content, ticket.category_name || 'Support Tickets',
            ['ticket', ticket.priority, ticket.status].filter(Boolean),
            user.id]

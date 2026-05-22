@@ -25,7 +25,7 @@ interface ToolCall {
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
   created_at?: string;
   tool_calls?: ToolCall[];
@@ -96,7 +96,9 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const fetchMessages = async (sessionId: string) => {
     try {
       const res = await api.get<{ data: Message[] }>(`/ai/sessions/${sessionId}/messages`);
-      setMessages(res?.data || []);
+      // Filter out raw tool-result messages (role='tool') that contain internal JSON,
+      // preventing them from leaking into the visible chat UI as assistant bubbles.
+      setMessages((res?.data || []).filter(m => m.role !== 'tool'));
     } catch (err) {
       console.error('Failed to fetch messages:', err);
     }

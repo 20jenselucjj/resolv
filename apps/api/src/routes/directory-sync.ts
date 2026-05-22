@@ -231,6 +231,23 @@ async function fetchGoogleDirectoryUser(accessToken: string, email: string): Pro
   return response;
 }
 
+// ─── Search directory users by name or email ─────────────────────────────────
+
+async function searchGoogleDirectoryUsers(accessToken: string, query: string): Promise<any[]> {
+  // Build query string for Google Directory API
+  // Support searching by email or name
+  const encodedQuery = encodeURIComponent(query);
+  const url = `https://admin.googleapis.com/admin/directory/v1/users?customer=my_customer&maxResults=20&query=${encodedQuery}`;
+  
+  const response = await httpsGet(url, accessToken);
+
+  if (response.error) {
+    throw new Error(`Google Directory API search error: ${response.error.message || JSON.stringify(response.error)}`);
+  }
+
+  return response.users || [];
+}
+
 // ─── Fetch directory groups from Google Admin SDK ────────────────────────────
 
 async function fetchGoogleDirectoryGroups(accessToken: string): Promise<any[]> {
@@ -851,6 +868,43 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
       }
       fastify.log.error(err);
       return reply.status(500).send({ error: `Sync users failed: ${friendlyError(err.message)}` });
+    }
+  });
+
+  // POST /admin/directory-sync/search-users
+  fastify.post('/admin/directory-sync/search-users', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    try {
+      const body = request.body as { query?: string };
+      const query = body.query?.trim();
+
+      if (!query || query.length < 2) {
+        return reply.status(400).send({ error: 'Query must be at least 2 characters' });
+      }
+
+      // Get valid access token
+      let accessToken: string;
+      try {
+        accessToken = await getValidAccessToken();
+      } catch (err: any) {
+        if (err.message?.includes('OAuth not connected') || err.message?.includes('No tokens found')) {
+          return reply.status(400).send({ error: 'Connect OAuth first' });
+        }
+        throw err;
+      }
+
+      // Search users in Google Directory
+      const users = await searchGoogleDirectoryUsers(accessToken, query);
+
+      // Map to simple { email, name } objects
+      const results = users.map((u: any) => ({
+        email: u.primaryEmail || u.emails?.[0]?.address || '',
+        name: u.name?.fullName || u.name?.givenName || '',
+      })).filter((u: any) => u.email); // Only return users with email
+
+      return reply.send({ data: results });
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: `Search users failed: ${friendlyError(err.message)}` });
     }
   });
 

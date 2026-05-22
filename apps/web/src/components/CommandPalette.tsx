@@ -49,9 +49,6 @@ export function CommandPalette() {
         setOpen((o) => { if (!o) setSelected(0); return !o; });
       }
       if (e.key === 'Escape' && open) { e.preventDefault(); close(); }
-      if (!open && e.key === 'c' && !(e.target as HTMLElement).matches('input,textarea,select')) {
-        window.dispatchEvent(new CustomEvent('resolv:new-ticket'));
-      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

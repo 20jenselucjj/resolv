@@ -339,10 +339,14 @@ export function DirectorySyncTab({
   const [copied, setCopied] = useState(false);
 
   // Sync Selected Users state
-  const [selectedEmails, setSelectedEmails] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<Array<{ email: string; name?: string }>>([]);
   const [syncingUsers, setSyncingUsers] = useState(false);
   const [syncUsersResults, setSyncUsersResults] = useState<{ total: number; created: number; updated: number; skipped: number; notFound: number; errors: number; results: Array<{ email: string; status: string; name?: string; error?: string }> } | null>(null);
   const [showSyncUsers, setShowSyncUsers] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<Array<{ email: string; name?: string }>>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   const oauthConnected = !!config.oauthConnected;
 
@@ -541,7 +545,11 @@ export function DirectorySyncTab({
   };
 
   const handleReauthenticate = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`;
+    window.open(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`,
+      '_blank',
+      'noopener,noreferrer'
+    );
   };
 
   const handleRetrySync = async () => {
@@ -644,13 +652,10 @@ export function DirectorySyncTab({
   };
 
   const handleSyncSelectedUsers = async () => {
-    if (!selectedEmails.trim()) return;
-    const emails = selectedEmails
-      .split(/[\n,]+/)
-      .map(e => e.trim())
-      .filter(e => e.length > 0 && e.includes('@'));
+    if (selectedUsers.length === 0) return;
+    const emails = selectedUsers.map(u => u.email);
     if (emails.length === 0) {
-      showAlert('Enter at least one valid email address', 'error');
+      showAlert('Select at least one user', 'error');
       return;
     }
     if (emails.length > 20) {
@@ -666,12 +671,30 @@ export function DirectorySyncTab({
       );
       setSyncUsersResults(res.data);
       showAlert(`Synced ${res.data.results.length} user(s): ${res.data.created} created, ${res.data.updated} updated, ${res.data.errors} errors`);
+      setSelectedUsers([]);
     } catch (err: any) {
       showAlert(err.message || 'Failed to sync selected users', 'error');
     } finally {
       setSyncingUsers(false);
     }
   };
+
+  const handleUserSearch = useCallback(async (query: string) => {
+    if (query.length < 2) return;
+    setSearchingUsers(true);
+    try {
+      const res = await api.post<{ data: Array<{ email: string; name?: string }> }>(
+        '/admin/directory-sync/search-users',
+        { query }
+      );
+      setUserSearchResults(res.data);
+    } catch (err: any) {
+      console.error('User search failed:', err);
+      setUserSearchResults([]);
+    } finally {
+      setSearchingUsers(false);
+    }
+  }, []);
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '—';
@@ -854,6 +877,8 @@ export function DirectorySyncTab({
                   <div style={{ marginTop: 12 }}>
                     <a
                       href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 8,
                         padding: '8px 18px', borderRadius: 'var(--radius-md)',
@@ -866,6 +891,9 @@ export function DirectorySyncTab({
                       <Link2 size={14} />
                       Connect Google Workspace
                     </a>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: 12 }}>
+                      Opens in a new tab. Return here after authorizing.
+                    </span>
                   </div>
                 )}
 
@@ -1121,27 +1149,31 @@ export function DirectorySyncTab({
                   { value: 'google_workspace', label: 'Google Workspace', icon: Globe },
                   { value: 'azure_ad', label: 'Azure AD', icon: Shield },
                   { value: 'okta', label: 'Okta', icon: ShieldCheck },
-                ] as const).map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    onClick={() => setConfig(prev => ({ ...prev, provider: value }))}
-                    disabled={value === 'google_workspace' && oauthConnected}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '7px',
-                      padding: '9px 18px', borderRadius: 'var(--radius-full)',
-                      border: `1.5px solid ${config.provider === value ? 'var(--accent)' : 'var(--border)'}`,
-                      background: config.provider === value ? 'var(--accent-subtle)' : 'transparent',
-                      color: config.provider === value ? 'var(--accent)' : 'var(--text-secondary)',
-                      cursor: (value === 'google_workspace' && oauthConnected) ? 'not-allowed' : 'pointer',
-                      fontSize: 13, fontWeight: config.provider === value ? 600 : 500,
-                      opacity: (value === 'google_workspace' && oauthConnected) ? 0.6 : 1,
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <Icon size={15} />
-                    {label}
-                  </button>
-                ))}
+                ] as const).map(({ value, label, icon: Icon }) => {
+                  const isCurrentProvider = config.provider === value;
+                  const isLocked = value === 'google_workspace' && oauthConnected && isCurrentProvider;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setConfig(prev => ({ ...prev, provider: value }))}
+                      disabled={isLocked}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '7px',
+                        padding: '9px 18px', borderRadius: 'var(--radius-full)',
+                        border: `1.5px solid ${isCurrentProvider ? 'var(--accent)' : 'var(--border)'}`,
+                        background: isCurrentProvider ? 'var(--accent-subtle)' : 'transparent',
+                        color: isCurrentProvider ? 'var(--accent)' : 'var(--text-secondary)',
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
+                        fontSize: 13, fontWeight: isCurrentProvider ? 600 : 500,
+                        opacity: isLocked ? 0.6 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Icon size={15} />
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               {config.provider === 'google_workspace' && oauthConnected && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -1806,7 +1838,8 @@ export function DirectorySyncTab({
             <div style={{
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              overflow: 'hidden',
+              overflow: 'visible',
+              position: 'relative',
             }}>
               <div
                 onClick={() => setShowSyncUsers(!showSyncUsers)}
@@ -1817,6 +1850,7 @@ export function DirectorySyncTab({
                   cursor: 'pointer',
                   userSelect: 'none',
                   transition: 'background 0.15s',
+                  borderRadius: showSyncUsers ? 'var(--radius-md) var(--radius-md) 0 0' : 'var(--radius-md)',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
@@ -1838,26 +1872,112 @@ export function DirectorySyncTab({
               {showSyncUsers && (
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                    Enter email addresses below to sync specific users from your directory.
-                    Supports comma-separated, line-separated, or mixed formats. Max 20 at a time.
+                    Search for users by name or email to sync them to your directory. Max 20 at a time.
                   </div>
-                  <textarea
-                    className="input"
-                    value={selectedEmails}
-                    onChange={e => setSelectedEmails(e.target.value)}
-                    placeholder={`user1@company.com\nuser2@company.com`}
-                    rows={3}
-                    style={{
-                      width: '100%', resize: 'vertical', fontFamily: 'monospace',
-                      fontSize: '12px', padding: '10px 12px',
-                      lineHeight: 1.5,
-                    }}
-                    disabled={syncingUsers}
-                  />
+
+                  {/* Selected Users Chips */}
+                  {selectedUsers.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {selectedUsers.map((user, idx) => (
+                        <div key={idx} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '4px 8px 4px 10px',
+                          background: 'var(--accent-subtle)', color: 'var(--accent)',
+                          borderRadius: 'var(--radius-full)', fontSize: '11px', fontWeight: 500,
+                        }}>
+                          <span>{user.name || user.email}</span>
+                          <button
+                            onClick={() => setSelectedUsers(prev => prev.filter((_, i) => i !== idx))}
+                            disabled={syncingUsers}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              width: 14, height: 14, padding: 0, borderRadius: '50%',
+                              background: 'transparent', border: 'none', cursor: 'pointer',
+                              color: 'var(--accent)', opacity: 0.7,
+                            }}
+                          >
+                            <XCircle size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Search Input with Dropdown */}
+                  <div style={{ position: 'relative' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center',
+                      background: 'var(--bg)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)', padding: '0 12px',
+                      transition: 'border-color 0.15s',
+                    }}>
+                      <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      <input
+                        type="text"
+                        value={userSearchQuery}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setUserSearchQuery(val);
+                          if (val.length >= 2) {
+                            setShowUserDropdown(true);
+                            handleUserSearch(val);
+                          } else {
+                            setShowUserDropdown(false);
+                            setUserSearchResults([]);
+                          }
+                        }}
+                        onFocus={() => userSearchQuery.length >= 2 && setShowUserDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowUserDropdown(false), 200)}
+                        placeholder="Search users by name or email..."
+                        disabled={syncingUsers}
+                        style={{
+                          flex: 1, border: 'none', background: 'transparent',
+                          padding: '10px 10px', fontSize: '12px', color: 'var(--text)',
+                          outline: 'none',
+                        }}
+                      />
+                      {searchingUsers && <RefreshCw size={13} className="ds-spin" style={{ color: 'var(--text-muted)' }} />}
+                    </div>
+
+                    {/* Search Results Dropdown */}
+                    {showUserDropdown && userSearchResults.length > 0 && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000,
+                        marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                        maxHeight: 200, overflowY: 'auto',
+                      }}>
+                        {userSearchResults.map((user, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              if (!selectedUsers.some(u => u.email === user.email)) {
+                                setSelectedUsers(prev => [...prev, user]);
+                              }
+                              setUserSearchQuery('');
+                              setUserSearchResults([]);
+                              setShowUserDropdown(false);
+                            }}
+                            style={{
+                              padding: '8px 12px', cursor: 'pointer', fontSize: '12px',
+                              borderBottom: idx < userSearchResults.length - 1 ? '1px solid var(--border-subtle)' : undefined,
+                              display: 'flex', flexDirection: 'column', gap: 1,
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{user.name || '—'}</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{user.email}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <button
                       onClick={handleSyncSelectedUsers}
-                      disabled={syncingUsers || !selectedEmails.trim() || !oauthConnected}
+                      disabled={syncingUsers || selectedUsers.length === 0 || !oauthConnected}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 7,
                         padding: '8px 18px', borderRadius: 'var(--radius-md)',
@@ -1865,7 +1985,7 @@ export function DirectorySyncTab({
                         color: syncingUsers ? 'var(--text-muted)' : 'white',
                         border: 'none', fontSize: '12px', fontWeight: 600,
                         cursor: syncingUsers ? 'wait' : 'pointer',
-                        opacity: (!selectedEmails.trim() || !oauthConnected) ? 0.5 : 1,
+                        opacity: (selectedUsers.length === 0 || !oauthConnected) ? 0.5 : 1,
                         transition: 'all 0.15s',
                       }}
                     >

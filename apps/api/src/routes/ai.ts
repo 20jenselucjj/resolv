@@ -6,7 +6,14 @@ export async function aiRoutes(app: FastifyInstance) {
   // GET /ai/config — admin only
   app.get('/ai/config', { preHandler: [app.authenticate, app.requireRole(['admin'])] }, async (req, reply) => {
     const { rows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    if (rows.length === 0) return reply.send({ data: { enabled: false, provider: 'openai', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 2048, system_prompt: '', allowed_roles: ['admin', 'agent'], max_messages_per_day: 50 } })
+    if (rows.length === 0) return reply.send({ data: { 
+      enabled: false, provider: 'openai', base_url: 'https://api.openai.com/v1', 
+      model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 2048, 
+      system_prompt: '', allowed_roles: ['admin', 'agent'], max_messages_per_day: 50,
+      portal_enabled: false, portal_model: 'gpt-4o-mini', portal_temperature: 0.7, portal_max_tokens: 1024,
+      portal_system_prompt: 'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
+      portal_allowed_roles: ['user']
+    } })
     const cfg = { ...rows[0] }
     cfg.api_key = cfg.api_key ? '***' : ''
     return reply.send({ data: cfg })
@@ -19,22 +26,30 @@ export async function aiRoutes(app: FastifyInstance) {
     const apiKey = body.api_key === '***' ? (existing[0]?.api_key ?? '') : (body.api_key ?? '')
     if (existing.length === 0) {
       const { rows } = await pool.query(
-        `INSERT INTO ai_config (provider, base_url, api_key, model, temperature, max_tokens, system_prompt, enabled, allowed_roles, max_messages_per_day)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        `INSERT INTO ai_config (provider, base_url, api_key, model, temperature, max_tokens, system_prompt, enabled, allowed_roles, max_messages_per_day, portal_enabled, portal_model, portal_temperature, portal_max_tokens, portal_system_prompt, portal_allowed_roles)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
         [body.provider||'openai', body.base_url||'https://api.openai.com/v1', apiKey, body.model||'gpt-4o-mini',
          body.temperature??0.7, body.max_tokens??1024, body.system_prompt||'You are a helpful IT support assistant.',
-         body.enabled??false, body.allowed_roles||['admin','agent','user'], body.max_messages_per_day??100]
+         body.enabled??false, body.allowed_roles||['admin','agent','user'], body.max_messages_per_day??100,
+         body.portal_enabled??false, body.portal_model||'gpt-4o-mini', body.portal_temperature??0.7, body.portal_max_tokens??1024,
+         body.portal_system_prompt||'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
+         body.portal_allowed_roles||['user']]
       )
       const cfg = { ...rows[0], api_key: rows[0].api_key ? '***' : '' }
       return reply.send({ data: cfg })
     } else {
       const { rows } = await pool.query(
         `UPDATE ai_config SET provider=$1, base_url=$2, api_key=$3, model=$4, temperature=$5, max_tokens=$6,
-         system_prompt=$7, enabled=$8, allowed_roles=$9, max_messages_per_day=$10, updated_at=NOW()
-         WHERE id=$11 RETURNING *`,
+         system_prompt=$7, enabled=$8, allowed_roles=$9, max_messages_per_day=$10, 
+         portal_enabled=$11, portal_model=$12, portal_temperature=$13, portal_max_tokens=$14, portal_system_prompt=$15, portal_allowed_roles=$16,
+         updated_at=NOW()
+         WHERE id=$17 RETURNING *`,
         [body.provider||'openai', body.base_url||'https://api.openai.com/v1', apiKey, body.model||'gpt-4o-mini',
          body.temperature??0.7, body.max_tokens??1024, body.system_prompt||'You are a helpful IT support assistant.',
-         body.enabled??false, body.allowed_roles||['admin','agent','user'], body.max_messages_per_day??100, existing[0].id]
+         body.enabled??false, body.allowed_roles||['admin','agent','user'], body.max_messages_per_day??100,
+         body.portal_enabled??false, body.portal_model||'gpt-4o-mini', body.portal_temperature??0.7, body.portal_max_tokens??1024,
+         body.portal_system_prompt||'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
+         body.portal_allowed_roles||['user'], existing[0].id]
       )
       const cfg = { ...rows[0], api_key: rows[0].api_key ? '***' : '' }
       return reply.send({ data: cfg })
@@ -89,14 +104,30 @@ export async function aiRoutes(app: FastifyInstance) {
 
     // Load AI config
     const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    if (cfgRows.length === 0 || !cfgRows[0].enabled) {
+    if (cfgRows.length === 0) {
       return reply.status(503).send({ error: 'AI assistant is not configured or disabled.' })
     }
     const cfg = cfgRows[0]
 
+    // Determine which AI config to use based on user role
+    // Self-service portal AI is for 'user' role customers
+    const isPortalUser = user.role === 'user' && cfg.portal_enabled
+    const activeConfig = isPortalUser ? {
+      model: cfg.portal_model || cfg.model,
+      temperature: cfg.portal_temperature ?? cfg.temperature,
+      max_tokens: cfg.portal_max_tokens ?? cfg.max_tokens,
+      system_prompt: cfg.portal_system_prompt || cfg.system_prompt,
+      allowed_roles: cfg.portal_allowed_roles || ['user'],
+    } : {
+      model: cfg.model,
+      temperature: cfg.temperature,
+      max_tokens: cfg.max_tokens,
+      system_prompt: cfg.system_prompt,
+      allowed_roles: cfg.allowed_roles || ['admin', 'agent'],
+    }
+
     // Check role access
-    const allowedRoles: string[] = cfg.allowed_roles || ['admin', 'agent', 'user']
-    if (!allowedRoles.includes(user.role)) {
+    if (!activeConfig.allowed_roles.includes(user.role)) {
       return reply.status(403).send({ error: 'You do not have access to the AI assistant.' })
     }
 
@@ -126,7 +157,7 @@ export async function aiRoutes(app: FastifyInstance) {
     )
 
     const messages = [
-      { role: 'system', content: cfg.system_prompt },
+      { role: 'system', content: activeConfig.system_prompt },
       ...history.map((m: any) => {
         const msg: any = { role: m.role, content: m.content }
         if (m.tool_calls) msg.tool_calls = m.tool_calls
@@ -161,12 +192,8 @@ export async function aiRoutes(app: FastifyInstance) {
           }
 
           if (chunks.length > 0) {
-            const citationMode = ragCfg.citation_mode || 'inline'
             parts.push('**Relevant Documents:**\n' +
-              chunks.map((c, i) => {
-                const citation = citationMode === 'inline' ? ` [Source: ${c.source_name}]` : ''
-                return `${c.content}${citation}`
-              }).join('\n\n'))
+              chunks.map(c => c.content).join('\n\n'))
           }
 
           ragContext = parts.join('\n\n')
@@ -178,7 +205,7 @@ export async function aiRoutes(app: FastifyInstance) {
           // Inject context into system message
           messages[0] = {
             role: 'system',
-            content: `${cfg.system_prompt}\n\n---\nUse the following verified knowledge base context to answer accurately. Always cite sources when using this information.\n\n${ragContext}\n---`
+            content: `${activeConfig.system_prompt}\n\n---\nUse the following knowledge base context to answer accurately.\n\n${ragContext}\n---`
           }
         }
       }
@@ -187,7 +214,49 @@ export async function aiRoutes(app: FastifyInstance) {
       console.error('RAG retrieval error:', ragErr)
     }
 
-    const tools = [
+    // Define tools based on AI type
+    // Portal AI (self-service) has limited tools - read-only access
+    // Admin/Agent AI has full tool access
+    const isPortalAI = isPortalUser
+    const tools = isPortalAI ? [
+      // Self-service portal tools - read-only, customer-focused
+      {
+        type: 'function',
+        function: {
+          name: 'get_my_tickets',
+          description: 'Get your submitted tickets',
+          parameters: {
+            type: 'object',
+            properties: { status: { type: 'string', enum: ['open','in_progress','resolved','closed','all'] } }
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_ticket',
+          description: 'Get details of your ticket by ID',
+          parameters: {
+            type: 'object',
+            properties: { ticket_id: { type: 'string' } },
+            required: ['ticket_id']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_knowledge',
+          description: 'Search the knowledge base for helpful articles',
+          parameters: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query']
+          }
+        }
+      }
+    ] : [
+      // Admin/Agent AI tools - full access
       {
         type: 'function',
         function: {
@@ -265,7 +334,7 @@ export async function aiRoutes(app: FastifyInstance) {
       }
     ]
 
-    // Call AI API
+    // Call AI API with appropriate settings
     const apiBase = (cfg.base_url || '').replace(/\/+$/, '')
     const aiResponse = await fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
@@ -274,12 +343,12 @@ export async function aiRoutes(app: FastifyInstance) {
         'Authorization': `Bearer ${cfg.api_key}`
       },
       body: JSON.stringify({
-        model: cfg.model,
+        model: activeConfig.model,
         messages,
         tools,
         tool_choice: 'auto',
-        temperature: parseFloat(cfg.temperature),
-        max_tokens: cfg.max_tokens
+        temperature: parseFloat(String(activeConfig.temperature)),
+        max_tokens: activeConfig.max_tokens
       })
     })
 
@@ -366,7 +435,17 @@ export async function aiRoutes(app: FastifyInstance) {
               )
               ragChunks = rows
             }
-            result = { articles, rag_chunks: ragChunks, count: articles.length + ragChunks.length }
+            // Format results as readable text so the AI doesn't regurgitate raw JSON
+            const textParts: string[] = []
+            if (articles.length > 0) {
+              textParts.push('Knowledge Base Articles:\n' + articles.map((a: any) => `- ${a.title}: ${a.excerpt}`).join('\n'))
+            }
+            if (ragChunks.length > 0) {
+              textParts.push('RAG Knowledge Sources:\n' + ragChunks.map((r: any) => `[${r.source_name}${r.category ? ` / ${r.category}` : ''}]\n${r.content}`).join('\n\n---\n\n'))
+            }
+            result = textParts.length > 0
+              ? { summary: textParts.join('\n\n'), count: articles.length + ragChunks.length }
+              : { summary: 'No matching knowledge found.', count: 0 }
           } else if (tc.function.name === 'get_stats') {
             if (user.role === 'user') {
               result = { error: 'Access denied' }
@@ -411,7 +490,7 @@ export async function aiRoutes(app: FastifyInstance) {
       const aiResponse2 = await fetch(`${apiBase}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.api_key}` },
-        body: JSON.stringify({ model: cfg.model, messages: messages2, temperature: parseFloat(cfg.temperature), max_tokens: cfg.max_tokens })
+        body: JSON.stringify({ model: activeConfig.model, messages: messages2, temperature: parseFloat(String(activeConfig.temperature)), max_tokens: activeConfig.max_tokens })
       })
 
       if (aiResponse2.ok) {

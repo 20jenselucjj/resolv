@@ -291,6 +291,13 @@ CREATE TABLE IF NOT EXISTS ai_config (
   enabled BOOLEAN NOT NULL DEFAULT false,
   allowed_roles TEXT[] NOT NULL DEFAULT ARRAY['admin','agent','user'],
   max_messages_per_day INTEGER NOT NULL DEFAULT 100,
+  -- Self-Service Portal AI settings
+  portal_enabled BOOLEAN NOT NULL DEFAULT false,
+  portal_model VARCHAR(200) NOT NULL DEFAULT 'gpt-4o-mini',
+  portal_temperature NUMERIC(3,2) NOT NULL DEFAULT 0.7,
+  portal_max_tokens INTEGER NOT NULL DEFAULT 1024,
+  portal_system_prompt TEXT NOT NULL DEFAULT 'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
+  portal_allowed_roles TEXT[] NOT NULL DEFAULT ARRAY['user'],
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -374,7 +381,7 @@ INSERT INTO ai_rag_config (id) VALUES (gen_random_uuid()) ON CONFLICT DO NOTHING
 CREATE TABLE IF NOT EXISTS ai_knowledge_sources (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(500) NOT NULL,
-  source_type VARCHAR(50) NOT NULL CHECK (source_type IN ('file', 'url', 'manual', 'kb_sync')),
+  source_type VARCHAR(50) NOT NULL CHECK (source_type IN ('file', 'url', 'manual', 'kb_sync', 'ticket_sync')),
   content_type VARCHAR(100),
   original_filename VARCHAR(500),
   url TEXT,
@@ -390,6 +397,22 @@ CREATE TABLE IF NOT EXISTS ai_knowledge_sources (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration: add 'ticket_sync' to the source_type check constraint
+-- (existing databases created with the old constraint need this)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ai_knowledge_sources_source_type_check'
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'ai_knowledge_sources_source_type_check'
+      AND pg_get_constraintdef(oid) LIKE '%ticket_sync%'
+    )
+  ) THEN
+    ALTER TABLE ai_knowledge_sources DROP CONSTRAINT ai_knowledge_sources_source_type_check;
+    ALTER TABLE ai_knowledge_sources ADD CONSTRAINT ai_knowledge_sources_source_type_check
+      CHECK (source_type IN ('file', 'url', 'manual', 'kb_sync', 'ticket_sync'));
+  END IF;
+END $$;
 
 -- Knowledge chunks (chunked text with embeddings)
 CREATE TABLE IF NOT EXISTS ai_knowledge_chunks (
