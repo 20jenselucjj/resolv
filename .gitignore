@@ -7,3 +7,6 @@ dist
 .DS_Store
 .tmp.driveupload/
 .tmp.drivedownload/
+
+# One-off schema/column check scripts
+check_*.mjs

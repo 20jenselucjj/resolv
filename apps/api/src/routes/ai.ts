@@ -344,7 +344,7 @@ export async function aiRoutes(app: FastifyInstance) {
             result = { tickets: rows, count: rows.length }
           } else if (tc.function.name === 'search_knowledge') {
             const { rows } = await pool.query(
-              `SELECT id, title, excerpt FROM knowledge_articles WHERE status='published' AND (title ILIKE $1 OR content ILIKE $1) LIMIT 5`,
+              `SELECT id, title, LEFT(body, 300) AS excerpt FROM knowledge_articles WHERE status='published' AND (title ILIKE $1 OR body ILIKE $1) LIMIT 5`,
               [`%${args.query}%`]
             )
             result = { articles: rows, count: rows.length }
@@ -378,7 +378,7 @@ export async function aiRoutes(app: FastifyInstance) {
 
       // Second AI call with tool results
       const messages2 = [
-        { role: 'system', content: cfg.system_prompt },
+        messages[0], // preserves RAG context (if any) injected earlier
         ...history.map((m: any) => {
           const msg: any = { role: m.role, content: m.content }
           if (m.tool_calls) msg.tool_calls = m.tool_calls

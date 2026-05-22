@@ -459,14 +459,14 @@ export async function retrieveContext(
 export async function syncTicketToKnowledgeBase(ticketId: string, userId: string) {
   try {
     const { rows: tickets } = await pool.query(
-      `SELECT t.id, t.title, t.description, t.close_notes, t.status, t.priority, t.category,
+      `SELECT t.id, t.title, t.description, t.close_notes, t.status, t.priority,
               c.name as category_name,
               array_agg(DISTINCT tc.body ORDER BY tc.created_at ASC) FILTER (WHERE tc.body IS NOT NULL) as comments
        FROM tickets t
        LEFT JOIN categories c ON t.category_id = c.id
        LEFT JOIN ticket_comments tc ON tc.ticket_id = t.id
        WHERE t.id = $1
-       GROUP BY t.id, t.title, t.description, t.close_notes, t.status, t.priority, t.category, c.name`,
+       GROUP BY t.id, t.title, t.description, t.close_notes, t.status, t.priority, c.name`,
       [ticketId]
     )
     if (tickets.length === 0) return
@@ -960,14 +960,14 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const limit = body.limit || 200 // max tickets to sync per run
 
     const { rows: tickets } = await pool.query(
-      `SELECT t.id, t.title, t.description, t.status, t.priority, t.category,
+      `SELECT t.id, t.title, t.description, t.close_notes, t.status, t.priority,
               c.name as category_name,
               array_agg(DISTINCT tc.body ORDER BY tc.created_at ASC) FILTER (WHERE tc.body IS NOT NULL) as comments
        FROM tickets t
        LEFT JOIN categories c ON t.category_id = c.id
        LEFT JOIN ticket_comments tc ON tc.ticket_id = t.id
        WHERE t.status IN ('resolved','closed')
-       GROUP BY t.id, t.title, t.description, t.status, t.priority, t.category, c.name
+       GROUP BY t.id, t.title, t.description, t.close_notes, t.status, t.priority, c.name
        ORDER BY t.updated_at DESC
        LIMIT $1`,
       [limit]
@@ -988,6 +988,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
         `Priority: ${ticket.priority}`,
         `Status: ${ticket.status}`,
         ticket.description ? `\nDescription:\n${ticket.description}` : '',
+        ticket.close_notes ? `\nClosing Notes:\n${ticket.close_notes}` : '',
         comments.length > 0 ? `\nResolution Thread:\n${comments.join('\n\n')}` : ''
       ].filter(Boolean).join('\n')
 

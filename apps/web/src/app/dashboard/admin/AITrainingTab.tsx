@@ -175,7 +175,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       } else if (activeSubTab === 'rag') {
         const res = await api.get<{ data: RAGConfig }>('/ai/rag/config');
         if (res.data) {
-          setRagConfig(res.data);
+          setRagConfig(prev => ({ ...prev, ...res.data }));
         }
       } else if (activeSubTab === 'analytics') {
         const res = await api.get<{ data: AnalyticsData }>('/ai/rag/analytics');
