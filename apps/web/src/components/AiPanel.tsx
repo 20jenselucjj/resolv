@@ -72,15 +72,20 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const newChatIntentRef = useRef(false);
+  const activeSessionRef = useRef<string | null>(null);
   
   const [contextTicketId, setContextTicketId] = useState<string | null>(null);
 
-  const fetchSessions = async () => {
+  // Keep ref in sync so async callbacks read latest value
+  useEffect(() => { activeSessionRef.current = activeSessionId; }, [activeSessionId]);
+
+  const fetchSessions = async (skipAutoSelect = false) => {
     try {
       const res = await api.get<{ data: Session[] }>('/ai/sessions');
       const data = res?.data || [];
       setSessions(data);
-      if (data.length > 0 && !activeSessionId) {
+      if (!skipAutoSelect && data.length > 0 && !activeSessionRef.current) {
         setActiveSessionId(data[0].id);
       }
     } catch (err) {
@@ -110,7 +115,8 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
 
   useEffect(() => {
     if (isOpen) {
-      fetchSessions();
+      // If there's no new chat intent, do a full fetch with auto-select
+      fetchSessions(newChatIntentRef.current);
       if (!activeSessionId) {
         setTimeout(() => inputRef.current?.focus(), 300);
       }
@@ -121,7 +127,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     if (activeSessionId && isOpen) {
       fetchMessages(activeSessionId);
     } else if (!activeSessionId) {
-      setTimeout(() => setMessages([]), 0);
+      setMessages([]);
     }
   }, [activeSessionId, isOpen]);
 
@@ -136,21 +142,26 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   }, [minimized]);
 
   const createNewChat = () => {
+    newChatIntentRef.current = true;
     setActiveSessionId(null);
     setMessages([]);
     setInputText('');
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => { inputRef.current?.focus(); }, 100);
   };
 
   const deleteSession = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
       await api.delete(`/ai/sessions/${id}`);
-      setSessions(prev => prev.filter(s => s.id !== id));
-      if (activeSessionId === id) {
-        const remaining = sessions.filter(s => s.id !== id);
-        setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
-      }
+      setSessions(prev => {
+        const filtered = prev.filter(s => s.id !== id);
+        // If the deleted session was active, switch to next available
+        if (activeSessionRef.current === id) {
+          const nextId = filtered.length > 0 ? filtered[0].id : null;
+          setActiveSessionId(nextId);
+        }
+        return filtered;
+      });
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
@@ -177,11 +188,13 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     setLoading(true);
 
     try {
-      let currentSessionId = activeSessionId;
+      let currentSessionId = activeSessionRef.current;
       if (!currentSessionId) {
         const res = await api.post<{ data: Session }>('/ai/sessions', { title: textToSend.substring(0, 30) + '...' });
         const newSession = res.data;
         currentSessionId = newSession.id;
+        // Clear new chat intent so fetchSessions auto-select works properly
+        newChatIntentRef.current = false;
         setActiveSessionId(newSession.id);
         setSessions(prev => [newSession, ...prev]);
       }
@@ -204,7 +217,8 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
       ]);
     } catch (err: any) {
       console.error('Failed to send message:', err);
-      setMessages(prev => [...prev, { id: Math.random().toString(36).substr(2, 9) + 'ai', role: 'assistant', content: 'Sorry, I encountered an error.' }]);
+      const msg = err?.message || 'Sorry, I encountered an error.';
+      setMessages(prev => [...prev, { id: Math.random().toString(36).substr(2, 9) + 'ai', role: 'assistant', content: msg }]);
     } finally {
       setLoading(false);
     }
