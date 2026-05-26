@@ -1,0 +1,23 @@
+{
+  "name": "resolv",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "node scripts/kill-dev-ports.js",
+    "dev": "concurrently \"npm run dev --workspace=apps/web\" \"npm run dev --workspace=apps/api\"",
+    "build": "npm run build --workspace=apps/web && npm run build --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5",
+    "xlsx": "^0.18.5"
+  }
+}

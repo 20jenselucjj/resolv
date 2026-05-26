@@ -1,0 +1,232 @@
+⨯ ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  [90m808 |[0m }
+  [90m809 |[0m
+[31m[1m>[0m [90m810 |[0m     }
+  [90m    |[0m     [31m[1m^[0m
+  [90m811 |[0m     window.addEventListener([32m'keydown'[0m, onKey);
+  [90m812 |[0m     [36mreturn[0m () => window.removeEventListener([32m'keydown'[0m, onKey);
+  [90m813 |[0m   }, [fetchTickets]);
+
+Parsing ecmascript source code failed
+
+
+⨯ ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  [90m808 |[0m }
+  [90m809 |[0m
+[31m[1m>[0m [90m810 |[0m     }
+  [90m    |[0m     [31m[1m^[0m
+  [90m811 |[0m     window.addEventListener([32m'keydown'[0m, onKey);
+  [90m812 |[0m     [36mreturn[0m () => window.removeEventListener([32m'keydown'[0m, onKey);
+  [90m813 |[0m   }, [fetchTickets]);
+
+Parsing ecmascript source code failed
+
+
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] Uncaught Error: ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed
+
+
+    at <unknown> (Error: ./apps/web/src/app/dashboard/tickets/page.tsx:810:5)
+    at <unknown> (Error: (./apps/web/src/app/dashboard/tickets/page.tsx:810:5)
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] Uncaught Error: ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed
+
+
+    at <unknown> (Error: ./apps/web/src/app/dashboard/tickets/page.tsx:810:5)
+    at <unknown> (Error: (./apps/web/src/app/dashboard/tickets/page.tsx:810:5)
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] Uncaught Error: ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed
+
+
+    at <unknown> (Error: ./apps/web/src/app/dashboard/tickets/page.tsx:810:5)
+    at <unknown> (Error: (./apps/web/src/app/dashboard/tickets/page.tsx:810:5)
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] ./apps/web/src/app/dashboard/tickets/page.tsx:810:5
+Expression expected
+  808 | }
+  809 |
+> 810 |     }
+      |     ^
+  811 |     window.addEventListener('keydown', onKey);
+  812 |     return () => window.removeEventListener('keydown', onKey);
+  813 |   }, [fetchTickets]);
+
+Parsing ecmascript source code failed 
+[browser] Uncaught ReferenceError: React is not defined
+    at <unknown> (src/app/dashboard/tickets/new/page.tsx:466:22)
+    at Array.map (<anonymous>)
+    at NewTicketPage (src/app/dashboard/tickets/new/page.tsx:465:46)
+  464 |
+  465 |                   {['high', 'medium', 'low'].map(u => (
+> 466 |                     <React.Fragment key={u}>
+      |                      ^
+  467 |                       <div style={{ background: 'var(--bg-tertiary)', padding: '8px', dis...
+  468 |                       {['low', 'medium', 'high'].map(i => {
+  469 |                         const isSelected = urgency === u && impact === i;
+npm error Lifecycle script `dev` failed with error:
+npm error code 1
+npm error path C:\Users\lucas.jensen\Downloads\Resolv\apps\web
+npm error workspace web@0.1.0
+npm error location C:\Users\lucas.jensen\Downloads\Resolv\apps\web
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c next dev

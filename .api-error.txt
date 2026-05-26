@@ -1,0 +1,40 @@
+(node:12004) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+FastifyError: The decorator 'io' has been added after start!
+    at assertNotStarted (C:\Users\lucas.jensen\Downloads\Resolv\node_modules\fastify\lib\decorate.js:129:11)
+    at Object.decorateFastify [as decorate] (C:\Users\lucas.jensen\Downloads\Resolv\node_modules\fastify\lib\decorate.js:66:3)
+    at start (C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts:81:11)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  code: 'FST_ERR_DEC_AFTER_START',
+  statusCode: 500
+}
+FastifyError: The decorator 'io' has been added after start!
+    at assertNotStarted (C:\Users\lucas.jensen\Downloads\Resolv\node_modules\fastify\lib\decorate.js:129:11)
+    at Object.decorateFastify [as decorate] (C:\Users\lucas.jensen\Downloads\Resolv\node_modules\fastify\lib\decorate.js:66:3)
+    at start (C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts:87:11)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  code: 'FST_ERR_DEC_AFTER_START',
+  statusCode: 500
+}
+FastifyError: The decorator 'io' has been added after start!
+    at assertNotStarted (C:\Users\lucas.jensen\Downloads\Resolv\node_modules\fastify\lib\decorate.js:129:11)
+    at Object.decorateFastify [as decorate] (C:\Users\lucas.jensen\Downloads\Resolv\node_modules\fastify\lib\decorate.js:66:3)
+    at start (C:\Users\lucas.jensen\Downloads\Resolv\apps\api\src\index.ts:87:11)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  code: 'FST_ERR_DEC_AFTER_START',
+  statusCode: 500
+}
+npm error Lifecycle script `dev` failed with error:
+npm error code 1
+npm error path C:\Users\lucas.jensen\Downloads\Resolv\apps\api
+npm error workspace @resolv/api@1.0.0
+npm error location C:\Users\lucas.jensen\Downloads\Resolv\apps\api
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c ts-node-dev --respawn --transpile-only src/index.ts

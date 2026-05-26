@@ -1,0 +1,67 @@
+
+> web@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.1.2.51:3000
+- Environments: .env.local
+✓ Ready in 415ms
+
+ GET / 307 in 512ms (next.js: 283ms, application-code: 230ms)
+ GET /login 200 in 130ms (next.js: 40ms, application-code: 89ms)
+ GET /dashboard 200 in 164ms (next.js: 120ms, application-code: 44ms)
+ GET /dashboard/tickets?filter=unassigned 500 in 1042ms (next.js: 521ms, application-code: 521ms)
+ GET /dashboard/tickets?filter=unassigned 500 in 59ms (next.js: 25ms, application-code: 34ms)
+ GET /dashboard 500 in 55ms (next.js: 24ms, application-code: 31ms)
+ GET /dashboard 500 in 44ms (next.js: 20ms, application-code: 24ms)
+✓ Compiled in 430ms
+ GET /dashboard 200 in 242ms (next.js: 76ms, application-code: 165ms)
+ GET /dashboard 200 in 50ms (next.js: 5ms, application-code: 45ms)
+ GET /dashboard/tickets 200 in 192ms (next.js: 155ms, application-code: 37ms)
+ GET /dashboard/knowledge 200 in 83ms (next.js: 55ms, application-code: 28ms)
+ GET /dashboard/catalog 200 in 99ms (next.js: 72ms, application-code: 27ms)
+ GET /dashboard/reports 200 in 849ms (next.js: 823ms, application-code: 26ms)
+ GET /dashboard/reports 200 in 40ms (next.js: 4ms, application-code: 36ms)
+ GET /dashboard/users 200 in 63ms (next.js: 33ms, application-code: 30ms)
+✓ Compiled in 150ms
+ GET /dashboard/admin 200 in 69ms (next.js: 47ms, application-code: 22ms)
+ GET /dashboard/settings 200 in 83ms (next.js: 55ms, application-code: 28ms)
+ GET /dashboard/settings 200 in 148ms (next.js: 9ms, application-code: 139ms)
+ GET /dashboard 200 in 34ms (next.js: 6ms, application-code: 29ms)
+ GET /dashboard 200 in 148ms (next.js: 93ms, application-code: 55ms)
+ GET /dashboard/tickets?status=open 200 in 50ms (next.js: 20ms, application-code: 30ms)
+ GET /dashboard/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d 200 in 377ms (next.js: 357ms, application-code: 20ms)
+ GET /dashboard/knowledge 200 in 35ms (next.js: 10ms, application-code: 25ms)
+ GET /dashboard/knowledge 200 in 91ms (next.js: 48ms, application-code: 43ms)
+ GET /dashboard 200 in 52ms (next.js: 28ms, application-code: 24ms)
+ GET /dashboard/knowledge 200 in 30ms (next.js: 6ms, application-code: 23ms)
+ GET /dashboard 200 in 32ms (next.js: 5ms, application-code: 27ms)
+ GET /dashboard/tickets 200 in 52ms (next.js: 19ms, application-code: 33ms)
+ GET /dashboard/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d 200 in 166ms (next.js: 80ms, application-code: 87ms)
+ GET /dashboard/tickets/ba86d3ea-75fe-4fd7-942c-e676a6ac527d 200 in 90ms (next.js: 44ms, application-code: 45ms)
+ GET /dashboard/tickets 200 in 28ms (next.js: 4ms, application-code: 24ms)
+ GET /dashboard 200 in 25ms (next.js: 3ms, application-code: 23ms)
+ GET /dashboard/tickets?status=open 200 in 29ms (next.js: 3ms, application-code: 25ms)
+ GET /dashboard/tickets/new 200 in 90ms (next.js: 49ms, application-code: 41ms)
+ GET /dashboard/tickets?status=open 200 in 114ms (next.js: 7ms, application-code: 107ms)
+ GET /dashboard/settings 200 in 107ms (next.js: 41ms, application-code: 66ms)
+ GET /dashboard 200 in 40ms (next.js: 6ms, application-code: 34ms)
+ GET /dashboard/tickets 200 in 34ms (next.js: 7ms, application-code: 27ms)
+ GET /dashboard/settings 200 in 28ms (next.js: 4ms, application-code: 24ms)
+ GET /dashboard/settings 200 in 100ms (next.js: 66ms, application-code: 34ms)
+ GET /dashboard/settings 200 in 243ms (next.js: 12ms, application-code: 230ms)
+ GET /dashboard/notifications 200 in 90ms (next.js: 57ms, application-code: 32ms)
+ GET /dashboard 200 in 51ms (next.js: 28ms, application-code: 22ms)
+ GET /dashboard/tickets 200 in 34ms (next.js: 16ms, application-code: 19ms)
+ GET /dashboard/tickets/b30632e0-ce31-4250-b83c-f505d47426d9 200 in 75ms (next.js: 35ms, application-code: 40ms)
+ GET /dashboard/knowledge 200 in 52ms (next.js: 24ms, application-code: 28ms)
+ GET /dashboard/catalog 200 in 97ms (next.js: 70ms, application-code: 27ms)
+ GET /dashboard/reports 200 in 37ms (next.js: 11ms, application-code: 26ms)
+ GET /dashboard/users 200 in 74ms (next.js: 36ms, application-code: 38ms)
+ GET /dashboard/admin 200 in 40ms (next.js: 15ms, application-code: 25ms)
+ GET /dashboard/settings 200 in 55ms (next.js: 7ms, application-code: 48ms)
+ GET /dashboard/settings 200 in 81ms (next.js: 4ms, application-code: 77ms)
+ GET /login 200 in 59ms (next.js: 30ms, application-code: 29ms)
+ GET /login 200 in 386ms (next.js: 18ms, application-code: 368ms)
+[?25h

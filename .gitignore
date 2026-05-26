@@ -1,0 +1,18 @@
+node_modules
+dist
+.next
+.env
+.env.local
+*.log
+.DS_Store
+.tmp.driveupload/
+.tmp.drivedownload/
+
+# Agent generated build artifacts
+apps/agent/node-agent/nssm-bundle.js
+
+# One-off schema/column check scripts
+check_*.mjs
+
+# Reserved Windows filename
+nul
