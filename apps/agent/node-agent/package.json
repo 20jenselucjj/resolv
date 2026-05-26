@@ -1,0 +1,30 @@
+{
+  "name": "resolv-agent",
+  "version": "1.0.0",
+  "description": "Resolv ITSM Agent for Windows",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "bundle-nssm": "node scripts/bundle-nssm.js",
+    "build": "node scripts/bundle-nssm.js && pkg agent.js --targets node18-win-x64 --output dist/ResolvAgent.exe"
+  },
+  "bin": "agent.js",
+  "dependencies": {
+    "screenshot-desktop": "^1.15.4",
+    "socket.io-client": "^4.7.0",
+    "systeminformation": "^5.21.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "scripts": [
+      "agent.js",
+      "nssm-bundle.js"
+    ],
+    "assets": [
+      "node_modules/screenshot-desktop/lib/win32/screenCapture_1.3.2.bat",
+      "node_modules/screenshot-desktop/lib/win32/app.manifest"
+    ]
+  }
+}

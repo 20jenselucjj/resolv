@@ -1,0 +1,867 @@
+'use client';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useStore } from '@/lib/store';
+import { api } from '@/lib/api';
+import {
+  Search, Sparkles, Send, Plus, AlertTriangle, Package,
+  KeyRound, Wifi, Monitor, HelpCircle, ChevronRight,
+  Clock, CheckCircle2, Check, Circle, Loader2, X, FileText,
+  BookOpen, ArrowRight, Paperclip, User as UserIcon,
+  UploadCloud, Trash2, ExternalLink, MessageSquare,
+  Zap, Shield, RefreshCw, Headphones
+} from 'lucide-react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Ticket {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface KBArticle {
+  id: string;
+  title: string;
+  slug: string;
+  category_name?: string;
+  views: number;
+}
+
+interface AiMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface SspDoc {
+  id: string;
+  title: string;
+  filename: string;
+  url: string;
+  created_at: string;
+}
+
+// ─── Quick Actions (Dynamic) ──────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  open:        { label: 'Open',        color: '#3b82f6', bg: '#eff6ff',  icon: Circle },
+  in_progress: { label: 'In Progress', color: '#f59e0b', bg: '#fffbeb',  icon: RefreshCw },
+  closed:      { label: 'Closed',      color: '#10b981', bg: '#ecfdf5',  icon: CheckCircle2 },
+  resolved:    { label: 'Closed',      color: '#10b981', bg: '#ecfdf5',  icon: CheckCircle2 },
+  pending:     { label: 'Pending',     color: '#8b5cf6', bg: '#f5f3ff',  icon: Clock },
+};
+
+// ─── Formatted Message ─────────────────────────────────────────────────────────
+function FormattedMessage({ text }: { text: string }) {
+  const html = text
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/```([\s\S]*?)```/g, '<pre style="background:rgba(0,0,0,0.05);padding:12px;border-radius:6px;margin:8px 0;overflow-x:auto;font-size:13px;border:1px solid var(--border)"><code>$1</code></pre>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;font-size:13px">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/- ([^\n]+)/g, '• $1');
+  return <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+export default function SelfServicePortal() {
+  const { user } = useStore();
+  const isAdmin = user?.role === 'admin';
+
+  // Settings
+  const [portalSettings, setPortalSettings] = useState<Record<string, string>>({});
+
+  const quickActions = useMemo(() => [
+    { icon: AlertTriangle, label: portalSettings.portal_qa_1_label || 'Report an Issue',   color: '#ef4444', bg: '#fef2f2', border: '#fecaca', prompt: portalSettings.portal_qa_1_prompt || 'I need to report an issue with my computer or software.' },
+    { icon: KeyRound,      label: portalSettings.portal_qa_2_label || 'Password / Access', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', prompt: portalSettings.portal_qa_2_prompt || 'I need help with a password reset or access to a system.' },
+    { icon: Monitor,       label: portalSettings.portal_qa_3_label || 'Hardware Request',  color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', prompt: portalSettings.portal_qa_3_prompt || 'I need to request new hardware or equipment.' },
+    { icon: Package,       label: portalSettings.portal_qa_4_label || 'Software Request',  color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', prompt: portalSettings.portal_qa_4_prompt || 'I need a software license or application installed.' },
+    { icon: Wifi,          label: portalSettings.portal_qa_5_label || 'Network / VPN',     color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', prompt: portalSettings.portal_qa_5_prompt || 'I am having network connectivity or VPN issues.' },
+    { icon: HelpCircle,    label: portalSettings.portal_qa_6_label || 'Something Else',    color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb', prompt: portalSettings.portal_qa_6_prompt || 'I need help with something not listed here.' },
+  ], [portalSettings]);
+
+  // Search
+  const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  // My Tickets
+  const [myTickets, setMyTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+
+  // KB Articles
+  const [kbArticles, setKbArticles] = useState<KBArticle[]>([]);
+  const [kbSearch, setKbSearch] = useState('');
+
+  // AI Chat
+  const [messages, setMessages] = useState<AiMessage[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [chatStarted, setChatStarted] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // File upload for AI chat
+  const aiFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; filename: string; size: number }[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [dropSuccess, setDropSuccess] = useState(false);
+
+  const ALLOWED_FILE_TYPES = '.png,.jpg,.jpeg,.gif,.webp,.bmp,.pdf,.txt,.log,.csv,.doc,.docx,.xlsx,.xls,.json,.xml,.yaml,.yml';
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    // Flash success indicator
+    setDropSuccess(true);
+    setTimeout(() => setDropSuccess(false), 800);
+
+    for (const file of files) {
+      if (uploadingFile) break;
+      setUploadingFile(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = localStorage.getItem('resolv_token');
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const res = await fetch(`${baseUrl}/ai/upload`, {
+          method: 'POST',
+          body: formData,
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUploadedFiles(prev => [...prev, { id: data.data.id, filename: data.data.filename, size: data.data.size }]);
+        }
+      } catch (err) {
+        console.error('File upload failed:', err);
+      } finally {
+        setUploadingFile(false);
+      }
+    }
+  };
+
+  // New Ticket Panel
+  const [showTicketForm, setShowTicketForm] = useState(false);
+  const [ticketForm, setTicketForm] = useState({ title: '', description: '', priority: 'medium', ticket_type: 'incident' });
+  const [ticketLoading, setTicketLoading] = useState(false);
+  const [ticketError, setTicketError] = useState('');
+  const [ticketSuccess, setTicketSuccess] = useState(false);
+
+  // Admin Docs
+  const [sspDocs, setSspDocs] = useState<SspDoc[]>([]);
+  const [docUploading, setDocUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Load data ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Load portal settings
+    api.get<{ data: Record<string, string> }>('/settings/portal')
+      .then(res => setPortalSettings(res.data || {}))
+      .catch(() => {});
+
+    // Load my tickets
+    api.get<{ data: Ticket[] }>('/tickets?pageSize=5')
+      .then(res => setMyTickets(res.data?.slice(0, 5) || []))
+      .catch(() => setMyTickets([]))
+      .finally(() => setTicketsLoading(false));
+
+    // Load KB articles
+    api.get<{ data: KBArticle[] }>('/knowledge?status=published&pageSize=6')
+      .then(res => setKbArticles(res.data || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (kbSearch.length > 1) {
+      api.get<{ data: KBArticle[] }>(`/knowledge?status=published&search=${encodeURIComponent(kbSearch)}&pageSize=5`)
+        .then(res => setKbArticles(res.data || []))
+        .catch(() => {});
+    } else if (kbSearch === '') {
+      api.get<{ data: KBArticle[] }>('/knowledge?status=published&pageSize=6')
+        .then(res => setKbArticles(res.data || []))
+        .catch(() => {});
+    }
+  }, [kbSearch]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, aiLoading]);
+
+  // ── AI Chat File Upload ────────────────────────────────────────────────────
+  const handleAiFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = localStorage.getItem('resolv_token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${baseUrl}/ai/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUploadedFiles(prev => [...prev, { id: data.data.id, filename: data.data.filename, size: data.data.size }]);
+      }
+    } catch (err) {
+      console.error('File upload failed:', err);
+    } finally {
+      setUploadingFile(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const removeAiFile = (fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const truncateFilename = (name: string, maxLen = 24) => {
+    if (name.length <= maxLen) return name;
+    const ext = name.lastIndexOf('.');
+    if (ext === -1) return name.slice(0, maxLen - 3) + '...';
+    const extStr = name.slice(ext);
+    const base = name.slice(0, ext);
+    const maxBase = maxLen - extStr.length - 3;
+    if (maxBase < 1) return name.slice(0, maxLen - 3) + '...';
+    return base.slice(0, maxBase) + '...' + extStr;
+  };
+
+  const isImageFile = (name: string) => /\.(png|jpg|jpeg|gif|webp|bmp)$/i.test(name);
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + 'KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+  };
+
+  // ── AI Chat ────────────────────────────────────────────────────────────────
+  const sendMessage = async (overrideText?: string) => {
+    const text = overrideText ?? inputText;
+    if (!text.trim() || aiLoading) return;
+    if (!chatStarted) setChatStarted(true);
+    const originalInput = inputText;
+    setInputText('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+
+    // Append uploaded file IDs to message so AI can reference them
+    let messageText = text.trim();
+    if (uploadedFiles.length > 0 && !overrideText) {
+      const fileIds = uploadedFiles.map(f => f.id).join(',');
+      messageText = `${messageText}\n[Attached Files: ${fileIds}]`;
+      setUploadedFiles([]);
+    }
+
+    const userMsg: AiMessage = { id: Date.now().toString(), role: 'user', content: text.trim() };
+    setMessages(prev => [...prev, userMsg]);
+    setAiLoading(true);
+
+    try {
+      let sid = sessionId;
+      if (!sid) {
+        const res = await api.post<{ data: { id: string } }>('/ai/sessions', { title: originalInput.substring(0, 40) });
+        sid = res.data.id;
+        setSessionId(sid);
+      }
+      const res = await api.post<{ data: { content: string } }>('/ai/chat', { session_id: sid, message: messageText });
+      setMessages(prev => [...prev, { id: Date.now().toString() + 'ai', role: 'assistant', content: res.data.content }]);
+    } catch {
+      setMessages(prev => [...prev, { id: Date.now().toString() + 'err', role: 'assistant', content: "Sorry, I couldn't process that. Please try again." }]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleQuickAction = (prompt: string) => {
+    setChatStarted(true);
+    setTimeout(() => inputRef.current?.focus(), 100);
+    sendMessage(prompt);
+  };
+
+  // ── Submit Ticket ──────────────────────────────────────────────────────────
+  const submitTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketForm.title.trim()) { setTicketError('Title is required'); return; }
+    setTicketLoading(true);
+    setTicketError('');
+    try {
+      const res = await api.post<{ data: Ticket }>('/tickets', ticketForm);
+      setMyTickets(prev => [res.data, ...prev].slice(0, 5));
+      setTicketSuccess(true);
+      setTimeout(() => { setShowTicketForm(false); setTicketSuccess(false); setTicketForm({ title: '', description: '', priority: 'medium', ticket_type: 'incident' }); }, 2000);
+    } catch (err: any) {
+      setTicketError(err.message || 'Failed to create ticket');
+    } finally {
+      setTicketLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes typingBounce { 0%,80%,100% { transform:translateY(0); opacity:0.4; } 40% { transform:translateY(-5px); opacity:1; } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+        .ssp-card { transition: box-shadow 0.2s, border-color 0.2s; }
+        .ssp-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.1); border-color: var(--border-hover) !important; }
+        .qa-btn { transition: all 0.15s; }
+        .qa-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: var(--bg-secondary) !important; }
+        .typing-dot { width:6px; height:6px; border-radius:50%; background:#2563eb; animation: typingBounce 1.2s infinite ease-in-out; }
+        .ssp-input:focus { border-color: #2563eb !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.1) !important; }
+        .msg-in { animation: fadeInUp 0.2s ease-out; }
+      `}</style>
+
+      {/* ── Hero Header ─────────────────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)',
+        padding: '24px 32px 48px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Decorative blobs */}
+        <div style={{ position:'absolute', top:-60, right:-60, width:300, height:300, background:'rgba(255,255,255,0.05)', borderRadius:'50%', filter:'blur(40px)' }} />
+        <div style={{ position:'absolute', bottom:-80, left:100, width:200, height:200, background:'rgba(255,255,255,0.04)', borderRadius:'50%', filter:'blur(30px)' }} />
+
+        <div style={{ maxWidth: 960, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Headphones size={16} color="white" />
+            </div>
+            <span style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.7)', textTransform:'uppercase', letterSpacing:'0.08em' }}>{portalSettings.portal_company_name || 'IT Self Service'}</span>
+          </div>
+
+          {/* Search bar */}
+          <div style={{ position:'relative', maxWidth:640 }}>
+            <Search size={18} style={{ position:'absolute', left:16, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', pointerEvents:'none' }} />
+            <input
+              className="ssp-input"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setKbSearch(e.target.value); }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+              placeholder="Search knowledge base, tickets, or ask a question..."
+              style={{
+                width:'100%', padding:'14px 16px 14px 48px',
+                borderRadius:12, border:'2px solid rgba(255,255,255,0.2)',
+                background:'rgba(255,255,255,0.95)', fontSize:15,
+                color:'var(--text)', outline:'none',
+                boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
+                transition:'border-color 0.2s, box-shadow 0.2s',
+              }}
+            />
+            {search && (
+              <button onClick={() => { setSearch(''); setKbSearch(''); }} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', display:'flex', transition:'color 0.15s ease' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#475569'}
+                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main Content ─────────────────────────────────────────────────────── */}
+      <div style={{ maxWidth:960, margin:'0 auto 0', padding:'24px 32px 60px', width:'100%', flex:1, boxSizing:'border-box', position:'relative', zIndex:1 }}>
+
+        {/* ── Quick Actions ──────────────────────────────────────────────────── */}
+        {!search && (
+          <div style={{ marginBottom:32 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+              {quickActions.map((qa, i) => (
+                <button
+                  key={i}
+                  className="qa-btn"
+                  onClick={() => handleQuickAction(qa.prompt)}
+                  style={{
+                    display:'flex', alignItems:'center', gap:12,
+                    padding:'14px 16px',
+                    background:'var(--card)',
+                    border:`1px solid var(--border)`,
+                    borderRadius:12, cursor:'pointer', textAlign:'left',
+                    boxShadow:'0 2px 8px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <div style={{ width:36, height:36, borderRadius:8, background:qa.bg, border:`1px solid ${qa.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <qa.icon size={16} color={qa.color} />
+                  </div>
+                  <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{qa.label}</span>
+                  <ChevronRight size={14} color="var(--text-muted)" style={{ marginLeft:'auto', flexShrink:0 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Two-column layout: AI Chat + My Tickets ───────────────────────── */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:20, marginBottom:24 }}>
+
+          {/* ── AI Chat Panel ────────────────────────────────────────────────── */}
+          <div className="ssp-card" style={{
+            background:'var(--card)', border:'1px solid var(--border)',
+            borderRadius:16, overflow:'hidden',
+            display:'flex', flexDirection:'column',
+            minHeight:420, maxHeight:520,
+            boxShadow:'0 2px 8px rgba(0,0,0,0.06)',
+          }}>
+            {/* Chat header */}
+            <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Sparkles size={15} color="white" />
+              </div>
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', display:'flex', alignItems:'center', gap:6 }}>
+                  Resolv AI
+                  <span style={{ width:6, height:6, borderRadius:'50%', background:'#10b981', display:'inline-block' }} />
+                </div>
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>Always here to help</div>
+              </div>
+              {chatStarted && (
+                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); }} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                >
+                  <Plus size={12} /> New chat
+                </button>
+              )}
+            </div>
+
+            {/* Messages */}
+            <div style={{ flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:16 }}>
+              {!chatStarted ? (
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', textAlign:'center', padding:'0 20px' }}>
+                  <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14, boxShadow:'0 8px 20px rgba(37,99,235,0.25)' }}>
+                    <Sparkles size={24} color="white" />
+                  </div>
+                  <h3 style={{ fontSize:16, fontWeight:700, margin:'0 0 6px', color:'var(--text)' }}>Ask me anything</h3>
+                  <p style={{ fontSize:13, color:'var(--text-muted)', margin:'0 0 20px', lineHeight:1.5 }}>
+                    I can help you troubleshoot issues, find answers, or submit a ticket on your behalf.
+                  </p>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'center' }}>
+                    {['My computer is slow', 'I need VPN access', 'Reset my password', 'Track my ticket'].map(s => (
+                      <button key={s} onClick={() => sendMessage(s)} style={{ padding:'6px 12px', background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:20, fontSize:12, fontWeight:500, color:'var(--text)', cursor:'pointer', transition:'all 0.15s ease' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#2563eb'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {messages.map(msg => (
+                    <div key={msg.id} className="msg-in" style={{ display:'flex', flexDirection:'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      {msg.role === 'user' ? (
+                        <div style={{ background:'#2563eb', color:'white', padding:'10px 14px', borderRadius:'16px 16px 4px 16px', fontSize:14, lineHeight:1.5, maxWidth:'85%', boxShadow:'0 1px 3px rgba(0,0,0,0.15)' }}>
+                          {msg.content}
+                        </div>
+                      ) : (
+                        <div style={{ display:'flex', gap:10, maxWidth:'95%', alignItems:'flex-start' }}>
+                          <div style={{ width:26, height:26, borderRadius:6, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 }}>
+                            <Sparkles size={12} color="white" />
+                          </div>
+                          <div style={{ background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)', borderRadius:'4px 16px 16px 16px', padding:'10px 14px', flex:1 }}>
+                            <FormattedMessage text={msg.content} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {aiLoading && (
+                    <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                      <div style={{ width:26, height:26, borderRadius:6, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <Sparkles size={12} color="white" />
+                      </div>
+                      <div style={{ display:'flex', gap:4, alignItems:'center', background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)', borderRadius:'4px 16px 16px 16px', padding:'12px 16px' }}>
+                        <div className="typing-dot" style={{ animationDelay:'0ms' }} />
+                        <div className="typing-dot" style={{ animationDelay:'160ms' }} />
+                        <div className="typing-dot" style={{ animationDelay:'320ms' }} />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+
+            {/* Input — supports drag-and-drop file upload */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              style={{
+                padding:'12px 14px', borderTop:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', flexShrink:0,
+                position:'relative',
+                outline: dragOver ? '2px dashed #2563eb' : 'none',
+                outlineOffset: dragOver ? -2 : 0,
+                transition: 'outline 0.15s ease',
+              }}
+            >
+              {/* Drag-over overlay */}
+              {dragOver && (
+                <div style={{
+                  position:'absolute', inset:0, zIndex:10,
+                  background:'rgba(37,99,235,0.06)',
+                  borderRadius:10,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  gap:8, fontSize:14, fontWeight:600, color:'#2563eb',
+                  pointerEvents:'none',
+                }}>
+                  <UploadCloud size={20} /> Drop files here
+                </div>
+              )}
+              {/* Drop success flash */}
+              {dropSuccess && (
+                <div style={{
+                  position:'absolute', inset:0, zIndex:10,
+                  background:'rgba(16,185,129,0.08)',
+                  borderRadius:10,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  gap:8, fontSize:14, fontWeight:600, color:'#10b981',
+                  pointerEvents:'none',
+                  animation:'fadeInUp 0.2s ease-out',
+                }}>
+                  <Check size={18} /> Files added
+                </div>
+              )}
+              {/* Uploaded files preview */}
+              {uploadedFiles.length > 0 && (
+                <div style={{
+                  marginBottom:8, padding:8, borderRadius:8,
+                  background:'var(--bg-secondary)',
+                  border:'1px solid var(--border-subtle)',
+                }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.04em' }}>
+                    {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} attached
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {uploadedFiles.map(f => (
+                      <div key={f.id} style={{
+                        display:'flex', alignItems:'center', gap:8,
+                        padding:'5px 8px', borderRadius:6,
+                        background:'var(--card)',
+                        border:'1px solid var(--border)',
+                      }}>
+                        <div style={{ width:24, height:24, borderRadius:4, background:'rgba(37,99,235,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <FileText size={13} color="#2563eb" />
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={f.filename}>
+                            {truncateFilename(f.filename)}
+                          </div>
+                        </div>
+                        <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0, whiteSpace:'nowrap' }}>{formatSize(f.size)}</span>
+                        <button
+                          onClick={() => removeAiFile(f.id)}
+                          style={{
+                            width:20, height:20, borderRadius:4,
+                            background:'transparent', border:'none',
+                            cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+                            color:'var(--text-muted)', flexShrink:0,
+                            transition:'all 0.15s ease',
+                          }}
+                          title="Remove file"
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:8, alignItems:'flex-end', background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:10, padding:'6px 6px 6px 4px', transition:'border-color 0.2s' }}
+                onFocusCapture={e => (e.currentTarget.style.borderColor = '#2563eb')}
+                onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                {/* File upload button */}
+                <button
+                  onClick={() => aiFileInputRef.current?.click()}
+                  disabled={uploadingFile}
+                  style={{
+                    width:30, height:30, borderRadius:6, flexShrink:0,
+                    background:'transparent', color:'var(--text-muted)',
+                    border:'none', display:'flex', alignItems:'center', justifyContent:'center',
+                    cursor: uploadingFile ? 'default' : 'pointer',
+                    transition:'all 0.15s ease',
+                  }}
+                  title="Attach file"
+                  onMouseEnter={e => { if (!uploadingFile) { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; } }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                >
+                  {uploadingFile ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={15} />}
+                </button>
+                <input ref={aiFileInputRef} type="file" accept={ALLOWED_FILE_TYPES} style={{ display:'none' }} onChange={handleAiFileUpload} disabled={uploadingFile} />
+                <textarea
+                  ref={inputRef}
+                  value={inputText}
+                  onChange={e => { setInputText(e.target.value); e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'; }}
+                  onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  placeholder="Drop files here or message Resolv AI..."
+                  disabled={aiLoading}
+                  rows={1}
+                  style={{ flex:1, background:'transparent', border:'none', outline:'none', resize:'none', fontSize:14, color:'var(--text)', fontFamily:'inherit', minHeight:32, maxHeight:120, padding:'4px 0' }}
+                />
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!inputText.trim() || aiLoading}
+                  style={{ width:32, height:32, borderRadius:8, border:'none', cursor: inputText.trim() && !aiLoading ? 'pointer' : 'default', background: inputText.trim() && !aiLoading ? 'linear-gradient(135deg,#2563eb,#4f46e5)' : 'var(--bg-tertiary)', color: inputText.trim() && !aiLoading ? 'white' : 'var(--text-muted)', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s', flexShrink:0 }}
+                  onMouseEnter={e => { if (inputText.trim() && !aiLoading) e.currentTarget.style.opacity = '0.85'; }}
+                  onMouseLeave={e => { if (inputText.trim() && !aiLoading) e.currentTarget.style.opacity = '1'; }}
+                >
+                  <Send size={14} style={{ marginLeft:1 }} />
+                </button>
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5, textAlign:'center' }}>Enter to send · Shift+Enter for new line</div>
+            </div>
+          </div>
+
+          {/* ── Right Column: My Tickets + Submit ────────────────────────────── */}
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+            {/* Submit a Request */}
+            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+              <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <Plus size={15} color="#2563eb" />
+                  <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Submit a Request</span>
+                </div>
+              </div>
+              {!showTicketForm ? (
+                <div style={{ padding:16 }}>
+                  <p style={{ fontSize:13, color:'var(--text-muted)', margin:'0 0 12px', lineHeight:1.5 }}>
+                    Can't find what you need? Submit a support request and our team will help you.
+                  </p>
+                  <button
+                    onClick={() => setShowTicketForm(true)}
+                    style={{ width:'100%', padding:'10px', background:'linear-gradient(135deg,#2563eb,#4f46e5)', color:'white', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'all 0.15s ease' }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.3)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <Plus size={14} /> New Request
+                  </button>
+                </div>
+              ) : ticketSuccess ? (
+                <div style={{ padding:24, textAlign:'center' }}>
+                  <CheckCircle2 size={32} color="#10b981" style={{ margin:'0 auto 10px' }} />
+                  <div style={{ fontSize:14, fontWeight:600, color:'var(--text)' }}>Request submitted!</div>
+                  <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>We'll be in touch soon.</div>
+                </div>
+              ) : (
+                <form onSubmit={submitTicket} style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+                  <input
+                    autoFocus
+                    className="input ssp-input"
+                    value={ticketForm.title}
+                    onChange={e => setTicketForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="What do you need help with?"
+                    style={{ fontSize:13 }}
+                  />
+                  <textarea
+                    className="textarea ssp-input"
+                    value={ticketForm.description}
+                    onChange={e => setTicketForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Describe the issue..."
+                    rows={3}
+                    style={{ fontSize:12, resize:'vertical' }}
+                  />
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <select className="select" value={ticketForm.priority} onChange={e => setTicketForm(f => ({ ...f, priority: e.target.value }))} style={{ fontSize:12 }}>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                    <select className="select" value={ticketForm.ticket_type} onChange={e => setTicketForm(f => ({ ...f, ticket_type: e.target.value }))} style={{ fontSize:12 }}>
+                      <option value="incident">Incident</option>
+                      <option value="service_request">Service Request</option>
+                      <option value="problem">Problem</option>
+                    </select>
+                  </div>
+                  {ticketError && <div style={{ fontSize:12, color:'var(--danger)', padding:'6px 10px', background:'var(--danger-bg)', borderRadius:6 }}>{ticketError}</div>}
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button type="submit" disabled={ticketLoading} className="btn btn-primary" style={{ flex:1, fontSize:12, height:34 }}>
+                      {ticketLoading ? <Loader2 size={13} className="animate-spin" /> : 'Submit'}
+                    </button>
+                    <button type="button" onClick={() => { setShowTicketForm(false); setTicketError(''); }} className="btn btn-ghost" style={{ fontSize:12, height:34 }}>Cancel</button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            {/* My Tickets */}
+            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', flex:1 }}>
+              <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <MessageSquare size={15} color="#2563eb" />
+                  <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>My Requests</span>
+                </div>
+                <a href="/dashboard/tickets" style={{ fontSize:12, color:'#2563eb', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:500 }}>
+                  View all <ArrowRight size={12} />
+                </a>
+              </div>
+              <div style={{ padding:'8px' }}>
+                {ticketsLoading ? (
+                  <div style={{ padding:24, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
+                ) : myTickets.length === 0 ? (
+                  <div style={{ padding:'24px 16px', textAlign:'center' }}>
+                    <CheckCircle2 size={28} color="#10b981" style={{ margin:'0 auto 8px' }} />
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>All clear!</div>
+                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>No open requests.</div>
+                  </div>
+                ) : myTickets.map(ticket => {
+                  const s = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
+                  const SIcon = s.icon;
+                  return (
+                    <a key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 8px', borderRadius:8, textDecoration:'none', transition:'background 0.15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <SIcon size={14} color={s.color} style={{ flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ticket.title}</div>
+                        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{new Date(ticket.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0 }}>{s.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Knowledge Base ─────────────────────────────────────────────────── */}
+        <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', marginBottom: isAdmin ? 24 : 0 }}>
+          <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <BookOpen size={15} color="#2563eb" />
+              <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Knowledge Base</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ position:'relative' }}>
+                <Search size={13} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+                <input
+                  value={kbSearch}
+                  onChange={e => setKbSearch(e.target.value)}
+                  placeholder="Search articles..."
+                  style={{ padding:'5px 10px 5px 26px', border:'1px solid var(--border)', borderRadius:6, fontSize:12, background:'var(--bg)', color:'var(--text)', outline:'none', width:160 }}
+                />
+              </div>
+              <a href="/dashboard/knowledge" style={{ fontSize:12, color:'#2563eb', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:500 }}>
+                Browse all <ArrowRight size={12} />
+              </a>
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:0 }}>
+            {kbArticles.length === 0 ? (
+              <div style={{ gridColumn:'1/-1', padding:'32px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>No articles found.</div>
+            ) : kbArticles.map((article, i) => (
+              <a
+                key={article.id}
+                href={`/dashboard/knowledge/${article.slug}`}
+                style={{
+                  display:'flex', alignItems:'flex-start', gap:10, padding:'14px 16px',
+                  textDecoration:'none', color:'var(--text)',
+                  borderRight: (i+1) % 3 !== 0 ? '1px solid var(--border-subtle)' : 'none',
+                  borderBottom: i < kbArticles.length - 3 ? '1px solid var(--border-subtle)' : 'none',
+                  transition:'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <FileText size={14} color="#2563eb" style={{ flexShrink:0, marginTop:2 }} />
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{article.title}</div>
+                  {article.category_name && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{article.category_name}</div>}
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Admin: SSP Documents ───────────────────────────────────────────── */}
+        {isAdmin && (
+          <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <Shield size={15} color="#8b5cf6" />
+                <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Portal Documents</span>
+                <span style={{ fontSize:11, padding:'2px 7px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:10, fontWeight:600 }}>Admin</span>
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={docUploading}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', background:'#7c3aed', color:'white', border:'none', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', transition:'all 0.15s ease' }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <UploadCloud size={13} /> Upload Document
+              </button>
+              <input ref={fileInputRef} type="file" style={{ display:'none' }} accept=".pdf,.doc,.docx,.txt,.md" onChange={async e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setDocUploading(true);
+                // Simulate upload — in production wire to /api/attachments or a dedicated endpoint
+                await new Promise(r => setTimeout(r, 1200));
+                setSspDocs(prev => [...prev, { id: Date.now().toString(), title: file.name.replace(/\.[^.]+$/, ''), filename: file.name, url: '#', created_at: new Date().toISOString() }]);
+                setDocUploading(false);
+                e.target.value = '';
+              }} />
+            </div>
+            <div style={{ padding:16 }}>
+              {sspDocs.length === 0 ? (
+                <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
+                  <UploadCloud size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
+                  <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>No documents uploaded yet</div>
+                  <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>Upload PDFs, Word docs, or text files to make them available in the portal.</div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {sspDocs.map(doc => (
+                    <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'var(--bg-secondary)', borderRadius:8, border:'1px solid var(--border-subtle)' }}>
+                      <FileText size={14} color="#7c3aed" />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                        <div style={{ fontSize:11, color:'var(--text-muted)' }}>{doc.filename} · {new Date(doc.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <a href={doc.url} style={{ color:'var(--text-muted)', display:'flex' }}><ExternalLink size={13} /></a>
+                      <button onClick={() => setSspDocs(prev => prev.filter(d => d.id !== doc.id))} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex', transition:'color 0.15s ease' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                      ><Trash2 size={13} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

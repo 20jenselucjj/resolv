@@ -1,0 +1,42 @@
+node_modules
+dist
+.next
+.env
+.env.local
+*.log
+.DS_Store
+.tmp.driveupload/
+.tmp.drivedownload/
+
+# Runtime output / logs
+.api-*.txt
+.web-*.txt
+
+# Temp downloads
+.tmp.*
+test-*.exe
+
+# Config / auth
+agent-config-new.json
+
+# Agent generated build artifacts
+apps/agent/node-agent/nssm-bundle.js
+apps/agent/node-agent/nssm/
+
+# Build artifacts / binaries
+apps/api/public/*.zip
+*.exe
+*.zip
+
+# Uploaded files
+apps/api/uploads/
+
+# Misc screenshots / images (root only)
+/assets-page.png
+/logo.png
+
+# One-off schema/column check scripts
+check_*.mjs
+
+# Reserved Windows filename
+nul

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capture</title>
+<style>
+  body { margin: 0; background: #000; overflow: hidden; }
+  video { width: 100%; height: 100%; object-fit: contain; }
+  #status { position: fixed; bottom: 8px; left: 8px; color: #0f0; font: 11px monospace; opacity: 0.6; }
+</style>
+</head>
+<body>
+<video id="preview" autoplay playsInline muted></video>
+<div id="status">initializing...</div>
+<script>
+  const api = window.electronAPI;
+  let pc = null;
+  let stream = null;
+  let sessionId = '';
+  let pendingIce = [];
+
+  function log(msg) {
+    const el = document.getElementById('status');
+    if (el) el.textContent = msg;
+  }
+
+  async function startCapture({ sessionId: sid, assetId: aid }) {
+      sessionId = sid;
+    pendingIce = [];
+    log('starting capture...');
+
+    try {
+      // Release any previous capture
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          frameRate: { ideal: 30 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+
+      log('capture started: ' + stream.getVideoTracks().length + ' video tracks');
+
+      // Show local preview
+      const video = document.getElementById('preview');
+      if (video) video.srcObject = stream;
+
+      stream.getVideoTracks()[0].onended = () => {
+        log('capture stopped by OS');
+        api.sendWebRTCSignal({ type: 'capture-ended', sessionId });
+      };
+
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+        iceCandidatePoolSize: 0,
+      });
+
+      // Add video track
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
+
+      // ICE candidate handling
+      pc.onicecandidate = ({ candidate }) => {
+        if (candidate) {
+          api.sendWebRTCSignal({
+            type: 'ice',
+            sessionId,
+            candidate: candidate.toJSON(),
+          });
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        log('ICE state: ' + pc.iceConnectionState);
+        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+          // Will be handled by the web viewer reconnecting
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        log('PC state: ' + pc.connectionState);
+      };
+
+      // Create and send initial offer
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false,
+      });
+      await pc.setLocalDescription(offer);
+      api.sendWebRTCSignal({
+        type: 'sdp',
+        sessionId,
+        description: pc.localDescription.toJSON(),
+      });
+      log('offer sent, waiting for answer...');
+
+    } catch (err) {
+      log('capture error: ' + (err.message || err));
+      console.error('[Capture]', err);
+      api.sendWebRTCSignal({ type: 'capture-error', sessionId, error: err.message });
+    }
+  }
+
+  // Handle incoming WebRTC signals from viewer
+  api.onWebRTCSignal(async (data) => {
+    if (!pc) return;
+    if (!sessionId || data.sessionId !== sessionId) return;
+    try {
+      if (data.type === 'sdp' && data.description) {
+        const desc = new RTCSessionDescription(data.description);
+        await pc.setRemoteDescription(desc);
+
+        // Drain any ICE candidates that arrived before remote description
+        while (pendingIce.length) {
+          const c = pendingIce.shift();
+          if (c) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+        }
+
+        if (desc.type === 'answer') {
+          log('remote answer set');
+        } else if (desc.type === 'offer') {
+          // Viewer-initiated renegotiation
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          api.sendWebRTCSignal({
+            type: 'sdp',
+            sessionId,
+            description: pc.localDescription.toJSON(),
+          });
+        }
+      } else if (data.type === 'ice' && data.candidate) {
+        if (!pc.remoteDescription) {
+          pendingIce.push(data.candidate);
+        } else {
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      }
+    } catch (err) {
+      console.error('[Capture] webrtc signal error:', err);
+    }
+  });
+
+  // Stop capture when told
+  api.onCaptureStop(() => {
+    log('stopping...');
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    if (pc) {
+      pc.close();
+      pc = null;
+    }
+    log('stopped');
+  });
+
+  // Listen for start command from main process
+  api.onCaptureStart(startCapture);
+  // Signal to main process that all IPC handlers are registered
+  api.sendWebRTCSignal({ type: 'capture-ready' });
+  log('ready');
+</script>
+</body>
+</html>
