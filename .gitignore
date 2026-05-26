@@ -22,6 +22,7 @@ agent-config-new.json
 # Agent generated build artifacts
 apps/agent/node-agent/nssm-bundle.js
 apps/agent/node-agent/nssm/
+apps/agent/node-agent/ffmpeg-bundle.js
 
 # Build artifacts / binaries
 apps/api/public/*.zip

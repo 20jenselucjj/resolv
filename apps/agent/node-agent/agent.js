@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { exec, execSync, spawn } = require('child_process');
+const WebSocket = require('ws');
 // NOTE: socket.io-client NOT used — we implement the Engine.IO/Socket.IO
 //       protocol over raw `ws` (see createSocket() below) because
 //       socket.io-client's transports break inside pkg'd Node.js binaries.
@@ -317,6 +318,8 @@ let socket = null;
 let captureIntervals = {};
 let screenInterval = null;
 let captureInFlight = {};
+let videoWs = null;
+let ffmpegProcess = null;
 
 // ---------------------------------------------------------------------------
 // HTTP helper
@@ -535,6 +538,183 @@ async function captureAndSendFrame(sessionId, quality = 60) {
 const capturedSessions = {};
 
 // ---------------------------------------------------------------------------
+// H.264 streaming via ffmpeg + raw WebSocket (Phase 2)
+// ---------------------------------------------------------------------------
+function startH264Stream(sessionId, quality) {
+  if (videoWs || ffmpegProcess) {
+    console.log('[Resolv Agent] H.264 stream already active — stopping first.');
+    stopH264Stream();
+  }
+
+  // Write ffmpeg.exe from bundled module
+  var ffmpegPath = path.join(AGENT_DIR, 'ffmpeg.exe');
+  try {
+    var ffmpegData = require('./ffmpeg-bundle');
+    fs.writeFileSync(ffmpegPath, ffmpegData);
+  } catch (e) {
+    console.error('[Resolv Agent] Failed to extract ffmpeg.exe:', e.message);
+    return;
+  }
+
+  // Build ffmpeg args for gdigrab desktop capture → fragmented MP4
+  // quality 0-100 maps to CRF 28-18 (lower = better)
+  var crf = Math.round(28 - (quality || 50) / 100 * 10);
+  var fps = 15;
+  var ffmpegArgs = [
+    '-f', 'gdigrab',
+    '-framerate', String(fps),
+    '-i', 'desktop',
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-tune', 'zerolatency',
+    '-crf', String(crf),
+    '-pix_fmt', 'yuv420p',
+    '-g', String(fps * 2),  // keyframe every 2 seconds
+    '-f', 'mp4',
+    '-movflags', 'empty_moov+default_base_moof+frag_keyframe',
+    '-loglevel', 'error',
+    'pipe:1'
+  ];
+
+  console.log('[Resolv Agent] Starting ffmpeg H.264 capture:', ffmpegPath, ffmpegArgs.join(' '));
+  ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+
+  var initSegment = null;
+  var initDone = false;
+
+  ffmpegProcess.stdout.on('data', function (chunk) {
+    if (videoWs && videoWs.readyState === WebSocket.OPEN) {
+      if (!initDone) {
+        // Buffer until we have the init segment (ftyp + moov boxes)
+        if (initSegment === null) {
+          initSegment = chunk;
+        } else {
+          initSegment = Buffer.concat([initSegment, chunk]);
+        }
+        // Check if we have a complete init segment. When 'moof' or 'mdat'
+        // appears, the init is complete and this chunk contains the first fragment.
+        if (chunk.indexOf(Buffer.from('moof')) !== -1 || chunk.indexOf(Buffer.from('mdat')) !== -1) {
+          var moofIdx = chunk.indexOf(Buffer.from('moof'));
+          var mdatIdx = chunk.indexOf(Buffer.from('mdat'));
+          var splitIdx = moofIdx !== -1 ? moofIdx : mdatIdx;
+
+          // Determine codec from avcC box in the init segment (all H.264 via libx264)
+          var codec = 'avc1.64001F'; // default High 4:2:0, level 3.1
+          try {
+            var avcCIdx = initSegment.indexOf(Buffer.from('avcC'));
+            if (avcCIdx !== -1) {
+              var profile = initSegment[avcCIdx + 4];  // AVCProfileIndication
+              var level = initSegment[avcCIdx + 6];    // AVCLevelIndication
+              codec = 'avc1.' + profile.toString(16).toUpperCase().padStart(2, '0')
+                + '00' + level.toString(16).toUpperCase().padStart(2, '0');
+            }
+          } catch (e) { /* use default */ }
+
+          // Send codec info as text message, then init segment, then first fragment
+          var initInfo = JSON.stringify({ type: 'stream-init', codec: codec });
+          videoWs.send(initInfo);
+
+          if (splitIdx > 0) {
+            var finalInit = initSegment.slice(0, initSegment.length - chunk.length + splitIdx);
+            videoWs.send(finalInit);
+            var firstFragment = chunk.slice(splitIdx);
+            if (firstFragment.length > 0) videoWs.send(firstFragment);
+          } else {
+            videoWs.send(initSegment);
+            videoWs.send(chunk);
+          }
+          initDone = true;
+          console.log('[Resolv Agent] H.264 streaming started, codec:', codec);
+        }
+      } else {
+        videoWs.send(chunk);
+      }
+    }
+  });
+
+  ffmpegProcess.stderr.on('data', function (data) {
+    var msg = data.toString();
+    if (msg.trim()) console.log('[ffmpeg]', msg.trim());
+  });
+
+  ffmpegProcess.on('error', function (err) {
+    console.error('[Resolv Agent] ffmpeg error:', err.message);
+    stopH264Stream();
+  });
+
+  ffmpegProcess.on('exit', function (code) {
+    console.log('[Resolv Agent] ffmpeg exited with code', code);
+    ffmpegProcess = null;
+    if (videoWs) {
+      try { videoWs.close(1000, 'ffmpeg ended'); } catch {}
+      videoWs = null;
+    }
+  });
+
+  // Connect raw WebSocket to video stream relay
+  var wsUrl = buildVideoWsUrl(sessionId);
+  console.log('[Resolv Agent] Connecting H.264 WebSocket to', wsUrl);
+  videoWs = new WebSocket(wsUrl);
+
+  videoWs.on('open', function () {
+    console.log('[Resolv Agent] H.264 WebSocket connected');
+  });
+
+  videoWs.on('close', function (code, reason) {
+    console.log('[Resolv Agent] H.264 WebSocket closed:', code, reason && reason.toString());
+    if (videoWs) videoWs = null;
+    if (ffmpegProcess) {
+      ffmpegProcess.kill();
+      ffmpegProcess = null;
+    }
+  });
+
+  videoWs.on('error', function (err) {
+    console.error('[Resolv Agent] H.264 WebSocket error:', err.message);
+  });
+}
+
+function stopH264Stream() {
+  if (ffmpegProcess) {
+    try { ffmpegProcess.kill('SIGTERM'); } catch {}
+    // Force kill after 2 seconds if still alive
+    var proc = ffmpegProcess;
+    setTimeout(function () {
+      if (proc) try { proc.kill('SIGKILL'); } catch {}
+    }, 2000);
+    ffmpegProcess = null;
+  }
+  if (videoWs) {
+    try { videoWs.close(1000, 'Session ended'); } catch {}
+    videoWs = null;
+  }
+  // Clean up extracted ffmpeg.exe
+  var ffmpegPath = path.join(AGENT_DIR, 'ffmpeg.exe');
+  try { fs.unlinkSync(ffmpegPath); } catch {}
+  console.log('[Resolv Agent] H.264 stream stopped');
+}
+
+function buildVideoWsUrl(sessionId) {
+  var url = serverUrl.replace(/^http/, 'ws') + '/api/video/stream/' + sessionId + '?token=' + (agentToken || '');
+  // Same IPv4 resolution as socketUrl
+  try {
+    var parsed = new URL(url);
+    var host = parsed.hostname;
+    if (/^localhost$/i.test(host)) {
+      parsed.hostname = '127.0.0.1';
+    } else if (!/^\d/.test(host)) {
+      var dns = require('dns');
+      var addrs = dns.lookupSync(host, { all: true });
+      if (addrs && addrs.length > 0) {
+        var v4 = addrs.find(function (a) { return a.family === 4; });
+        if (v4) parsed.hostname = v4.address;
+      }
+    }
+    return parsed.toString();
+  } catch { return url; }
+}
+
+// ---------------------------------------------------------------------------
 // Remote desktop input
 // ---------------------------------------------------------------------------
 function runPowerShell(script) {
@@ -625,6 +805,8 @@ function connectSocket() {
     captureAndSendFrame(sessionId, capQuality);
     if (captureIntervals[sessionId]) clearInterval(captureIntervals[sessionId]);
     captureIntervals[sessionId] = setInterval(function () { return captureAndSendFrame(sessionId, capQuality); }, capInterval);
+    // Start H.264 streaming via ffmpeg + raw WebSocket
+    startH264Stream(sessionId, quality);
   });
   socket.on('remote:frame:request', function (_a) {
     var sessionId = _a.sessionId, quality = _a.quality;
@@ -641,6 +823,8 @@ function connectSocket() {
     if (captureIntervals[sessionId]) { clearInterval(captureIntervals[sessionId]); delete captureIntervals[sessionId]; }
     delete captureInFlight[sessionId];
     delete capturedSessions[sessionId];
+    // Stop H.264 streaming
+    stopH264Stream();
   });
   socket.on('agent:request-checkin', function () {
     console.log('[Resolv Agent] Immediate check-in requested from web UI');

@@ -44,7 +44,7 @@ import {
   Zap
 } from 'lucide-react';
 
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import { connectSocket, createSocket } from '@/lib/socket';
 import { useStore } from '@/lib/store';
 
@@ -920,6 +920,13 @@ export default function AssetDetailPage({
     medium: { quality: 60, interval: 200, label: 'Medium' },
     high: { quality: 90, interval: 300, label: 'High' },
   };
+  const getVideoWsUrl = React.useCallback((sessionId: string): string => {
+    const token = localStorage.getItem('resolv_token');
+    if (!token) return '';
+    const wsProtocol = API_BASE.startsWith('https') ? 'wss' : 'ws';
+    return `${wsProtocol}://${API_BASE.replace(/^https?:\/\//, '')}/video/stream/${sessionId}?token=${encodeURIComponent(token)}`;
+  }, []);
+
   const [deleting, setDeleting] = React.useState(false);
   const [resyncing, setResyncing] = React.useState(false);
   const [notice, setNotice] = React.useState<{ tone: NoticeTone; text: string } | null>(null);
@@ -951,6 +958,12 @@ export default function AssetDetailPage({
   const h264FragmentHandlerRef = React.useRef<((data: any) => void) | null>(null);
   const h264ErrorHandlerRef = React.useRef<((data: any) => void) | null>(null);
   const h264QueueRef = React.useRef<ArrayBuffer[]>([]);
+  // Raw WebSocket for H.264/MSE (separate from Socket.IO)
+  const videoWsRef = React.useRef<WebSocket | null>(null);
+  const videoWsCodecRef = React.useRef('');
+  const videoWsInitDoneRef = React.useRef(false);
+  const videoWsOnMessageRef = React.useRef<((event: MessageEvent) => void) | null>(null);
+  const h264ActiveRef = React.useRef(false);
 
   // Detect MSE + H.264 support on mount
   React.useEffect(() => {
@@ -1077,6 +1090,18 @@ export default function AssetDetailPage({
     }
   };
 
+  const cleanupVideoWs = React.useCallback(() => {
+    if (videoWsRef.current) {
+      try { videoWsRef.current.close(); } catch {}
+      videoWsRef.current = null;
+    }
+    videoWsCodecRef.current = '';
+    videoWsInitDoneRef.current = false;
+    h264ActiveRef.current = false;
+    setH264Active(false);
+    // Don't clear the video element — keeps last frame
+  }, []);
+
   const closeRemote = React.useCallback(() => {
     // Close WebRTC peer connection
     if (pcRef.current) {
@@ -1151,6 +1176,9 @@ export default function AssetDetailPage({
       imgRef.current.src = '';
     }
 
+    // Close H.264 video WebSocket
+    cleanupVideoWs();
+
     // Clear connection timeout
     if (connectionTimeoutRef.current) {
       clearTimeout(connectionTimeoutRef.current);
@@ -1169,7 +1197,7 @@ export default function AssetDetailPage({
     setRemoteError('');
     setRemoteLastFrameAge(0);
     setHasJpegFrame(false);
-  }, [asset, bindActiveRemoteSocket, getRemoteSocket]);
+  }, [asset, bindActiveRemoteSocket, cleanupVideoWs, getRemoteSocket]);
 
   const startRemoteWithQuality = React.useCallback(async (quality?: string) => {
     if (!asset || !socket) return;
@@ -1265,6 +1293,7 @@ export default function AssetDetailPage({
           setRemoteStatus('connected');
           remoteStatusRef.current = 'connected';
           setRemoteError('');
+          setHasJpegFrame(false);
           if (connectionTimeoutRef.current) {
             clearTimeout(connectionTimeoutRef.current);
             connectionTimeoutRef.current = null;
@@ -1467,6 +1496,8 @@ export default function AssetDetailPage({
       // ─── JPEG fallback frame handler ─────────────────────────────────────────
       const onJpegFrame = (data: { sessionId: string; frame: string | ArrayBuffer; width: number; height: number }) => {
         if (data.sessionId !== sessionId) return;
+        // Don't override H.264/MSE stream with JPEG
+        if (h264ActiveRef.current) return;
         // Frame size check (binary: ArrayBuffer byteLength, base64: string length)
         const frameSize = typeof data.frame === 'string' ? data.frame.length : (data.frame as ArrayBuffer).byteLength;
         if (frameSize < 30000) return;
@@ -1487,6 +1518,20 @@ export default function AssetDetailPage({
 
         if (!hasJpegFrame) {
           setHasJpegFrame(true);
+          // JPEG fallback connected — treat as active stream
+          if (remoteStatusRef.current === 'connecting') {
+            setRemoteStatus('connected');
+            remoteStatusRef.current = 'connected';
+            setRemoteError('');
+            if (connectionTimeoutRef.current) {
+              clearTimeout(connectionTimeoutRef.current);
+              connectionTimeoutRef.current = null;
+            }
+            if (!sessionActivatedRef.current && asset) {
+              sessionActivatedRef.current = true;
+              api.patch(`/assets/${asset.id}/remote/session/${sessionId}`, { status: 'active' }).catch(() => {});
+            }
+          }
         }
         lastFrameTimeRef.current = Date.now();
       };
@@ -1517,8 +1562,124 @@ export default function AssetDetailPage({
         rs.connect();
       }
 
+      // ─── Raw WebSocket for H.264/MSE (separate binary channel) ──────────────
+      // Build the shared message handler function and store in ref for reconnect reuse
+      const videoWsOnMessage = (event: MessageEvent) => {
+        if (typeof event.data === 'string') {
+          // Text message: stream-init with codec info
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'stream-init' && msg.codec) {
+              console.info('[RemoteDesktop] H.264 stream codec:', msg.codec);
+              videoWsCodecRef.current = msg.codec;
+            }
+          } catch {}
+          return;
+        }
+
+        // Binary message: fMP4 data
+        if (!videoWsInitDoneRef.current && videoWsCodecRef.current) {
+          // First binary = init segment (ftyp+moov)
+          videoWsInitDoneRef.current = true;
+          const video = videoRef.current;
+          if (!video) return;
+
+          // Clean previous MSE session
+          if (mediaSourceRef.current) {
+            try { if (mediaSourceRef.current.readyState !== 'closed') mediaSourceRef.current.endOfStream(); } catch {}
+            mediaSourceRef.current = null;
+          }
+          sourceBufferRef.current = null;
+          h264QueueRef.current = [];
+
+          const ms = new MediaSource();
+          mediaSourceRef.current = ms;
+          video.src = URL.createObjectURL(ms);
+
+          ms.addEventListener('sourceopen', () => {
+            try {
+              const codecStr = `video/mp4; codecs="${videoWsCodecRef.current}"`;
+              const sb = ms.addSourceBuffer(codecStr);
+              sourceBufferRef.current = sb;
+
+              sb.addEventListener('updateend', () => {
+                const q = h264QueueRef.current;
+                if (!sb.updating && q.length > 0) {
+                  const next = q.shift()!;
+                  try { sb.appendBuffer(next); } catch {}
+                }
+              });
+
+              // Append init segment
+              sb.appendBuffer(event.data);
+              h264ActiveRef.current = true;
+              setH264Active(true);
+              setRemoteStatus('connected');
+              remoteStatusRef.current = 'connected';
+              setHasJpegFrame(false);
+              if (connectionTimeoutRef.current) {
+                clearTimeout(connectionTimeoutRef.current);
+                connectionTimeoutRef.current = null;
+              }
+            } catch (err) {
+              console.error('[MSE] sourceopen error:', err);
+            }
+          });
+          return;
+        }
+
+        if (videoWsInitDoneRef.current) {
+          // Subsequent binary = fragment (moof+mdat)
+          const sb = sourceBufferRef.current;
+          if (!sb) {
+            h264QueueRef.current.push(event.data);
+            return;
+          }
+          if (sb.updating) {
+            h264QueueRef.current.push(event.data);
+            return;
+          }
+          try { sb.appendBuffer(event.data); } catch {}
+          lastFrameTimeRef.current = Date.now();
+          setRemoteError('');
+        }
+      };
+      videoWsOnMessageRef.current = videoWsOnMessage;
+
+      if (h264SupportedRef.current) {
+        // Close any old video WS before creating a new one
+        cleanupVideoWs();
+
+        const wsUrl = getVideoWsUrl(sessionId);
+        if (wsUrl) {
+          console.info('[RemoteDesktop] Connecting H.264 video WebSocket:', wsUrl.replace(/\?token=.*$/, '?token=***'));
+          const videoWs = new WebSocket(wsUrl);
+          videoWs.binaryType = 'arraybuffer';
+          videoWsRef.current = videoWs;
+
+          videoWs.onopen = () => {
+            console.info('[RemoteDesktop] H.264 video WebSocket connected');
+          };
+
+          videoWs.onmessage = videoWsOnMessage;
+
+          videoWs.onerror = (event) => {
+            console.warn('[RemoteDesktop] H.264 video WebSocket error — falling back to JPEG', event);
+            cleanupVideoWs();
+          };
+
+          videoWs.onclose = (event) => {
+            console.info('[RemoteDesktop] H.264 video WebSocket closed — code:', event.code, 'reason:', event.reason);
+            if (videoWsRef.current === videoWs) {
+              videoWsRef.current = null;
+            }
+          };
+        }
+      }
+
       setRemoteQuality(q as typeof remoteQuality);
     } catch (err: any) {
+      cleanupVideoWs();
       setRemoteStatus('error');
       remoteStatusRef.current = 'error';
       if (connectionTimeoutRef.current) { clearTimeout(connectionTimeoutRef.current); connectionTimeoutRef.current = null; }
@@ -1529,7 +1690,7 @@ export default function AssetDetailPage({
       setRemoteError(msg);
       setNotice({ tone: 'danger', text: msg });
     }
-  }, [asset, bindActiveRemoteSocket, socket, remoteQuality, qualityPresets, remoteResolution]);
+  }, [asset, bindActiveRemoteSocket, cleanupVideoWs, getVideoWsUrl, socket, remoteQuality, qualityPresets, remoteResolution]);
 
   const sendSpecialKey = React.useCallback((keys: string) => {
     const rs = getRemoteSocket();
@@ -1686,6 +1847,9 @@ export default function AssetDetailPage({
 
   // Cleanup on socket disconnect
   React.useEffect(() => () => {
+    // Close H.264 video WebSocket
+    cleanupVideoWs();
+
     // Close WebRTC peer connection
     if (pcRef.current) {
       pcRef.current.close();
@@ -1733,7 +1897,7 @@ export default function AssetDetailPage({
         reason: 'viewer_unmount',
       });
     }
-  }, [asset, socket]);
+  }, [asset, cleanupVideoWs, socket]);
 
   // Socket reconnect: restart remote session if we were connected
   React.useEffect(() => {
@@ -1748,15 +1912,30 @@ export default function AssetDetailPage({
 
     const onReconnect = () => {
       if ((remoteStatusRef.current === 'connected' || remoteStatusRef.current === 'reconnecting') && remoteSessionIdRef.current && asset) {
+        const sid = remoteSessionIdRef.current;
         // Re-join the session room and re-notify the agent
-        rs.emit('remote:join', remoteSessionIdRef.current);
+        rs.emit('remote:join', sid);
         const preset = qualityPresets[remoteQuality];
         rs.emit('remote:session:start', {
-          sessionId: remoteSessionIdRef.current,
+          sessionId: sid,
           assetId: asset.id,
           quality: preset.quality,
           interval: preset.interval,
         });
+        // Reconnect H.264 video WebSocket
+        cleanupVideoWs();
+        if (h264SupportedRef.current) {
+          const wsUrl = getVideoWsUrl(sid);
+          if (wsUrl) {
+            const videoWs = new WebSocket(wsUrl);
+            videoWs.binaryType = 'arraybuffer';
+            videoWsRef.current = videoWs;
+            videoWs.onopen = () => console.info('[RemoteDesktop] H.264 video WS reconnected');
+            videoWs.onmessage = videoWsOnMessageRef.current!
+            videoWs.onerror = () => { console.warn('[RemoteDesktop] H.264 video WS error on reconnect'); cleanupVideoWs(); };
+            videoWs.onclose = () => { if (videoWsRef.current === videoWs) videoWsRef.current = null; };
+          }
+        }
         remoteStatusRef.current = 'connecting';
         setRemoteStatus('connecting');
       }
@@ -1767,7 +1946,7 @@ export default function AssetDetailPage({
       rs.off('disconnect', onDisconnect);
       rs.off('reconnect', onReconnect);
     };
-  }, [asset, getRemoteSocket, remoteQuality]);
+  }, [asset, cleanupVideoWs, getRemoteSocket, getVideoWsUrl, remoteQuality]);
 
   const deleteAsset = async () => {
     if (!asset) return;
@@ -2988,7 +3167,7 @@ export default function AssetDetailPage({
                 margin: 'auto',
                 maxWidth: fitToScreen ? '100%' : 'none',
                 maxHeight: fitToScreen ? '100%' : 'none',
-                display: remoteStatus === 'connected' || !hasJpegFrame ? 'none' : 'block',
+                display: h264Active || (remoteStatus === 'connected' && !hasJpegFrame) ? 'none' : 'block',
                 background: '#111',
                 objectFit: 'contain',
               }}
@@ -3004,7 +3183,7 @@ export default function AssetDetailPage({
                 margin: 'auto',
                 maxWidth: fitToScreen ? '100%' : 'none',
                 maxHeight: fitToScreen ? '100%' : 'none',
-                display: remoteStatus === 'connected' ? 'block' : 'none',
+                display: h264Active || (remoteStatus === 'connected' && !hasJpegFrame) ? 'block' : 'none',
                 background: '#111',
               }}
             />
@@ -3027,23 +3206,27 @@ export default function AssetDetailPage({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <span>
-                  {remoteStatus === 'connected'
-                    ? '● Live (WebRTC)'
-                    : hasJpegFrame
+                  {h264Active
+                    ? '● Live (H.264)'
+                    : remoteStatus === 'connected' && hasJpegFrame
                       ? '● Live (JPEG)'
-                      : remoteStatus === 'reconnecting'
-                        ? '◌ Reconnecting…'
-                        : remoteStatus === 'error'
-                          ? '○ Stream error'
-                          : '◌ Waiting for stream…'}
+                      : remoteStatus === 'connected'
+                        ? '● Live (WebRTC)'
+                        : hasJpegFrame
+                          ? '● Live (JPEG)'
+                          : remoteStatus === 'reconnecting'
+                            ? '◌ Reconnecting…'
+                            : remoteStatus === 'error'
+                              ? '○ Stream error'
+                              : '◌ Waiting for stream…'}
                 </span>
                 <span>{remoteResolution || 'No resolution yet'}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{
                     width: 6, height: 6, borderRadius: '50%',
-                    background: remoteStatus === 'connected' ? '#4ade80' : hasJpegFrame ? '#60a5fa' : remoteStatus === 'connecting' ? '#fbbf24' : '#f87171',
+                    background: h264Active ? '#a78bfa' : remoteStatus === 'connected' ? '#4ade80' : hasJpegFrame ? '#60a5fa' : remoteStatus === 'connecting' ? '#fbbf24' : '#f87171',
                   }} />
-                  {remoteStatus === 'connected' ? 'WebRTC' : hasJpegFrame ? 'JPEG' : remoteStatus === 'connecting' ? 'Negotiating' : 'Off'}
+                  {h264Active ? 'H.264' : remoteStatus === 'connected' && !hasJpegFrame ? 'WebRTC' : hasJpegFrame ? 'JPEG' : remoteStatus === 'connecting' ? 'Negotiating' : 'Off'}
                 </span>
                 <span>{qualityPresets[remoteQuality].label}</span>
               </div>

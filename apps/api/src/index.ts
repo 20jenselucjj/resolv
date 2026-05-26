@@ -2,8 +2,9 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
-import websocket from '@fastify/websocket';
 import { Server } from 'socket.io';
+import { WebSocketServer } from 'ws';
+import type { WebSocket as WsSocket } from 'ws';
 import multipart from '@fastify/multipart'
 import authPlugin from './plugins/auth';
 import authRoutes from './routes/auth';
@@ -77,7 +78,7 @@ async function start() {
 
   await fastify.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } }) // 25MB limit
 
-  // Socket.io setup — must be decorated BEFORE routes are registered
+  // Socket.io setup — attaches to the shared HTTP server
   const io = new Server(fastify.server, {
     cors: {
       origin: (origin, callback) => {
@@ -149,6 +150,159 @@ async function start() {
 
   const port = parseInt(process.env.PORT || '3001');
   const host = process.env.HOST || '0.0.0.0';
+
+  // ─── H.264 Video Stream WebSocket Relay (raw ws.Server, no @fastify/websocket) ──
+  // Agent connects as "source", browser connects as "viewer".
+  // Binary frames from source are relayed to all viewers.
+  // Uses raw ws.Server alongside Socket.IO on the same HTTP server.
+  const videoStreamSources: Record<string, WsSocket> = {};
+  const videoStreamViewers: Record<string, Set<WsSocket>> = {};
+  // Cache init data (codec text + init segment binary) so late-joining viewers get it
+  const videoStreamInitData: Record<string, { codec: string; initSegment: Buffer | null }> = {};
+
+  const VIDEO_WS_PATH = '/api/video/stream/';
+  const wss = new WebSocketServer({ noServer: true });
+
+  wss.on('connection', (ws, req) => {
+    const url = new URL(req.url || '', 'http://localhost');
+    const pathMatch = url.pathname.match(/^\/api\/video\/stream\/(.+)$/);
+    if (!pathMatch) {
+      ws.close(4000, 'Invalid path');
+      return;
+    }
+    const sessionId = pathMatch[1];
+    const token = url.searchParams.get('token') || '';
+
+    if (!token) {
+      ws.close(4001, 'Missing token');
+      return;
+    }
+
+    // Determine if this is an agent (source) or a viewer
+    let isAgent = false;
+    try {
+      fastify.jwt.verify<JwtPayload>(token);
+      // Valid JWT — this is a viewer (web client)
+      isAgent = false;
+    } catch {
+      // Not a JWT — treat as agent (source)
+      isAgent = true;
+    }
+
+    if (isAgent) {
+      // ── Agent (video source) ──
+      if (videoStreamSources[sessionId]) {
+        try { videoStreamSources[sessionId].close(1000, 'Replaced by new source'); } catch {}
+      }
+      videoStreamSources[sessionId] = ws;
+
+      if (!videoStreamViewers[sessionId]) {
+        videoStreamViewers[sessionId] = new Set();
+      }
+
+      let receivedInitText = false;
+
+      ws.on('message', (data: Buffer, isBinary: boolean) => {
+        if (isBinary === false) {
+          // Text message
+          try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === 'stream-init' && msg.codec) {
+              receivedInitText = true;
+              videoStreamInitData[sessionId] = { codec: msg.codec, initSegment: null };
+            }
+          } catch { /* not JSON, relay as-is */ }
+          const text = data.toString();
+          const viewers = videoStreamViewers[sessionId];
+          if (viewers) {
+            for (const viewer of viewers) {
+              try { viewer.send(text); } catch { viewers.delete(viewer); }
+            }
+          }
+        } else {
+          // Binary message
+          if (receivedInitText && videoStreamInitData[sessionId] && !videoStreamInitData[sessionId].initSegment) {
+            receivedInitText = false;
+            videoStreamInitData[sessionId].initSegment = Buffer.from(data);
+          }
+          const viewers = videoStreamViewers[sessionId];
+          if (viewers) {
+            for (const viewer of viewers) {
+              try { viewer.send(data); } catch { viewers.delete(viewer); }
+            }
+          }
+        }
+      });
+
+      ws.on('close', () => {
+        if (videoStreamSources[sessionId] === ws) {
+          delete videoStreamSources[sessionId];
+        }
+        delete videoStreamInitData[sessionId];
+        const viewers = videoStreamViewers[sessionId];
+        if (viewers) {
+          for (const viewer of viewers) {
+            try { viewer.close(1001, 'Source disconnected'); } catch {}
+          }
+          delete videoStreamViewers[sessionId];
+        }
+      });
+
+      ws.on('error', () => {
+        if (videoStreamSources[sessionId] === ws) {
+          delete videoStreamSources[sessionId];
+          delete videoStreamInitData[sessionId];
+        }
+      });
+    } else {
+      // ── Viewer (web browser) ──
+      if (!videoStreamViewers[sessionId]) {
+        videoStreamViewers[sessionId] = new Set();
+      }
+      videoStreamViewers[sessionId].add(ws);
+
+      // Send cached init data to late-joining viewer
+      const cachedInit = videoStreamInitData[sessionId];
+      if (cachedInit) {
+        try {
+          ws.send(JSON.stringify({ type: 'stream-init', codec: cachedInit.codec }));
+          if (cachedInit.initSegment) {
+            ws.send(cachedInit.initSegment);
+          }
+        } catch {}
+      }
+
+      ws.on('close', () => {
+        const viewers = videoStreamViewers[sessionId];
+        if (viewers) {
+          viewers.delete(ws);
+          if (viewers.size === 0) {
+            delete videoStreamViewers[sessionId];
+            const source = videoStreamSources[sessionId];
+            if (source) {
+              try { source.send(JSON.stringify({ type: 'viewer-left' })); } catch {}
+            }
+          }
+        }
+      });
+
+      ws.on('error', () => {
+        const viewers = videoStreamViewers[sessionId];
+        if (viewers) viewers.delete(ws);
+      });
+    }
+  });
+
+  // Attach upgrade handler to the shared HTTP server
+  fastify.server.on('upgrade', (request, socket, head) => {
+    const url = new URL(request.url || '', 'http://localhost');
+    if (url.pathname.startsWith(VIDEO_WS_PATH)) {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+    // For non-matching paths (e.g. /socket.io/*), do nothing — Socket.IO handles them
+  });
 
   io.on('connection', (socket) => {
     fastify.log.info(`Socket connected: ${socket.id}`);
@@ -254,10 +408,8 @@ async function start() {
     // WebRTC signaling relay: viewer ↔ agent (via asset and remote rooms)
     socket.on('webrtc:description', (data: { sessionId: string; assetId?: string; description: any }) => {
       if (socket.data.assetId) {
-        // Sent by agent's main-process socket → forward to viewers in remote room
         socket.to(`remote:${data.sessionId}`).emit('webrtc:description', { ...data, from: 'agent' });
       } else {
-        // Sent by web viewer → forward to agent in asset room
         if (data.assetId) {
           socket.to(`asset:${data.assetId}`).emit('webrtc:description', { ...data, from: 'viewer' });
         }
@@ -266,24 +418,20 @@ async function start() {
 
     socket.on('webrtc:ice-candidate', (data: { sessionId: string; assetId?: string; candidate: any }) => {
       if (socket.data.assetId) {
-        // Agent → viewer
         socket.to(`remote:${data.sessionId}`).emit('webrtc:ice-candidate', { ...data, from: 'agent' });
       } else {
-        // Viewer → agent
         if (data.assetId) {
           socket.to(`asset:${data.assetId}`).emit('webrtc:ice-candidate', { ...data, from: 'viewer' });
         }
       }
     });
 
-    // WebRTC error relay: agent → viewer
     socket.on('webrtc:error', (data: { sessionId: string; error: string; assetId?: string }) => {
       if (socket.data.assetId) {
         socket.to(`remote:${data.sessionId}`).emit('webrtc:error', { ...data, from: 'agent' });
       }
     });
 
-    // H.264 streaming relay: agent → viewer (fMP4 for MSE)
     socket.on('remote:h264:init', (data: { sessionId: string; codec: string; data: Buffer }) => {
       if (socket.data.assetId) {
         socket.to(`remote:${data.sessionId}`).emit('remote:h264:init', data);
@@ -302,14 +450,12 @@ async function start() {
       }
     });
 
-    // WebRTC ended relay: agent → viewer
     socket.on('webrtc:ended', (data: { sessionId: string; assetId?: string }) => {
       if (socket.data.assetId) {
         socket.to(`remote:${data.sessionId}`).emit('webrtc:ended', { ...data, from: 'agent' });
       }
     });
 
-    // Web client joins remote session room
     socket.on('remote:join', (sessionId: string) => {
       socket.join(`remote:${sessionId}`);
       if (!remoteViewers[sessionId]) remoteViewers[sessionId] = new Set();
@@ -334,7 +480,6 @@ async function start() {
       }
     });
 
-    // Web client requests agent to re-check-in immediately
     socket.on('agent:request-checkin', (data: { assetId: string }) => {
       io.to(`asset:${data.assetId}`).emit('agent:request-checkin', {});
     });
