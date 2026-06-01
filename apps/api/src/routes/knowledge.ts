@@ -1,7 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
 import { pool } from '../db/pool';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const listKnowledgeSchema = z.object({
   status: z.enum(['draft', 'published', 'archived']).optional(),
@@ -282,5 +288,126 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     }
 
     return reply.send({ success: true });
+  });
+
+  // POST /knowledge/:id/attachments - upload file to knowledge article
+  fastify.post('/knowledge/:id/attachments', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { rows: articles } = await pool.query('SELECT id FROM knowledge_articles WHERE id = $1', [id]);
+    if (articles.length === 0) return reply.status(404).send({ error: 'Article not found' });
+
+    const data = await (request as any).file();
+    if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const ext = path.extname(data.filename);
+    const filename = `${crypto.randomUUID()}${ext}`;
+    const storagePath = path.join(UPLOAD_DIR, filename);
+
+    await pipeline(data.file, fs.createWriteStream(storagePath));
+    const stat = fs.statSync(storagePath);
+
+    const { rows } = await pool.query(
+      `INSERT INTO knowledge_article_attachments (article_id, uploaded_by, filename, original_name, mime_type, size_bytes, storage_path)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [id, request.user.id, filename, data.filename, data.mimetype, stat.size, storagePath]
+    );
+
+    return reply.send({ data: rows[0] });
+  });
+
+  // GET /knowledge/:id/attachments - list article attachments
+  fastify.get('/knowledge/:id/attachments', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { rows } = await pool.query(
+      `SELECT a.*, u.name as uploader_name FROM knowledge_article_attachments a
+       LEFT JOIN users u ON a.uploaded_by = u.id
+       WHERE a.article_id = $1 ORDER BY a.created_at DESC`,
+      [id]
+    );
+
+    return reply.send({ data: rows });
+  });
+
+  // GET /knowledge/attachments/:id/download - download file
+  fastify.get('/knowledge/attachments/:id/download', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { rows } = await pool.query(
+      'SELECT * FROM knowledge_article_attachments WHERE id = $1',
+      [id]
+    );
+    if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
+
+    const att = rows[0];
+    if (!fs.existsSync(att.storage_path)) return reply.status(404).send({ error: 'File not found on disk' });
+
+    reply.header('Content-Disposition', `inline; filename="${att.original_name}"`);
+    reply.header('Content-Type', att.mime_type);
+    return reply.send(fs.createReadStream(att.storage_path));
+  });
+
+  // DELETE /knowledge/attachments/:id - delete file
+  fastify.delete('/knowledge/attachments/:id', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { rows } = await pool.query(
+      'SELECT * FROM knowledge_article_attachments WHERE id = $1',
+      [id]
+    );
+    if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
+
+    const att = rows[0];
+    if (fs.existsSync(att.storage_path)) fs.unlinkSync(att.storage_path);
+    await pool.query('DELETE FROM knowledge_article_attachments WHERE id = $1', [id]);
+    return reply.send({ data: { success: true } });
+  });
+
+  // POST /knowledge/:id/sync-ai - sync single article to AI training
+  fastify.post('/knowledge/:id/sync-ai', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { rows: articles } = await pool.query(
+      'SELECT id, title, body, tags FROM knowledge_articles WHERE id = $1 AND status = $2',
+      [id, 'published']
+    );
+    if (articles.length === 0) return reply.status(400).send({ error: 'Article not found or not published' });
+
+    const article = articles[0];
+
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM ai_knowledge_sources WHERE source_type = 'kb_sync' AND name = $1`,
+      [article.title]
+    );
+
+    let sourceId: string;
+    if (existing.length > 0) {
+      sourceId = existing[0].id;
+      await pool.query(
+        `UPDATE ai_knowledge_sources SET raw_content = $1, status = 'pending', updated_at = NOW() WHERE id = $2`,
+        [article.body, sourceId]
+      );
+    } else {
+      const { rows: newSource } = await pool.query(
+        `INSERT INTO ai_knowledge_sources (name, source_type, content_type, raw_content, tags, uploaded_by, status)
+         VALUES ($1, 'kb_sync', 'text/markdown', $2, $3, $4, 'pending') RETURNING id`,
+        [article.title, article.body, article.tags || [], request.user.id]
+      );
+      sourceId = newSource[0].id;
+    }
+
+    // Async processing via dynamic import
+    import('./helpers/ai-training.utils').then(async ({ processSource }) => {
+      const [cfgRows, ragRows] = await Promise.all([
+        pool.query('SELECT * FROM ai_config LIMIT 1'),
+        pool.query('SELECT * FROM ai_rag_config LIMIT 1'),
+      ]);
+      const cfg = cfgRows.rows[0] ?? null;
+      const ragCfg = ragRows.rows[0] ?? { chunk_size: 512, chunk_overlap: 64 };
+      return processSource(sourceId, article.body, cfg, ragCfg);
+    }).catch(console.error);
+
+    return reply.send({ data: { synced: true, message: 'Article synced to AI training' } });
   });
 }
