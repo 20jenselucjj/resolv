@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertTriangle, CheckCircle, Users, Globe, Timer, AlertCircle, RefreshCw, Unlink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, CheckCircle, Users, Globe, Timer, AlertCircle, RefreshCw, Unlink, ChevronDown } from 'lucide-react';
 import type { DirectorySyncConfig, SyncStatus } from './types';
 
 interface TokenExpiryInfo {
@@ -25,9 +26,17 @@ export function ConnectedStatusBanner({
   disconnecting, formatDateTime,
 }: ConnectedStatusBannerProps) {
   const hasIssue = tokenExpiry?.isExpired || tokenExpiry?.isExpiringSoon || syncStatus?.status === 'error';
+  const [detailsOpen, setDetailsOpen] = useState(hasIssue);
+
+  // Auto-open details if an issue arises after mount
+  useEffect(() => {
+    if (hasIssue) setDetailsOpen(true);
+  }, [hasIssue]);
+
+  const hasDetails = !!(config.oauthEmail || config.oauthDomain || (config.tokenExpiresAt && tokenExpiry));
 
   return (
-    <div className="ds-fade-in" style={{
+    <div className="ds-fade-in ds-banner-mobile" style={{
       padding: '20px 24px',
       border: `1px solid ${hasIssue ? 'var(--warning-border)' : 'var(--success-border)'}`,
       borderRadius: 'var(--radius-lg)',
@@ -35,71 +44,161 @@ export function ConnectedStatusBanner({
         ? 'linear-gradient(135deg, var(--warning-bg) 0%, var(--bg) 100%)'
         : 'linear-gradient(135deg, var(--success-bg) 0%, var(--bg) 100%)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-        {/* Left: Connection info */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+      {/* Top row: icon + provider + status + actions — always visible */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: '12px', flexWrap: 'wrap',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 44, height: 44, borderRadius: 'var(--radius-lg)',
+            width: 40, height: 40, borderRadius: 'var(--radius-lg)',
             background: hasIssue ? 'var(--warning-bg)' : 'var(--success-bg)',
             color: hasIssue ? 'var(--warning)' : 'var(--success)',
             flexShrink: 0,
           }}>
-            {hasIssue ? <AlertTriangle size={22} /> : <CheckCircle size={22} />}
+            {hasIssue ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+              <span style={{
+                fontSize: '14px', fontWeight: 700, color: 'var(--text)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
                 {config.oauthProvider || 'Google Workspace'}
               </span>
               <span style={{
-                padding: '2px 10px', borderRadius: 'var(--radius-full)',
-                fontSize: '11px', fontWeight: 600,
+                padding: '2px 8px', borderRadius: 'var(--radius-full)',
+                fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap',
                 background: hasIssue ? 'var(--warning-bg)' : 'var(--success-bg)',
                 color: hasIssue ? 'var(--warning)' : 'var(--success)',
                 border: `1px solid ${hasIssue ? 'var(--warning-border)' : 'var(--success-border)'}`,
               }}>
-                {hasIssue ? (tokenExpiry?.isExpired ? 'Token Expired' : 'Attention Needed') : 'Connected'}
+                {hasIssue ? (tokenExpiry?.isExpired ? 'Expired' : 'Issue') : 'Connected'}
               </span>
             </div>
 
-            {/* Detail rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: 4 }}>
-              {config.oauthEmail && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <Users size={12} style={{ flexShrink: 0 }} />
-                  <span>Account: <strong style={{ color: 'var(--text)' }}>{config.oauthEmail}</strong></span>
-                </div>
-              )}
-              {config.oauthDomain && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <Globe size={12} style={{ flexShrink: 0 }} />
-                  <span>Domain: <strong style={{ color: 'var(--text)' }}>{config.oauthDomain}</strong></span>
-                </div>
-              )}
-              {config.tokenExpiresAt && tokenExpiry && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: tokenExpiry.isExpired ? 'var(--danger)' : tokenExpiry.isExpiringSoon ? 'var(--warning)' : 'var(--text-secondary)' }}>
-                  <Timer size={12} style={{ flexShrink: 0 }} />
-                  <span>
-                    Token {tokenExpiry.isExpired ? 'expired' : 'expires'}: <strong>{formatDateTime(config.tokenExpiresAt)}</strong>
-                    {!tokenExpiry.isExpired && tokenExpiry.isExpiringSoon && (
-                      <span style={{ marginLeft: 6, color: 'var(--warning)' }}>({Math.round(tokenExpiry.hoursLeft)}h remaining)</span>
-                    )}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Warning for expiring/expired token */}
+            {/* Token expiry warning — inline when present */}
             {tokenExpiry && (tokenExpiry.isExpired || tokenExpiry.isExpiringSoon) && (
               <div style={{
-                marginTop: 8, padding: '8px 12px', borderRadius: 'var(--radius-md)',
+                marginTop: 4, fontSize: '11px',
+                color: tokenExpiry.isExpired ? 'var(--danger)' : 'var(--warning)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <AlertCircle size={12} style={{ flexShrink: 0 }} />
+                <span style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {tokenExpiry.isExpired ? 'Token expired. Re-authenticate.' : `Expires in ${Math.round(tokenExpiry.hoursLeft)}h`}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Actions + detail toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {(tokenExpiry?.isExpired || tokenExpiry?.isExpiringSoon) && (
+            <button
+              onClick={handleReauthenticate}
+              className="resp-btn"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '7px 14px', borderRadius: 'var(--radius-md)',
+                background: 'var(--accent)', color: 'white',
+                border: 'none', fontSize: '12px', fontWeight: 600,
+                cursor: 'pointer', transition: 'background 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <RefreshCw size={12} />
+              <span className="hide-mobile">Re-authenticate</span>
+              <span className="show-mobile">Re-auth</span>
+            </button>
+          )}
+          <button
+            onClick={handleDisconnectOAuth}
+            disabled={disconnecting}
+            aria-label="Disconnect OAuth"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '6px 12px', color: 'var(--danger)',
+              background: 'transparent', border: '1px solid transparent',
+              borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              fontSize: '12px', fontWeight: 500,
+              whiteSpace: 'nowrap', transition: 'background 0.15s',
+            }}
+          >
+            <Unlink size={12} />
+            <span className="hide-mobile">{disconnecting ? 'Disconnecting...' : 'Disconnect'}</span>
+            <span className="show-mobile">Disc.</span>
+          </button>
+          {hasDetails && (
+            <button
+              onClick={() => setDetailsOpen(!detailsOpen)}
+              aria-expanded={detailsOpen}
+              aria-label={detailsOpen ? 'Hide connection details' : 'Show connection details'}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 28, height: 28, borderRadius: 'var(--radius-md)',
+                background: 'transparent', border: '1px solid var(--border)',
+                cursor: 'pointer', color: 'var(--text-muted)',
+                transition: 'all 0.15s', flexShrink: 0,
+                transform: detailsOpen ? 'rotate(180deg)' : 'none',
+              }}
+              title={detailsOpen ? 'Hide details' : 'Show details'}
+            >
+              <ChevronDown size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Collapsible details */}
+      {hasDetails && (
+        <div className={`ds-banner-details${detailsOpen ? ' open' : ''}`} style={{
+          transition: 'max-height 0.3s ease, margin-top 0.3s ease, opacity 0.2s ease',
+          maxHeight: detailsOpen ? '300px' : '0',
+          overflow: 'hidden',
+          marginTop: detailsOpen ? '12px' : '0',
+          opacity: detailsOpen ? 1 : 0,
+        }}>
+          <div style={{
+            padding: '12px 16px', borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-subtle)',
+            display: 'flex', flexDirection: 'column', gap: '6px',
+          }}>
+            {config.oauthEmail && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <Users size={12} style={{ flexShrink: 0 }} />
+                <span>Account: <strong style={{ color: 'var(--text)' }}>{config.oauthEmail}</strong></span>
+              </div>
+            )}
+            {config.oauthDomain && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <Globe size={12} style={{ flexShrink: 0 }} />
+                <span>Domain: <strong style={{ color: 'var(--text)' }}>{config.oauthDomain}</strong></span>
+              </div>
+            )}
+            {config.tokenExpiresAt && tokenExpiry && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: tokenExpiry.isExpired ? 'var(--danger)' : tokenExpiry.isExpiringSoon ? 'var(--warning)' : 'var(--text-secondary)' }}>
+                <Timer size={12} style={{ flexShrink: 0 }} />
+                <span>
+                  Token {tokenExpiry.isExpired ? 'expired' : 'expires'}: <strong>{formatDateTime(config.tokenExpiresAt)}</strong>
+                </span>
+              </div>
+            )}
+            {/* Full warning when expanded */}
+            {tokenExpiry && (tokenExpiry.isExpired || tokenExpiry.isExpiringSoon) && (
+              <div style={{
+                marginTop: 4, padding: '8px 12px', borderRadius: 'var(--radius-md)',
                 background: tokenExpiry.isExpired ? 'var(--danger-bg)' : 'var(--warning-bg)',
                 border: `1px solid ${tokenExpiry.isExpired ? 'var(--danger-border)' : 'var(--warning-border)'}`,
                 fontSize: '12px', color: tokenExpiry.isExpired ? 'var(--danger)' : 'var(--warning)',
-                display: 'flex', alignItems: 'center', gap: 8,
+                display: 'flex', alignItems: 'flex-start', gap: 8,
               }}>
-                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                 <span>
                   {tokenExpiry.isExpired
                     ? 'OAuth token has expired. Re-authenticate to restore sync functionality.'
@@ -109,40 +208,7 @@ export function ConnectedStatusBanner({
             )}
           </div>
         </div>
-
-        {/* Right: Actions */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-          {(tokenExpiry?.isExpired || tokenExpiry?.isExpiringSoon) && (
-            <button
-              onClick={handleReauthenticate}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 16px', borderRadius: 'var(--radius-md)',
-                background: 'var(--accent)', color: 'white',
-                border: 'none', fontSize: '12px', fontWeight: 600,
-                cursor: 'pointer', transition: 'background 0.15s',
-                boxShadow: '0 2px 8px rgba(var(--accent-rgb), 0.25)',
-              }}
-            >
-              <RefreshCw size={13} />
-              Re-authenticate
-            </button>
-          )}
-          <button
-            className="btn btn-ghost"
-            onClick={handleDisconnectOAuth}
-            disabled={disconnecting}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 14px', color: 'var(--danger)',
-              fontSize: '12px', fontWeight: 500,
-            }}
-          >
-            <Unlink size={13} />
-            {disconnecting ? 'Disconnecting...' : 'Disconnect'}
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

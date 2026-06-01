@@ -407,18 +407,18 @@ export function DirectorySyncTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div className="card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* Quick status pill */}
+      <div className="card resp-card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Quick status pill — compact, top-right */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '6px 14px', borderRadius: 'var(--radius-full)',
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 12px', borderRadius: 'var(--radius-full)',
           background: oauthConnected ? 'var(--success-bg)' : 'var(--bg-tertiary)',
           border: `1px solid ${oauthConnected ? 'var(--success-border)' : 'var(--border)'}`,
-          fontSize: '12px', fontWeight: 600,
+          fontSize: '11px', fontWeight: 600,
           color: oauthConnected ? 'var(--success)' : 'var(--text-muted)',
-          alignSelf: 'flex-end',
+          alignSelf: 'flex-end', whiteSpace: 'nowrap',
         }}>
-          {oauthConnected ? <CheckCircle size={13} /> : <Plug size={13} />}
+          {oauthConnected ? <CheckCircle size={12} /> : <Plug size={12} />}
           {oauthConnected ? 'Connected' : 'Not Connected'}
         </div>
 

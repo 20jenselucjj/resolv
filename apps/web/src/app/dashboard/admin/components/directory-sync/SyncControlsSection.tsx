@@ -62,7 +62,7 @@ export function SyncControlsSection({
         {/* Controls row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary resp-btn"
             onClick={handleSyncNow}
             disabled={syncing || !oauthConnected}
             style={{
@@ -127,7 +127,7 @@ export function SyncControlsSection({
         </div>
 
         {/* Timestamps & Stats Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="ds-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           {/* Timestamps */}
           <div style={{
             display: 'flex', flexDirection: 'column', gap: '10px',
@@ -209,7 +209,11 @@ export function SyncControlsSection({
           position: 'relative',
         }}>
           <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={showSyncUsers}
             onClick={() => setShowSyncUsers(!showSyncUsers)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowSyncUsers(!showSyncUsers); } }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '14px 16px',

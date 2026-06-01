@@ -82,7 +82,7 @@ export function ProviderAndSyncConfig({
           </div>
 
           {/* Credentials */}
-          <div style={{
+          <div className="ds-cred-grid" style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px',
             padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-subtle)',
@@ -248,7 +248,7 @@ export function ProviderAndSyncConfig({
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Default Role</label>
                 <select
@@ -300,7 +300,7 @@ export function ProviderAndSyncConfig({
           overflow: 'hidden',
         }}>
           {/* Header row */}
-          <div style={{
+          <div className="ds-field-grid" style={{
             display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 12,
             padding: '10px 16px', background: 'var(--bg-secondary)',
             borderBottom: '1px solid var(--border)',
@@ -309,7 +309,7 @@ export function ProviderAndSyncConfig({
           }}>
             <span>Resolv Field</span>
             <span>Directory Attribute</span>
-            <span style={{ width: 100 }} />
+            <span className="ds-field-header-last" style={{ width: 100 }} />
           </div>
           {/* Field rows */}
           {([
@@ -321,6 +321,7 @@ export function ProviderAndSyncConfig({
           ]).map(({ key, label, placeholder }, index) => (
             <div
               key={key}
+              className="ds-field-grid"
               style={{
                 display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 12,
                 padding: '10px 16px', alignItems: 'center',
@@ -336,7 +337,7 @@ export function ProviderAndSyncConfig({
                 placeholder={placeholder}
                 style={{ maxWidth: '320px' }}
               />
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: 100 }}>{'\u2190'} directory attr</span>
+              <span className="ds-field-header-last" style={{ fontSize: '11px', color: 'var(--text-muted)', width: 100 }}>{'\u2190'} directory attr</span>
             </div>
           ))}
         </div>

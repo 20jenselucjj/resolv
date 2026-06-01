@@ -40,7 +40,7 @@ export function LoginModeSection({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Mode selector cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+        <div className="resp-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
           {([
             { value: 'both' as const, label: 'Both', description: 'Users can sign in with email/password or SSO', icon: <LogIn size={18} /> },
             { value: 'sso_only' as const, label: 'SSO Only', description: 'Only SSO sign-in allowed. Emergency password login available.', icon: <Link2 size={18} /> },
@@ -91,9 +91,9 @@ export function LoginModeSection({
               Share it only with trusted administrators. Anyone with this URL
               can bypass SSO to sign in with email and password.
             </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{
-                flex: 1, padding: '10px 14px',
+                flex: '1 1 200px', padding: '10px 14px',
                 background: 'var(--bg)',
                 border: '1px solid var(--warning-border)',
                 borderRadius: 'var(--radius-md)',

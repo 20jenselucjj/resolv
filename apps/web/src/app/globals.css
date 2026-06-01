@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@uiw/react-md-editor/markdown-editor.css";
 
 /* ============================================================
    RESOLV — Design System
@@ -530,7 +531,9 @@ button:not(.btn):not(:disabled):hover {
   .animate-pulse,
   .animate-spin,
   .skeleton,
-  .badge-sla-breached {
+  .badge-sla-breached,
+  .ds-fade-in,
+  .ds-spin {
     animation: none !important;
     transition: none !important;
   }
@@ -810,8 +813,139 @@ kbd {
 @media (max-width: 767px) {
   /* Stack grid columns on mobile */
   .mobile-stack { grid-template-columns: 1fr !important; }
-  /* Make tables scroll horizontally */  
+  /* Make tables scroll horizontally */
   .mobile-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   /* Reduce padding on mobile */
   .mobile-pad { padding: 12px 16px !important; }
+}
+
+/* ============================================================
+   MOBILE UTILITY CLASSES — used across all pages
+   ============================================================ */
+
+/* Force single-column grid on mobile */
+@media (max-width: 767px) {
+  .resp-grid-2 { grid-template-columns: 1fr !important; }
+  .resp-grid-3 { grid-template-columns: 1fr !important; }
+  .resp-grid-4 { grid-template-columns: 1fr !important; }
+
+  /* Two-column that becomes stacked */
+  .resp-col-2 { flex-direction: column !important; }
+  .resp-col-2 > * { width: 100% !important; flex: auto !important; }
+
+  /* Reduced section padding */
+  .resp-section { padding: 16px !important; }
+
+  /* Compact padding for cards */
+  .resp-card { padding: 16px !important; }
+
+  /* Hide on mobile */
+  .hide-mobile { display: none !important; }
+
+  /* Show only on mobile */
+  .show-mobile { display: revert !important; }
+
+  /* Truncate long text on mobile */
+  .resp-truncate {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Smaller text on mobile */
+  .resp-text-sm { font-size: 11px !important; }
+  .resp-text-xs { font-size: 10px !important; }
+
+  /* Smaller badges/pills on mobile */
+  .resp-pill {
+    padding: 1px 6px !important;
+    font-size: 10px !important;
+  }
+
+  /* Compact button */
+  .resp-btn {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+    height: auto !important;
+  }
+
+  /* Full-width on mobile */
+  .resp-full { width: 100% !important; max-width: 100% !important; }
+
+  /* Remove left border on mobile (for side-by-side layouts) */
+  .resp-no-border-l { border-left: none !important; }
+
+  /* Reduce gap on mobile */
+  .resp-gap-sm { gap: 8px !important; }
+  .resp-gap-xs { gap: 4px !important; }
+}
+
+/* Show only on mobile (hidden by default) */
+.show-mobile { display: none; }
+
+/* ============================================================
+   MOBILE — Directory Sync specific
+   ============================================================ */
+
+@media (max-width: 767px) {
+  /* Connected status banner — compact on mobile */
+  .ds-banner-mobile {
+    padding: 14px 16px !important;
+  }
+  .ds-banner-mobile .ds-banner-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, margin-top 0.3s ease;
+    margin-top: 0;
+  }
+  .ds-banner-mobile .ds-banner-details.open {
+    max-height: 500px;
+    margin-top: 12px;
+  }
+
+  /* Setup wizard — compact on mobile */
+  .ds-wizard-mobile {
+    padding: 16px !important;
+  }
+  .ds-wizard-mobile .ds-step-label {
+    font-size: 11px !important;
+  }
+  .ds-wizard-mobile .ds-step-desc {
+    display: none;
+  }
+  .ds-wizard-mobile .ds-step-desc.current {
+    display: block;
+    font-size: 11px !important;
+  }
+
+  /* Provider config — stack credential fields */
+  .ds-cred-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Field mapping — compact table */
+  .ds-field-header-last {
+    display: none !important;
+  }
+  .ds-field-grid {
+    grid-template-columns: 1fr 2fr !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+  }
+  .ds-field-grid span:first-child {
+    font-size: 11px !important;
+  }
+  .ds-field-grid input {
+    max-width: 100% !important;
+  }
+
+  /* Sync controls — stack stats grid */
+  .ds-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Admin page content padding */
+  .admin-content-mobile {
+    padding: 16px !important;
+  }
 }
