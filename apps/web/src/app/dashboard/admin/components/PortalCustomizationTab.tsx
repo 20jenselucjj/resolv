@@ -1,8 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Palette, Zap } from 'lucide-react';
+import { Palette, Zap, Globe, LayoutGrid, Eye, Info } from 'lucide-react';
 import { api } from '@/lib/api';
+
+const QA_COLORS = [
+  { color: '#ef4444', bg: '#fef2f2', border: '#fecaca', icon: '🔴' },
+  { color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', icon: '🟠' },
+  { color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', icon: '🔵' },
+  { color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', icon: '🟣' },
+  { color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', icon: '🟢' },
+  { color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb', icon: '⚫' },
+];
 
 export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
   const [loading, setLoading] = useState(true);
@@ -70,71 +79,213 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading portal settings...</div>;
 
   const qaItems = [1, 2, 3, 4, 5, 6] as const;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Hero Section */}
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Palette size={16} color="var(--accent)" />
+      {/* Info banner */}
+      <div style={{
+        padding: '14px 18px', borderRadius: 'var(--radius-md)',
+        background: 'var(--info-bg)', border: '1px solid var(--info-border)',
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+      }}>
+        <Info size={16} color="var(--info)" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div style={{ fontSize: 12, color: 'var(--info)', lineHeight: 1.5 }}>
+          Customize the self-service portal — the first page users see when they sign in.
+          Changes apply immediately. <a href="/dashboard/portal" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--info)', fontWeight: 600 }}>Preview portal →</a>
+        </div>
+      </div>
+
+      {/* ── Branding Section ───────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: 'var(--radius-lg)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Globe size={18} color="var(--accent)" />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Hero Section</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Customize the portal header shown to all users</p>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Branding & Header</h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Company identity shown in the portal hero</p>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+        {/* Preview mockup */}
+        <div style={{
+          marginBottom: 24, padding: '20px 24px',
+          borderRadius: 'var(--radius-md)',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #1e40af 65%, #2563eb 100%)',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', top: -30, right: -20, width: 120, height: 120, background: 'rgba(59,130,246,0.15)', borderRadius: '50%', filter: 'blur(30px)' }} />
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>🏢</span>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {form.portal_company_name || 'IT Self Service'}
+              </span>
+            </div>
+            <div style={{
+              padding: '10px 14px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.95)',
+              fontSize: 13, color: '#6b7280',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ color: '#9ca3af', fontSize: 10 }}>🔍</span>
+              {form.portal_hero_title || 'How can we help you today?'}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
+              {form.portal_hero_subtitle || 'Search knowledge base, chat with AI, or submit a request.'}
+            </div>
+          </div>
+        </div>
+
+        <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Company Name</label>
-            <input className="input" value={form.portal_company_name} onChange={e => setForm(f => ({ ...f, portal_company_name: e.target.value }))} placeholder="e.g. Acme Corp IT" style={{ width: '100%' }} />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+              Company Name
+            </label>
+            <input className="input" value={form.portal_company_name}
+              onChange={e => setForm(f => ({ ...f, portal_company_name: e.target.value }))}
+              placeholder="e.g. Acme Corp IT"
+              style={{ width: '100%' }} />
             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Shown in the portal header badge</p>
           </div>
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Hero Title Override</label>
-            <input className="input" value={form.portal_hero_title} onChange={e => setForm(f => ({ ...f, portal_hero_title: e.target.value }))} placeholder="Leave blank for personalized greeting" style={{ width: '100%' }} />
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Overrides &quot;Good morning, [Name]&quot; if set</p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+              Hero Title
+            </label>
+            <input className="input" value={form.portal_hero_title}
+              onChange={e => setForm(f => ({ ...f, portal_hero_title: e.target.value }))}
+              placeholder="Leave blank for default greeting"
+              style={{ width: '100%' }} />
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Overrides the personalized greeting if set</p>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Hero Subtitle</label>
-            <input className="input" value={form.portal_hero_subtitle} onChange={e => setForm(f => ({ ...f, portal_hero_subtitle: e.target.value }))} placeholder="How can we help you today? Search, chat with AI, or submit a request." style={{ width: '100%' }} />
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+              Hero Subtitle
+            </label>
+            <input className="input" value={form.portal_hero_subtitle}
+              onChange={e => setForm(f => ({ ...f, portal_hero_subtitle: e.target.value }))}
+              placeholder="How can we help you today?"
+              style={{ width: '100%' }} />
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Descriptive text below the search bar</p>
           </div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Zap size={16} color="var(--accent)" />
+      {/* ── Quick Actions Section ────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: 'var(--radius-lg)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LayoutGrid size={18} color="var(--accent)" />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Quick Action Buttons</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Customize the 6 quick action buttons shown on the portal</p>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Quick Action Buttons</h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>6 buttons shown in the portal — users click to start an AI-guided request</p>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {qaItems.map(i => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 12, alignItems: 'start', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)' }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>BUTTON {i} LABEL</label>
-                <input className="input" value={(form as any)[`portal_qa_${i}_label`]} onChange={e => setForm(f => ({ ...f, [`portal_qa_${i}_label`]: e.target.value }))} placeholder={`Quick action ${i}`} style={{ width: '100%' }} />
+
+        {/* Preview grid of buttons */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
+          marginBottom: 24, padding: 16, borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+        }}>
+          {qaItems.map(i => {
+            const c = QA_COLORS[i - 1];
+            const labelKey = `portal_qa_${i}_label` as keyof typeof form;
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 14px', borderRadius: 10,
+                background: c.bg, border: `1px solid ${c.border}`,
+                fontSize: 12, fontWeight: 600, color: c.color,
+              }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: c.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>
+                  {i}
+                </div>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {form[labelKey] || `Action ${i}`}
+                </span>
               </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>AI PROMPT (sent when clicked)</label>
-                <input className="input" value={(form as any)[`portal_qa_${i}_prompt`]} onChange={e => setForm(f => ({ ...f, [`portal_qa_${i}_prompt`]: e.target.value }))} placeholder="Message sent to AI when user clicks this button" style={{ width: '100%' }} />
+            );
+          })}
+        </div>
+
+        {/* Editable quick action rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {qaItems.map(i => {
+            const c = QA_COLORS[i - 1];
+            return (
+              <div key={i} style={{
+                padding: '14px 16px', borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                borderLeft: `4px solid ${c.color}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 6,
+                    background: c.color + '20', color: c.color,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700,
+                  }}>
+                    {i}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Button {i}</span>
+                  <span style={{ fontSize: 10, color: c.color, fontWeight: 600, marginLeft: 'auto' }}>{['Report','Access','Hardware','Software','Network','Other'][i-1]}</span>
+                </div>
+                <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Button Label
+                    </label>
+                    <input
+                      className="input"
+                      value={(form as any)[`portal_qa_${i}_label`]}
+                      onChange={e => setForm(f => ({ ...f, [`portal_qa_${i}_label`]: e.target.value }))}
+                      placeholder="Text shown on button"
+                      style={{ width: '100%', fontSize: 12 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      AI Prompt
+                    </label>
+                    <input
+                      className="input"
+                      value={(form as any)[`portal_qa_${i}_prompt`]}
+                      onChange={e => setForm(f => ({ ...f, [`portal_qa_${i}_prompt`]: e.target.value }))}
+                      placeholder="Message sent to AI when clicked"
+                      style={{ width: '100%', fontSize: 12 }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Save */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 24px', fontSize: 14 }}>
+      {/* ── Save ──────────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+        <a
+          href="/dashboard/portal"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-ghost"
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <Eye size={14} /> Preview Portal
+        </a>
+        <button
+          className="btn btn-primary"
+          onClick={handleSave}
+          disabled={saving}
+          style={{ padding: '10px 28px', fontSize: 14, fontWeight: 600 }}
+        >
           {saving ? 'Saving...' : 'Save Portal Settings'}
         </button>
       </div>
