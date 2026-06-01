@@ -81,7 +81,7 @@ export function TopBar({
       )}
 
       {/* Presence avatars */}
-      {presence.length > 1 && (
+      {(presence || []).length > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 16 }}>
           <Eye size={12} color="var(--text-muted)" />
           <div style={{ display: 'flex' }}>
@@ -104,7 +104,7 @@ export function TopBar({
 
       {/* Status Dropdown */}
       {isAdminOrAgent ? (
-        <div style={{ position: 'relative', minWidth: 150 }}>
+        <div style={{ minWidth: 150 }}>
           <SelectSearch
             options={STATUS_OPTIONS}
             value={ticket.status}

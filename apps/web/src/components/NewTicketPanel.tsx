@@ -6,6 +6,7 @@ import {
   X, Maximize2, Minimize2, AlertTriangle, Sparkles, CheckCircle
 } from 'lucide-react';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
+import { SelectSearch } from '@/components/SelectSearch';
 
 const TICKET_TYPE_OPTIONS = [
   { value: 'incident',        label: 'Incident' },
@@ -380,14 +381,12 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                   </div>
                   <div>
                     <label style={panelLabelStyle}>Reporter</label>
-                    <div className="select-wrapper" style={{ width: '100%' }}>
-                      <UserSearchSelect
-                        users={allUsersList}
-                        value={form.created_by_id || null}
-                        onChange={val => setForm(f => ({ ...f, created_by_id: val || '' }))}
-                        placeholder="Auto (you)"
-                      />
-                    </div>
+                    <UserSearchSelect
+                      users={allUsersList}
+                      value={form.created_by_id || null}
+                      onChange={val => setForm(f => ({ ...f, created_by_id: val || '' }))}
+                      placeholder="Auto (you)"
+                    />
                   </div>
                 </div>
               )}
@@ -397,21 +396,22 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
                     <label style={panelLabelStyle}>Category</label>
-                    <select className="select" value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} style={{ width: '100%', fontSize: 12, height: 34 }}>
-                      <option value="">Select...</option>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                    <SelectSearch
+                      options={categories.map(c => ({ value: c.id, label: c.name }))}
+                      value={form.category_id || null}
+                      onChange={val => setForm(f => ({ ...f, category_id: val || '' }))}
+                      placeholder="Select..."
+                      hideClear={false}
+                    />
                   </div>
                   <div>
                     <label style={panelLabelStyle}>Assignee</label>
-                    <div className="select-wrapper" style={{ width: '100%' }}>
-                      <UserSearchSelect
-                        users={agents}
-                        value={form.assigned_to_id || null}
-                        onChange={val => setForm(f => ({ ...f, assigned_to_id: val || '' }))}
-                        placeholder="Auto-assign"
-                      />
-                    </div>
+                    <UserSearchSelect
+                      users={agents}
+                      value={form.assigned_to_id || null}
+                      onChange={val => setForm(f => ({ ...f, assigned_to_id: val || '' }))}
+                      placeholder="Auto-assign"
+                    />
                   </div>
                 </div>
               ) : null}

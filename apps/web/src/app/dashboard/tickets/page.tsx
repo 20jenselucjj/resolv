@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore, Category, User, Ticket } from '@/lib/store';
 import { api } from '@/lib/api';
+import { SelectSearch } from '@/components/SelectSearch';
 import {
   Search, ChevronsUpDown,
   Filter, X,
@@ -607,57 +608,60 @@ export default function TicketsPage() {
             <div style={{ display: 'flex', alignItems: 'center', padding: '0 6px', color: 'var(--text-muted)' }}>
               <Filter size={14} />
             </div>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="select"
-              style={{ height: 28, fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px' }}
-            >
-              {TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t === 'all' ? 'All Types' : t.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}</option>
-              ))}
-            </select>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="select"
-              style={{ height: 28, fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px' }}
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{s === 'all' ? 'All Status' : s.replace('_', ' ')}</option>
-              ))}
-            </select>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="select"
-              style={{ height: 28, fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px' }}
-            >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p} value={p}>{p === 'all' ? 'All Priority' : p}</option>
-              ))}
-            </select>
+            <div style={{ width: 130 }}>
+              <SelectSearch
+                options={TYPE_OPTIONS.map((t) => ({
+                  value: t,
+                  label: t === 'all' ? 'All Types' : t.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
+                }))}
+                value={type}
+                onChange={(val) => setType(val || 'all')}
+              />
+            </div>
+            <div style={{ width: 130 }}>
+              <SelectSearch
+                options={STATUS_OPTIONS.map((s) => ({
+                  value: s,
+                  label: s === 'all' ? 'All Status' : s.replace('_', ' ')
+                }))}
+                value={status}
+                onChange={(val) => setStatus(val || 'all')}
+              />
+            </div>
+            <div style={{ width: 130 }}>
+              <SelectSearch
+                options={PRIORITY_OPTIONS.map((p) => ({
+                  value: p,
+                  label: p === 'all' ? 'All Priority' : p
+                }))}
+                value={priority}
+                onChange={(val) => setPriority(val || 'all')}
+              />
+            </div>
             
             {isAdminOrAgent && (
-              <select
-                value={assigneeFilter}
-                onChange={(e) => setAssigneeFilter(e.target.value)}
-                className="select"
-                style={{ height: 28, fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px' }}
-              >
-                <option value="all">All Assignees</option>
-                {assignees.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
+              <div style={{ width: 150 }}>
+                <SelectSearch
+                  options={[
+                    { value: 'all', label: 'All Assignees' },
+                    ...assignees.map(a => ({ value: a, label: a }))
+                  ]}
+                  value={assigneeFilter}
+                  onChange={(val) => setAssigneeFilter(val || 'all')}
+                />
+              </div>
             )}
             
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="select"
-              style={{ height: 28, fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px' }}
-            >
-              {DATE_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-            </select>
+            <div style={{ width: 140 }}>
+              <SelectSearch
+                options={DATE_OPTIONS.map(d => ({
+                  value: d.value,
+                  label: d.label
+                }))}
+                value={dateFilter}
+                onChange={(val) => setDateFilter(val || 'all')}
+              />
+            </div>
           </div>
         </div>
 
