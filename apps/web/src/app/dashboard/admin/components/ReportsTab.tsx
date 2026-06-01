@@ -1,124 +1,123 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { FileText, Clock, AlertTriangle, AlertCircle } from 'lucide-react';
-import { api } from '@/lib/api';
-import { StatCard } from './SharedUI';
-import type { AdminStats } from './types';
+import { useRouter } from 'next/navigation';
+import {
+  BarChart2, TrendingUp, Target, Activity, Shield, FileText,
+  ArrowRight, ExternalLink, Layers, PieChart
+} from 'lucide-react';
 
 export function ReportsTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState('7d');
-
-  useEffect(() => {
-    setLoading(true);
-    api.get<{ data: AdminStats }>('/admin/stats')
-      .then(res => setStats(res.data))
-      .catch(() => showAlert('Failed to load reports', 'error'))
-      .finally(() => setLoading(false));
-  }, [dateRange, showAlert]);
-
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading reports...</div>;
-
-  const byStatus = stats?.tickets?.by_status || {};
-  const byPriority = stats?.tickets?.by_priority || {};
-  const totalTickets = stats?.tickets?.total || 0;
-  const avgResolution = stats?.tickets?.avg_resolution_hours || 0;
+  const router = useRouter();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Date Range Selector */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 600 }}>Reports & Analytics</h3>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Ticket volume, resolution metrics, and team performance</p>
+      {/* Hero card — redirect to standalone reports */}
+      <div style={{
+        padding: '32px',
+        borderRadius: 'var(--radius-lg)',
+        background: 'linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg) 100%)',
+        border: '1px solid var(--accent-border)',
+        textAlign: 'center',
+      }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 16,
+          background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 20px',
+          boxShadow: '0 8px 24px rgba(37,99,235,0.25)',
+        }}>
+          <BarChart2 size={28} color="white" />
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {['7d', '30d', '90d', 'all'].map(r => (
-            <button key={r} onClick={() => setDateRange(r)}
-              className={dateRange === r ? 'btn btn-primary' : 'btn btn-ghost'}
-              style={{ fontSize: 12, padding: '6px 12px' }}>
-              {r === '7d' ? 'Last 7 days' : r === '30d' ? 'Last 30 days' : r === '90d' ? 'Last 90 days' : 'All time'}
-            </button>
-          ))}
-        </div>
-      </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 8, letterSpacing: '-0.01em' }}>
+          Reports & Analytics
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 480, margin: '0 auto 20px', lineHeight: 1.6 }}>
+          Reports have moved to a dedicated page with richer visualizations,
+          role-aware filtering, and interactive analytics. Access the full reports dashboard for:
+        </p>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-        <StatCard label="Total Tickets" value={totalTickets} icon={<FileText size={16} />} color="var(--accent)" bg="var(--accent-subtle)" />
-        <StatCard label="Avg Resolution" value={`${avgResolution.toFixed(1)}h`} icon={<Clock size={16} />} color="var(--warning)" bg="var(--warning-bg)" />
-        <StatCard label="SLA Breached" value={stats?.sla?.breached_count || 0} icon={<AlertTriangle size={16} />} color="var(--critical)" bg="var(--critical-bg)" />
-        <StatCard label="At Risk" value={stats?.sla?.at_risk_count || 0} icon={<AlertCircle size={16} />} color="var(--warning)" bg="var(--warning-bg)" />
-      </div>
-
-      {/* Tickets by Status */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div className="card" style={{ padding: 24 }}>
-          <h4 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700 }}>Tickets by Status</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {Object.entries(byStatus).map(([status, count]) => {
-              const pct = totalTickets > 0 ? Math.round((count as number / totalTickets) * 100) : 0;
-              const colors: Record<string, string> = { open: 'var(--warning)', in_progress: 'var(--accent)', closed: 'var(--success)' };
-              return (
-                <div key={status}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize', color: 'var(--text)' }}>{status.replace('_', ' ')}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{count as number} ({pct}%)</span>
-                  </div>
-                  <div style={{ height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: colors[status] || 'var(--accent)', borderRadius: 3, transition: 'width 0.5s ease' }} />
-                  </div>
-                </div>
-              );
-            })}
-            {Object.keys(byStatus).length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No data available</div>}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 24 }}>
-          <h4 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700 }}>Tickets by Priority</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {Object.entries(byPriority).map(([priority, count]) => {
-              const pct = totalTickets > 0 ? Math.round((count as number / totalTickets) * 100) : 0;
-              const colors: Record<string, string> = { low: 'var(--success)', medium: 'var(--warning)', high: 'var(--danger)', critical: 'var(--critical)' };
-              return (
-                <div key={priority}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 600, textTransform: 'capitalize', color: 'var(--text)' }}>{priority}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{count as number} ({pct}%)</span>
-                  </div>
-                  <div style={{ height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: colors[priority] || 'var(--accent)', borderRadius: 3, transition: 'width 0.5s ease' }} />
-                  </div>
-                </div>
-              );
-            })}
-            {Object.keys(byPriority).length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No data available</div>}
-          </div>
-        </div>
-      </div>
-
-      {/* Team Summary */}
-      <div className="card" style={{ padding: 24 }}>
-        <h4 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700 }}>Team Summary</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-          {Object.entries(stats?.users?.by_role || {}).map(([role, count]) => (
-            <div key={role} style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text)' }}>{count as number}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'capitalize', marginTop: 4 }}>{role}s</div>
+        {/* Feature badges */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 24 }}>
+          {[
+            { icon: PieChart, label: 'Status & Type Breakdowns', color: 'var(--accent)', bg: 'var(--accent-subtle)' },
+            { icon: TrendingUp, label: 'Volume Trends', color: 'var(--success)', bg: 'var(--success-bg)' },
+            { icon: Target, label: 'SLA Compliance', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+            { icon: Shield, label: 'SLA Breach Tracking', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+            { icon: Activity, label: 'Response Times', color: '#7c3aed', bg: '#ede9fe' },
+            { icon: Layers, label: 'Category Breakdowns', color: '#0891b2', bg: '#ecfeff' },
+          ].map((f, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 'var(--radius-full)',
+              background: f.bg, border: `1px solid ${f.color}20`,
+              fontSize: 11, fontWeight: 600, color: f.color,
+            }}>
+              <f.icon size={12} />
+              {f.label}
             </div>
           ))}
         </div>
+
+        <button
+          onClick={() => router.push('/dashboard/reports')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '12px 28px', borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+            color: 'white', border: 'none', fontSize: 14, fontWeight: 700,
+            cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,0.3)',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(37,99,235,0.4)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.3)'; }}
+        >
+          Open Reports Dashboard <ArrowRight size={16} />
+        </button>
+
+        <div style={{ marginTop: 16 }}>
+          <a
+            href="/dashboard/reports"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 12, color: 'var(--accent)', textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontWeight: 500,
+            }}
+          >
+            Open in new tab <ExternalLink size={11} />
+          </a>
+        </div>
       </div>
 
-      {/* Export */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-ghost" style={{ border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}
-          onClick={() => showAlert('Export feature coming soon', 'success')}>
-          <FileText size={14} /> Export Report (CSV)
-        </button>
+      {/* Quick summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        {[
+          { icon: PieChart, label: 'Distribution Charts', desc: 'Status, type, priority, and category breakdowns with donut charts' },
+          { icon: TrendingUp, label: 'Time-Series Trends', desc: 'Ticket volume over time for created vs resolved comparisons' },
+          { icon: Shield, label: 'SLA Analytics', desc: 'Compliance rates, breach tracking, and at-risk monitoring' },
+          { icon: Activity, label: 'Agent Performance', desc: 'Resolution rates, average times, and workload distribution' },
+          { icon: FileText, label: 'Ticket Browser', desc: 'Filtered ticket view with priority distribution and category filters' },
+          { icon: Target, label: 'CSV Export', desc: 'Export any view as CSV for external analysis and reporting' },
+        ].map((card, i) => (
+          <div key={i} className="card" style={{
+            padding: '20px', borderRadius: 'var(--radius-lg)',
+            display: 'flex', flexDirection: 'column', gap: 8,
+            cursor: 'pointer', transition: 'all 0.15s ease',
+          }}
+            onClick={() => router.push('/dashboard/reports')}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
+          >
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <card.icon size={16} color="var(--accent)" />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>{card.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{card.desc}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
