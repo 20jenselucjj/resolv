@@ -50,3 +50,8 @@ apps/agent/node-agent/scripts/bundle-ffmpeg.js
 
 # Reserved Windows filename
 nul
+
+# Agent tooling / generated artifacts
+.slim/
+config.json
+codemap.md
