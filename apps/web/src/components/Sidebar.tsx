@@ -31,7 +31,14 @@ const navItems: NavItem[] = [
   { href: '/dashboard/settings',  icon: Settings,   label: 'Settings',        agentAndAbove: true },
 ];
 
-export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNewTicket?: () => void }) {
+interface SidebarProps {
+  onAiOpen?: () => void;
+  onNewTicket?: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function Sidebar({ onAiOpen, onNewTicket, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, toggleTheme, theme, unreadCount } = useStore();
@@ -42,11 +49,22 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
     return false;
   });
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('resolv_sidebar_collapsed', String(collapsed));
   }, [collapsed]);
 
-  const w = collapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)';
+  const isMobileCollapsed = isMobile ? false : collapsed;
+  const w = isMobileCollapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)';
 
   const isUser = user?.role === 'user';
   const isAdmin = user?.role === 'admin';
@@ -59,46 +77,80 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
     return true;
   });
 
+  const asideStyle: React.CSSProperties = isMobile ? {
+    width: '224px',
+    minWidth: '224px',
+    background: '#1E40AF',
+    borderRight: '1px solid rgba(255,255,255,0.15)',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+    overflow: 'visible',
+    position: 'fixed',
+    left: mobileOpen ? 0 : -256,
+    top: 0,
+    zIndex: 1000,
+    flexShrink: 0,
+  } : {
+    width: w,
+    minWidth: w,
+    background: '#1E40AF',
+    borderRight: '1px solid rgba(255,255,255,0.15)',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100vh',
+    transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+    overflow: 'visible',
+    position: 'relative',
+    flexShrink: 0,
+    zIndex: 10,
+  };
+
   return (
-    <aside style={{
-      width: w,
-      minWidth: w,
-      background: '#1E40AF',
-      borderRight: '1px solid rgba(255,255,255,0.15)',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-      overflow: 'visible',
-      position: 'relative',
-      flexShrink: 0,
-      zIndex: 10,
-    }}>
+    <>
+      {isMobile && mobileOpen && (
+        <div 
+          onClick={onMobileClose}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 999,
+          }}
+        />
+      )}
+      <aside 
+        className={isMobile ? "" : "desktop-sidebar"}
+        style={asideStyle}
+      >
 
       {/* Drawer handle for collapse/expand */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        style={{
-          position: 'absolute',
-          right: -12,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 24,
-          height: 24,
-          background: 'white',
-          border: '1px solid var(--border)',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 20,
-          color: '#1E40AF',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-        }}
-      >
-        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
+      {!isMobile && (
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          style={{
+            position: 'absolute',
+            right: -12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 24,
+            height: 24,
+            background: 'white',
+            border: '1px solid var(--border)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 20,
+            color: '#1E40AF',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+        >
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+      )}
 
       {/* Internal wrapper for hidden overflow of contents */}
       <div style={{
@@ -116,7 +168,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: collapsed ? '0 8px' : '0 14px',
+          padding: isMobileCollapsed ? '0 8px' : '0 14px',
           borderBottom: '1px solid rgba(255,255,255,0.1)',
           overflow: 'hidden',
         }}>
@@ -127,7 +179,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
             height={30}
             priority
             style={{
-              maxWidth: collapsed ? 80 : 120,
+              maxWidth: isMobileCollapsed ? 80 : 120,
               width: '100%',
               height: 'auto',
               objectFit: 'contain',
@@ -137,10 +189,10 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
         </div>
 
         {/* Quick actions */}
-        {!collapsed && (
+        {!isMobileCollapsed && (
           <div style={{ padding: '10px 10px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {isAgentOrAbove && (
-              <button onClick={() => onAiOpen?.()} style={{
+              <button onClick={() => { onAiOpen?.(); onMobileClose?.(); }} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '7px 10px',
                 background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
@@ -166,7 +218,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
               </button>
             )}
             {isAgentOrAbove && (
-              <button onClick={() => onNewTicket?.()} style={{
+              <button onClick={() => { onNewTicket?.(); onMobileClose?.(); }} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '7px 10px',
                 background: 'white',
@@ -189,10 +241,10 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
             )}
           </div>
         )}
-        {collapsed && (
+        {isMobileCollapsed && (
           <div style={{ padding: '10px 10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
             {isAgentOrAbove && (
-              <button onClick={() => onAiOpen?.()} data-tooltip="Ask AI" style={{
+              <button onClick={() => { onAiOpen?.(); onMobileClose?.(); }} data-tooltip="Ask AI" style={{
                 width: 34, height: 34,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
@@ -212,7 +264,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
               </button>
             )}
             {isAgentOrAbove && (
-              <button onClick={() => onNewTicket?.()} data-tooltip="New Ticket" style={{
+              <button onClick={() => { onNewTicket?.(); onMobileClose?.(); }} data-tooltip="New Ticket" style={{
                 width: 34, height: 34,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: 'white',
@@ -234,7 +286,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '4px 8px', overflowY: 'auto', overflowX: 'hidden' }}>
-          {!collapsed && (
+          {!isMobileCollapsed && (
             <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '8px 8px 4px' }}>
               Navigation
             </div>
@@ -245,12 +297,13 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
               <Link
                 key={href}
                 href={href}
-                data-tooltip={collapsed ? label : undefined}
+                onClick={() => onMobileClose?.()}
+                data-tooltip={isMobileCollapsed ? label : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 9,
-                  padding: collapsed ? '9px' : '7px 9px',
+                  padding: isMobileCollapsed ? '9px' : '7px 9px',
                   borderRadius: 'var(--radius-md)',
                   textDecoration: 'none',
                   color: active ? 'white' : 'rgba(255,255,255,0.7)',
@@ -259,7 +312,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
                   fontSize: 13,
                   marginBottom: 1,
                   transition: 'all var(--transition)',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  justifyContent: isMobileCollapsed ? 'center' : 'flex-start',
                   position: 'relative',
                   whiteSpace: 'nowrap',
                 }}
@@ -283,8 +336,8 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
                 <span style={{ 
                   flex: 1,
                   transition: 'opacity 0.15s ease, max-width 0.25s ease',
-                  opacity: collapsed ? 0 : 1,
-                  maxWidth: collapsed ? 0 : 200,
+                  opacity: isMobileCollapsed ? 0 : 1,
+                  maxWidth: isMobileCollapsed ? 0 : 200,
                   overflow: 'hidden',
                 }}>{label}</span>
               </Link>
@@ -302,15 +355,18 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
           flexShrink: 0,
         }}>
           {/* Utility buttons row */}
-          <div style={{ display: 'flex', gap: 4, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+          <div style={{ display: 'flex', gap: 4, justifyContent: isMobileCollapsed ? 'center' : 'flex-start' }}>
             {!isUser && (
               <button
-                onClick={() => router.push('/dashboard/portal')}
-                data-tooltip={collapsed ? 'Self Service Portal' : undefined}
+                onClick={() => {
+                  router.push('/dashboard/portal');
+                  onMobileClose?.();
+                }}
+                data-tooltip={isMobileCollapsed ? 'Self Service Portal' : undefined}
                 style={{
                   ...iconBtnStyle,
-                  width: collapsed ? 28 : 'auto',
-                  padding: collapsed ? 0 : '0 8px',
+                  width: isMobileCollapsed ? 28 : 'auto',
+                  padding: isMobileCollapsed ? 0 : '0 8px',
                   gap: 6,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
@@ -319,16 +375,16 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <LayoutGrid size={13} style={{ flexShrink: 0 }} />
-                {!collapsed && <span style={{ fontSize: 12, fontWeight: 500 }}>Self Service</span>}
+                {!isMobileCollapsed && <span style={{ fontSize: 12, fontWeight: 500 }}>Self Service</span>}
               </button>
             )}
             <button
               onClick={toggleTheme}
-              data-tooltip={collapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : undefined}
+              data-tooltip={isMobileCollapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : undefined}
               style={{
                 ...iconBtnStyle,
-                width: collapsed ? 28 : 'auto',
-                padding: collapsed ? 0 : '0 8px',
+                width: isMobileCollapsed ? 28 : 'auto',
+                padding: isMobileCollapsed ? 0 : '0 8px',
                 gap: 6,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -337,17 +393,20 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
               onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'transparent'; }}
             >
               {theme === 'dark' ? <Sun size={13} style={{ flexShrink: 0 }} /> : <Moon size={13} style={{ flexShrink: 0 }} />}
-              {!collapsed && (
+              {!isMobileCollapsed && (
                 <span style={{ fontSize: 12, fontWeight: 500 }}>
                   {theme === 'dark' ? 'Light mode' : 'Dark mode'}
                 </span>
               )}
             </button>
-            {!collapsed && (
+            {!isMobileCollapsed && (
               <button 
                 data-tooltip="Notifications" 
                 style={{ ...iconBtnStyle, position: 'relative' }}
-                onClick={() => router.push('/dashboard/notifications')}
+                onClick={() => {
+                  router.push('/dashboard/notifications');
+                  onMobileClose?.();
+                }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = 'white'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'transparent'; }}
               >
@@ -383,9 +442,9 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: collapsed ? '6px 0' : '6px 4px',
+              padding: isMobileCollapsed ? '6px 0' : '6px 4px',
               borderRadius: 'var(--radius-md)',
-              justifyContent: collapsed ? 'center' : 'flex-start',
+              justifyContent: isMobileCollapsed ? 'center' : 'flex-start',
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
@@ -397,7 +456,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
               }}>
                 {user.name[0].toUpperCase()}
               </div>
-              {!collapsed && (
+              {!isMobileCollapsed && (
                 <>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -423,6 +482,7 @@ export function Sidebar({ onAiOpen, onNewTicket }: { onAiOpen?: () => void; onNe
         </div>
       </div>
     </aside>
+  </>
   );
 }
 

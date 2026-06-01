@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore, User } from '@/lib/store';
 import { api } from '@/lib/api';
+import { SelectSearch } from '@/components/SelectSearch';
 import { 
   Moon, Sun, AlignJustify, AlignLeft,
   User as UserIcon, Shield, Lock, Smartphone, Building, 
@@ -127,7 +128,7 @@ export default function SettingsPage() {
 
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', 
           gap: 24,
           alignItems: 'start'
         }}>
@@ -329,20 +330,32 @@ export default function SettingsPage() {
             <Section title="Appearance & Localization" icon={<Globe size={16} />}>
               <div style={{ padding: '4px 0' }}>
                 <SettingRow label="Language" description="Select your preferred language">
-                  <select value={language} onChange={e => setLanguage(e.target.value)} style={selectStyle}>
-                    <option value="en">English (US)</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                  </select>
+                  <div style={{ width: 180 }}>
+                    <SelectSearch
+                      options={[
+                        { value: 'en', label: 'English (US)' },
+                        { value: 'es', label: 'Español' },
+                        { value: 'fr', label: 'Français' }
+                      ]}
+                      value={language}
+                      onChange={val => setLanguage(val || 'en')}
+                    />
+                  </div>
                 </SettingRow>
                 
                 <SettingRow label="Timezone" description="Set your local timezone">
-                  <select value={timezone} onChange={e => setTimezone(e.target.value)} style={selectStyle}>
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">Eastern Time (ET)</option>
-                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                    <option value="Europe/London">London (GMT)</option>
-                  </select>
+                  <div style={{ width: 180 }}>
+                    <SelectSearch
+                      options={[
+                        { value: 'UTC', label: 'UTC' },
+                        { value: 'America/New_York', label: 'Eastern Time (ET)' },
+                        { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+                        { value: 'Europe/London', label: 'London (GMT)' }
+                      ]}
+                      value={timezone}
+                      onChange={val => setTimezone(val || 'UTC')}
+                    />
+                  </div>
                 </SettingRow>
 
                 <SettingRow label="Theme" description="Switch between light and dark modes">
@@ -389,27 +402,39 @@ export default function SettingsPage() {
             <Section title="Default Views" icon={<AlignLeft size={16} />}>
               <div style={{ padding: '4px 0' }}>
                 <SettingRow label="Default Ticket View" description="What to show when you open the tickets page">
-                  <select value={defaultView} onChange={e => {
-                    const val = e.target.value;
-                    setDefaultView(val);
-                    localStorage.setItem('resolv_default_view', val);
-                  }} style={selectStyle}>
-                    <option value="all">All Tickets</option>
-                    <option value="my">My Tickets</option>
-                    <option value="unassigned">Unassigned</option>
-                  </select>
+                  <div style={{ width: 180 }}>
+                    <SelectSearch
+                      options={[
+                        { value: 'all', label: 'All Tickets' },
+                        { value: 'my', label: 'My Tickets' },
+                        { value: 'unassigned', label: 'Unassigned' }
+                      ]}
+                      value={defaultView}
+                      onChange={val => {
+                        const actualVal = val || 'all';
+                        setDefaultView(actualVal);
+                        localStorage.setItem('resolv_default_view', actualVal);
+                      }}
+                    />
+                  </div>
                 </SettingRow>
                 
                 <SettingRow label="Default Sort Order" description="How to sort your ticket lists" last>
-                  <select value={defaultSort} onChange={e => {
-                    const val = e.target.value;
-                    setDefaultSort(val);
-                    localStorage.setItem('resolv_default_sort', val);
-                  }} style={selectStyle}>
-                    <option value="newest">Newest First</option>
-                    <option value="priority">Highest Priority</option>
-<option value="due_date">Due Date</option>
-                  </select>
+                  <div style={{ width: 180 }}>
+                    <SelectSearch
+                      options={[
+                        { value: 'newest', label: 'Newest First' },
+                        { value: 'priority', label: 'Highest Priority' },
+                        { value: 'due_date', label: 'Due Date' }
+                      ]}
+                      value={defaultSort}
+                      onChange={val => {
+                        const actualVal = val || 'newest';
+                        setDefaultSort(actualVal);
+                        localStorage.setItem('resolv_default_sort', actualVal);
+                      }}
+                    />
+                  </div>
                 </SettingRow>
               </div>
             </Section>

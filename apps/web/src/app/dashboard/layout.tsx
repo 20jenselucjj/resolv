@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { Menu, Bell } from 'lucide-react';
 import { useStore, User } from '@/lib/store';
 import { api } from '@/lib/api';
 import { Sidebar } from '@/components/Sidebar';
@@ -12,11 +14,12 @@ const CommandPalette = dynamic(() => import('@/components/CommandPalette').then(
 const NewTicketPanel = dynamic(() => import('@/components/NewTicketPanel').then((m) => m.NewTicketPanel), { ssr: false });
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, setUser, token } = useStore();
+  const { user, setUser, token, unreadCount } = useStore();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -49,8 +52,70 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar 
         onAiOpen={() => { setAiOpen(true); setNewTicketOpen(false); }} 
         onNewTicket={() => { setNewTicketOpen(true); setAiOpen(false); }}
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
       />
       <main style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="mobile-header">
+          <button 
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 4,
+            }}
+          >
+            <Menu size={20} />
+          </button>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Resolv</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto' }}>
+            <Link href="/dashboard/notifications" style={{ position: 'relative', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  fontSize: 8,
+                  fontWeight: 700,
+                  minWidth: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 4px',
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Link>
+            {user && (
+              <div style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--text-inverse)',
+                flexShrink: 0,
+              }}>
+                {user.name[0].toUpperCase()}
+              </div>
+            )}
+          </div>
+        </div>
         {children}
       </main>
       <AiPanel isOpen={aiOpen} onClose={() => setAiOpen(false)} />
