@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import {
   Search, Sparkles, Send, Plus, AlertTriangle, Package,
   KeyRound, Wifi, Monitor, HelpCircle, ChevronRight,
@@ -55,8 +55,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 
 // ─── Formatted Message ─────────────────────────────────────────────────────────
 function FormattedMessage({ text }: { text: string }) {
-  const html = text
-    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // Sanitize: escape HTML first, then apply safe formatting
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+  const html = escaped
     .replace(/```([\s\S]*?)```/g, '<pre style="background:rgba(0,0,0,0.05);padding:12px;border-radius:6px;margin:8px 0;overflow-x:auto;font-size:13px;border:1px solid var(--border)"><code>$1</code></pre>')
     .replace(/`([^`]+)`/g, '<code style="background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;font-size:13px">$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -109,6 +115,9 @@ export default function SelfServicePortal() {
   const [dragOver, setDragOver] = useState(false);
   const [dropSuccess, setDropSuccess] = useState(false);
 
+  // Drag-and-drop for ticket submission form
+  const [ticketDragOver, setTicketDragOver] = useState(false);
+
   const ALLOWED_FILE_TYPES = '.png,.jpg,.jpeg,.gif,.webp,.bmp,.pdf,.txt,.log,.csv,.doc,.docx,.xlsx,.xls,.json,.xml,.yaml,.yml';
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -142,8 +151,7 @@ export default function SelfServicePortal() {
         const formData = new FormData();
         formData.append('file', file);
         const token = localStorage.getItem('resolv_token');
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-        const res = await fetch(`${baseUrl}/ai/upload`, {
+        const res = await fetch(`${API_BASE}/ai/upload`, {
           method: 'POST',
           body: formData,
           headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -166,6 +174,8 @@ export default function SelfServicePortal() {
   const [ticketLoading, setTicketLoading] = useState(false);
   const [ticketError, setTicketError] = useState('');
   const [ticketSuccess, setTicketSuccess] = useState(false);
+  const [ticketFiles, setTicketFiles] = useState<File[]>([]);
+  const ticketFileInputRef = useRef<HTMLInputElement>(null);
 
   // Admin Docs
   const [sspDocs, setSspDocs] = useState<SspDoc[]>([]);
@@ -216,8 +226,7 @@ export default function SelfServicePortal() {
       const formData = new FormData();
       formData.append('file', file);
       const token = localStorage.getItem('resolv_token');
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-      const res = await fetch(`${baseUrl}/ai/upload`, {
+      const res = await fetch(`${API_BASE}/ai/upload`, {
         method: 'POST',
         body: formData,
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -300,7 +309,36 @@ export default function SelfServicePortal() {
     sendMessage(prompt);
   };
 
-  // ── Submit Ticket ──────────────────────────────────────────────────────────
+  // ── Ticket Form Drag & Drop ────────────────────────────────────────────────
+  const handleTicketDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setTicketDragOver(true);
+    }
+  };
+
+  const handleTicketDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set false if actually leaving the container (not entering a child)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+      setTicketDragOver(false);
+    }
+  };
+
+  const handleTicketDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTicketDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    setTicketFiles(prev => [...prev, ...files]);
+  };
   const submitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticketForm.title.trim()) { setTicketError('Title is required'); return; }
@@ -308,6 +346,23 @@ export default function SelfServicePortal() {
     setTicketError('');
     try {
       const res = await api.post<{ data: Ticket }>('/tickets', ticketForm);
+      const created = res.data;
+
+      // Upload attached files
+      if (ticketFiles.length > 0) {
+        const token = localStorage.getItem('resolv_token') || localStorage.getItem('token');
+        for (const file of ticketFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          await fetch(`${API_BASE}/tickets/${created.id}/attachments`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+          });
+        }
+        setTicketFiles([]);
+      }
+
       setMyTickets(prev => [res.data, ...prev].slice(0, 5));
       setTicketSuccess(true);
       setTimeout(() => { setShowTicketForm(false); setTicketSuccess(false); setTicketForm({ title: '', description: '', priority: 'medium', ticket_type: 'incident' }); }, 2000);
@@ -319,32 +374,39 @@ export default function SelfServicePortal() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg) radial-gradient(ellipse at 50% 0%, rgba(30,64,175,0.035) 0%, transparent 60%)', display: 'flex', flexDirection: 'column' }}>
       <style>{`
-        @keyframes fadeInUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeInScale { from { opacity:0; transform:scale(0.98); } to { opacity:1; transform:scale(1); } }
         @keyframes typingBounce { 0%,80%,100% { transform:translateY(0); opacity:0.4; } 40% { transform:translateY(-5px); opacity:1; } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
-        .ssp-card { transition: box-shadow 0.2s, border-color 0.2s; }
-        .ssp-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.1); border-color: var(--border-hover) !important; }
-        .qa-btn { transition: all 0.15s; }
-        .qa-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: var(--bg-secondary) !important; }
+        .ssp-card { transition: box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), transform 0.25s cubic-bezier(0.4,0,0.2,1); }
+        .ssp-card:hover { box-shadow: var(--shadow-lg); border-color: var(--accent-border) !important; transform: translateY(-2px); }
+        .qa-btn { transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .qa-btn:hover { box-shadow: var(--shadow-md); background: var(--bg-secondary) !important; border-color: var(--accent-border) !important; transform: translateY(-2px); }
+        .qa-btn:active { transform: translateY(0) scale(0.98); }
         .typing-dot { width:6px; height:6px; border-radius:50%; background:#2563eb; animation: typingBounce 1.2s infinite ease-in-out; }
-        .ssp-input:focus { border-color: #2563eb !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.1) !important; }
-        .msg-in { animation: fadeInUp 0.2s ease-out; }
+        .ssp-input:focus { border-color: var(--accent-mid) !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important; }
+        .msg-in { animation: fadeInUp 0.25s cubic-bezier(0.4,0,0.2,1) forwards; }
+        .page-section { animation: fadeInUp 0.5s cubic-bezier(0.4,0,0.2,1) forwards; opacity:0; }
+        .kb-card { transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+        .kb-card:hover { background: var(--bg-secondary); border-color: var(--accent-border) !important; box-shadow: var(--shadow-md); transform: translateY(-3px); }
+        .kb-card:hover .kb-arrow { transform: translateX(4px); }
       `}</style>
 
       {/* ── Hero Header ─────────────────────────────────────────────────────── */}
       <div style={{
-        background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)',
-        padding: '24px 32px 48px',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #1e40af 65%, #2563eb 100%)',
+        padding: '28px 32px 40px',
         position: 'relative',
         overflow: 'hidden',
       }}>
         {/* Decorative blobs */}
-        <div style={{ position:'absolute', top:-60, right:-60, width:300, height:300, background:'rgba(255,255,255,0.05)', borderRadius:'50%', filter:'blur(40px)' }} />
-        <div style={{ position:'absolute', bottom:-80, left:100, width:200, height:200, background:'rgba(255,255,255,0.04)', borderRadius:'50%', filter:'blur(30px)' }} />
+        <div style={{ position:'absolute', top:-80, right:-40, width:340, height:340, background:'rgba(59,130,246,0.18)', borderRadius:'50%', filter:'blur(60px)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', bottom:-100, left:80, width:260, height:260, background:'rgba(37,99,235,0.14)', borderRadius:'50%', filter:'blur(50px)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', top:20, left:'40%', width:180, height:180, background:'rgba(147,197,253,0.08)', borderRadius:'50%', filter:'blur(45px)', pointerEvents:'none' }} />
 
-        <div style={{ maxWidth: 960, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', position: 'relative' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
             <div style={{ width:32, height:32, borderRadius:8, background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
               <Headphones size={16} color="white" />
@@ -384,12 +446,12 @@ export default function SelfServicePortal() {
       </div>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <div style={{ maxWidth:960, margin:'0 auto 0', padding:'24px 32px 60px', width:'100%', flex:1, boxSizing:'border-box', position:'relative', zIndex:1 }}>
+      <div style={{ maxWidth:1000, margin:'0 auto', padding:'32px 32px 60px', width:'100%', flex:1, boxSizing:'border-box' }}>
 
         {/* ── Quick Actions ──────────────────────────────────────────────────── */}
         {!search && (
-          <div style={{ marginBottom:32 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+          <div className="page-section" style={{ marginBottom:36, animationDelay:'0.1s' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {quickActions.map((qa, i) => (
                 <button
                   key={i}
@@ -397,15 +459,15 @@ export default function SelfServicePortal() {
                   onClick={() => handleQuickAction(qa.prompt)}
                   style={{
                     display:'flex', alignItems:'center', gap:12,
-                    padding:'14px 16px',
+                    padding:'16px 18px',
                     background:'var(--card)',
                     border:`1px solid var(--border)`,
-                    borderRadius:12, cursor:'pointer', textAlign:'left',
-                    boxShadow:'0 2px 8px rgba(0,0,0,0.06)',
+                    borderRadius:14, cursor:'pointer', textAlign:'left',
+                    boxShadow:'var(--shadow-sm)',
                   }}
                 >
-                  <div style={{ width:36, height:36, borderRadius:8, background:qa.bg, border:`1px solid ${qa.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <qa.icon size={16} color={qa.color} />
+                  <div style={{ width:38, height:38, borderRadius:10, background:qa.bg, border:`1px solid ${qa.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <qa.icon size={17} color={qa.color} />
                   </div>
                   <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{qa.label}</span>
                   <ChevronRight size={14} color="var(--text-muted)" style={{ marginLeft:'auto', flexShrink:0 }} />
@@ -416,15 +478,15 @@ export default function SelfServicePortal() {
         )}
 
         {/* ── Two-column layout: AI Chat + My Tickets ───────────────────────── */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:20, marginBottom:24 }}>
+        <div className="page-section" style={{ display:'grid', gridTemplateColumns:'minmax(0, 1fr) 360px', gap:24, marginBottom:32, animationDelay:'0.2s' }}>
 
           {/* ── AI Chat Panel ────────────────────────────────────────────────── */}
           <div className="ssp-card" style={{
             background:'var(--card)', border:'1px solid var(--border)',
             borderRadius:16, overflow:'hidden',
             display:'flex', flexDirection:'column',
-            minHeight:420, maxHeight:520,
-            boxShadow:'0 2px 8px rgba(0,0,0,0.06)',
+            minHeight:440, maxHeight:560,
+            boxShadow:'var(--shadow-sm)',
           }}>
             {/* Chat header */}
             <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
@@ -641,38 +703,61 @@ export default function SelfServicePortal() {
           </div>
 
           {/* ── Right Column: My Tickets + Submit ────────────────────────────── */}
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:20, minWidth:0 }}>
 
             {/* Submit a Request */}
-            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
-              <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <Plus size={15} color="#2563eb" />
+            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
+              <div style={{ padding:'16px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Plus size={14} color="white" />
+                  </div>
                   <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Submit a Request</span>
                 </div>
               </div>
               {!showTicketForm ? (
-                <div style={{ padding:16 }}>
-                  <p style={{ fontSize:13, color:'var(--text-muted)', margin:'0 0 12px', lineHeight:1.5 }}>
+                <div style={{ padding:20 }}>
+                  <p style={{ fontSize:13, color:'var(--text-muted)', margin:'0 0 16px', lineHeight:1.6 }}>
                     Can't find what you need? Submit a support request and our team will help you.
                   </p>
                   <button
                     onClick={() => setShowTicketForm(true)}
-                    style={{ width:'100%', padding:'10px', background:'linear-gradient(135deg,#2563eb,#4f46e5)', color:'white', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'all 0.15s ease' }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.3)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                    style={{ width:'100%', padding:'12px', background:'linear-gradient(135deg,#2563eb,#4f46e5)', color:'white', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)', boxShadow:'0 4px 14px rgba(37,99,235,0.25)' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(37,99,235,0.35)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.25)'; }}
                   >
-                    <Plus size={14} /> New Request
+                    <Plus size={15} /> New Request
                   </button>
                 </div>
               ) : ticketSuccess ? (
-                <div style={{ padding:24, textAlign:'center' }}>
-                  <CheckCircle2 size={32} color="#10b981" style={{ margin:'0 auto 10px' }} />
-                  <div style={{ fontSize:14, fontWeight:600, color:'var(--text)' }}>Request submitted!</div>
-                  <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>We'll be in touch soon.</div>
+                <div style={{ padding:28, textAlign:'center' }}>
+                  <div style={{ width:48, height:48, borderRadius:'50%', background:'var(--success-bg)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px' }}>
+                    <CheckCircle2 size={24} color="var(--success)" />
+                  </div>
+                  <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>Request submitted!</div>
+                  <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:6, lineHeight:1.5 }}>We'll be in touch soon.</div>
                 </div>
               ) : (
-                <form onSubmit={submitTicket} style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+                <div
+                  onDragOver={handleTicketDragOver}
+                  onDragLeave={handleTicketDragLeave}
+                  onDrop={handleTicketDrop}
+                  style={{ position:'relative' }}
+                >
+                  {/* Drag-over overlay */}
+                  {ticketDragOver && (
+                    <div style={{
+                      position:'absolute', inset:0, zIndex:10,
+                      background:'rgba(37,99,235,0.08)',
+                      border:'2px dashed #2563eb', borderRadius:8, margin:8,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      gap:8, fontSize:14, fontWeight:600, color:'#2563eb',
+                      pointerEvents:'none',
+                    }}>
+                      <UploadCloud size={20} /> Drop files to attach
+                    </div>
+                  )}
+                  <form onSubmit={submitTicket} style={{ padding:18, display:'flex', flexDirection:'column', gap:12 }}>
                   <input
                     autoFocus
                     className="input ssp-input"
@@ -687,9 +772,52 @@ export default function SelfServicePortal() {
                     onChange={e => setTicketForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="Describe the issue..."
                     rows={3}
-                    style={{ fontSize:12, resize:'vertical' }}
+                    style={{ fontSize:13, resize:'vertical', minHeight:72 }}
                   />
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {/* File Attachments */}
+                  <input
+                    ref={ticketFileInputRef}
+                    type="file"
+                    multiple
+                    style={{ display:'none' }}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setTicketFiles(prev => [...prev, ...files]);
+                      if (e.target) e.target.value = '';
+                    }}
+                  />
+                  {ticketFiles.length > 0 && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:6, padding:10, borderRadius:8, background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2 }}>Attachments</div>
+                      {ticketFiles.map((file, i) => (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, background:'var(--card)', border:'1px solid var(--border)', fontSize:12 }}>
+                          <div style={{ width:22, height:22, borderRadius:4, background:'rgba(37,99,235,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <FileText size={12} color="#2563eb" />
+                          </div>
+                          <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'var(--text)', fontWeight:500 }}>{file.name}</span>
+                          <span style={{ color:'var(--text-muted)', flexShrink:0, fontSize:11 }}>{(file.size / 1024).toFixed(0)}KB</span>
+                          <button type="button" onClick={() => setTicketFiles(prev => prev.filter((_, j) => j !== i))}
+                            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:2, display:'flex', borderRadius:4, transition:'all 0.15s ease' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => ticketFileInputRef.current?.click()}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, border:'1.5px dashed var(--border)', background:'var(--bg-secondary)', color:'var(--text-muted)', cursor:'pointer', fontSize:12, justifyContent:'center', fontWeight:500, transition:'all 0.2s ease' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-subtle)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                  >
+                    <UploadCloud size={14} />
+                    {ticketFiles.length > 0 ? `${ticketFiles.length} file(s) attached` : 'Attach screenshots or files'}
+                  </button>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
                     <select className="select" value={ticketForm.priority} onChange={e => setTicketForm(f => ({ ...f, priority: e.target.value }))} style={{ fontSize:12 }}>
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
@@ -702,51 +830,64 @@ export default function SelfServicePortal() {
                       <option value="problem">Problem</option>
                     </select>
                   </div>
-                  {ticketError && <div style={{ fontSize:12, color:'var(--danger)', padding:'6px 10px', background:'var(--danger-bg)', borderRadius:6 }}>{ticketError}</div>}
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button type="submit" disabled={ticketLoading} className="btn btn-primary" style={{ flex:1, fontSize:12, height:34 }}>
-                      {ticketLoading ? <Loader2 size={13} className="animate-spin" /> : 'Submit'}
+                  {ticketError && <div style={{ fontSize:12, color:'var(--danger)', padding:'8px 12px', background:'var(--danger-bg)', borderRadius:8, border:'1px solid var(--danger-border)' }}>{ticketError}</div>}
+                  <div style={{ display:'flex', gap:10, marginTop:4 }}>
+                    <button type="submit" disabled={ticketLoading} className="btn btn-primary" style={{ flex:1, fontSize:13, height:40, borderRadius:10, boxShadow:'0 4px 14px rgba(37,99,235,0.2)', transition:'all 0.2s ease' }}
+                      onMouseEnter={e => { if (!ticketLoading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(37,99,235,0.3)'; } }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.2)'; }}
+                    >
+                      {ticketLoading ? <Loader2 size={14} className="animate-spin" /> : 'Submit Request'}
                     </button>
-                    <button type="button" onClick={() => { setShowTicketForm(false); setTicketError(''); }} className="btn btn-ghost" style={{ fontSize:12, height:34 }}>Cancel</button>
+                    <button type="button" onClick={() => { setShowTicketForm(false); setTicketError(''); }} className="btn btn-ghost" style={{ fontSize:13, height:40, borderRadius:10 }}>Cancel</button>
                   </div>
                 </form>
+                </div>
               )}
             </div>
 
             {/* My Tickets */}
-            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', flex:1 }}>
-              <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <MessageSquare size={15} color="#2563eb" />
+            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', flex:1 }}>
+              <div style={{ padding:'16px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <MessageSquare size={14} color="white" />
+                  </div>
                   <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>My Requests</span>
                 </div>
-                <a href="/dashboard/tickets" style={{ fontSize:12, color:'#2563eb', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:500 }}>
+                <a href="/dashboard/tickets" style={{ fontSize:12, color:'var(--accent)', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:600, transition:'all 0.15s ease' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateX(2px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.transform = 'translateX(0)'; }}
+                >
                   View all <ArrowRight size={12} />
                 </a>
               </div>
-              <div style={{ padding:'8px' }}>
+              <div style={{ padding:'10px' }}>
                 {ticketsLoading ? (
-                  <div style={{ padding:24, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
+                  <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
                 ) : myTickets.length === 0 ? (
-                  <div style={{ padding:'24px 16px', textAlign:'center' }}>
-                    <CheckCircle2 size={28} color="#10b981" style={{ margin:'0 auto 8px' }} />
-                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>All clear!</div>
-                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>No open requests.</div>
+                  <div style={{ padding:'28px 20px', textAlign:'center' }}>
+                    <div style={{ width:44, height:44, borderRadius:'50%', background:'var(--success-bg)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
+                      <CheckCircle2 size={20} color="var(--success)" />
+                    </div>
+                    <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>All clear!</div>
+                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, lineHeight:1.5 }}>No open requests.</div>
                   </div>
                 ) : myTickets.map(ticket => {
                   const s = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
                   const SIcon = s.icon;
                   return (
-                    <a key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 8px', borderRadius:8, textDecoration:'none', transition:'background 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    <a key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 10px', borderRadius:10, textDecoration:'none', transition:'all 0.2s ease', border:'1px solid transparent', marginBottom:4 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
                     >
-                      <SIcon size={14} color={s.color} style={{ flexShrink:0 }} />
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ticket.title}</div>
-                        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{new Date(ticket.created_at).toLocaleDateString()}</div>
+                      <div style={{ width:28, height:28, borderRadius:8, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <SIcon size={14} color={s.color} />
                       </div>
-                      <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0 }}>{s.label}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ticket.title}</div>
+                        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{new Date(ticket.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0, letterSpacing:'0.02em' }}>{s.label}</span>
                     </a>
                   );
                 })}
@@ -756,48 +897,66 @@ export default function SelfServicePortal() {
         </div>
 
         {/* ── Knowledge Base ─────────────────────────────────────────────────── */}
-        <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', marginBottom: isAdmin ? 24 : 0 }}>
-          <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <BookOpen size={15} color="#2563eb" />
+        <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom: isAdmin ? 24 : 0, animationDelay:'0.3s' }}>
+          <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <BookOpen size={14} color="white" />
+              </div>
               <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Knowledge Base</span>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ position:'relative' }}>
-                <Search size={13} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+                <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
                 <input
                   value={kbSearch}
                   onChange={e => setKbSearch(e.target.value)}
                   placeholder="Search articles..."
-                  style={{ padding:'5px 10px 5px 26px', border:'1px solid var(--border)', borderRadius:6, fontSize:12, background:'var(--bg)', color:'var(--text)', outline:'none', width:160 }}
+                  style={{ padding:'6px 10px 6px 30px', border:'1px solid var(--border)', borderRadius:8, fontSize:12, background:'var(--bg)', color:'var(--text)', outline:'none', width:180, transition:'border-color 0.2s, box-shadow 0.2s' }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.08)'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                 />
               </div>
-              <a href="/dashboard/knowledge" style={{ fontSize:12, color:'#2563eb', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:500 }}>
+              <a href="/dashboard/knowledge" style={{ fontSize:12, color:'var(--accent)', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:600, transition:'all 0.15s ease' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateX(2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.transform = 'translateX(0)'; }}
+              >
                 Browse all <ArrowRight size={12} />
               </a>
             </div>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16, padding:16 }}>
             {kbArticles.length === 0 ? (
               <div style={{ gridColumn:'1/-1', padding:'32px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>No articles found.</div>
             ) : kbArticles.map((article, i) => (
               <a
                 key={article.id}
                 href={`/dashboard/knowledge/${article.slug}`}
+                className="kb-card"
                 style={{
-                  display:'flex', alignItems:'flex-start', gap:10, padding:'14px 16px',
+                  display:'flex', flexDirection:'column', gap:10, padding:'16px',
                   textDecoration:'none', color:'var(--text)',
-                  borderRight: (i+1) % 3 !== 0 ? '1px solid var(--border-subtle)' : 'none',
-                  borderBottom: i < kbArticles.length - 3 ? '1px solid var(--border-subtle)' : 'none',
-                  transition:'background 0.15s',
+                  background:'var(--card)',
+                  border:'1px solid var(--border)',
+                  borderRadius:12,
+                  boxShadow:'var(--shadow-sm)',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <FileText size={14} color="#2563eb" style={{ flexShrink:0, marginTop:2 }} />
-                <div style={{ minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{article.title}</div>
-                  {article.category_name && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{article.category_name}</div>}
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ width:32, height:32, borderRadius:8, background:'var(--accent-subtle)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <FileText size={14} color="var(--accent)" />
+                  </div>
+                  {article.category_name && (
+                    <span style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', color:'var(--accent)', background:'var(--accent-subtle)', padding:'2px 8px', borderRadius:6, border:'1px solid var(--accent-border)' }}>
+                      {article.category_name}
+                    </span>
+                  )}
+                </div>
+                <div style={{ minWidth:0, flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, color:'var(--text)' }}>{article.title}</div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted)', fontWeight:500 }}>
+                  Read article <ArrowRight size={11} style={{ transition:'transform 0.2s ease' }} className="kb-arrow" />
                 </div>
               </a>
             ))}
@@ -806,7 +965,7 @@ export default function SelfServicePortal() {
 
         {/* ── Admin: SSP Documents ───────────────────────────────────────────── */}
         {isAdmin && (
-          <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+          <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', animationDelay:'0.4s' }}>
             <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <Shield size={15} color="#8b5cf6" />
