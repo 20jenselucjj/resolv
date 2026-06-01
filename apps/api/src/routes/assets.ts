@@ -139,6 +139,42 @@ const agentRegisterSchema = z.object({
   agent_secret: z.string(),
 });
 
+interface MatchedUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+}
+
+async function matchWindowsUser(username: string): Promise<MatchedUser | null> {
+  // Strategy 1: exact match on windows_username column
+  const winResult = await pool.query(
+    `SELECT id, name, email, avatar_url FROM users WHERE windows_username=$1 AND is_active=true LIMIT 1`,
+    [username]
+  );
+  if (winResult.rows.length > 0) return winResult.rows[0];
+
+  // Strategy 2: username contains @ → direct email match
+  if (username.includes('@')) {
+    const emailResult = await pool.query(
+      `SELECT id, name, email, avatar_url FROM users WHERE LOWER(email)=LOWER($1) AND is_active=true LIMIT 1`,
+      [username]
+    );
+    if (emailResult.rows.length > 0) return emailResult.rows[0];
+  }
+
+  // Strategy 3: username as email local-part (e.g. "jdoe" → "jdoe@company.com")
+  if (!username.includes('@')) {
+    const localResult = await pool.query(
+      `SELECT id, name, email, avatar_url FROM users WHERE LOWER(email) LIKE LOWER($1) AND is_active=true LIMIT 1`,
+      [`${username}@%`]
+    );
+    if (localResult.rows.length > 0) return localResult.rows[0];
+  }
+
+  return null;
+}
+
 export default async function assetRoutes(fastify: FastifyInstance) {
   // ─── Agent Download ─────────────────────────────────────────────────────────
 
@@ -641,39 +677,7 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       for (const u of humanSessions) {
         if (!u.username) continue;
 
-        // Try to match this Windows user to a Resolv user
-        let matchedUser: { id: string; name: string; email: string; avatar_url: string | null } | null = null;
-
-        // Strategy 1: Exact match on windows_username column
-        const winResult = await pool.query(
-          `SELECT id, name, email, avatar_url FROM users WHERE windows_username=$1 AND is_active=true LIMIT 1`,
-          [u.username]
-        );
-        if (winResult.rows.length > 0) {
-          matchedUser = winResult.rows[0];
-        }
-
-        // Strategy 2: Username contains @ → try direct email match
-        if (!matchedUser && u.username.includes('@')) {
-          const emailResult = await pool.query(
-            `SELECT id, name, email, avatar_url FROM users WHERE LOWER(email)=LOWER($1) AND is_active=true LIMIT 1`,
-            [u.username]
-          );
-          if (emailResult.rows.length > 0) {
-            matchedUser = emailResult.rows[0];
-          }
-        }
-
-        // Strategy 3: Try username as email local-part (e.g. "jdoe" → "jdoe@company.com")
-        if (!matchedUser && !u.username.includes('@')) {
-          const localResult = await pool.query(
-            `SELECT id, name, email, avatar_url FROM users WHERE LOWER(email) LIKE LOWER($1) AND is_active=true LIMIT 1`,
-            [`${u.username}@%`]
-          );
-          if (localResult.rows.length > 0) {
-            matchedUser = localResult.rows[0];
-          }
-        }
+        const matchedUser = await matchWindowsUser(u.username);
 
         // Insert the user session record
         await pool.query(`

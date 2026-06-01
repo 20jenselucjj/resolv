@@ -172,20 +172,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const userExists = result.rows.length > 0;
 
       if (userExists) {
-        // Generate a random reset token
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
-
-        // Store token
         passwordResets.set(token, { email: result.rows[0].email, expiresAt });
 
-        // Log the reset link to console (no email service configured)
         const protocol = request.protocol;
         const host = request.headers.host || request.hostname;
         const resetLink = `${protocol}://${host}/reset-password?token=${token}`;
         fastify.log.info(`Password reset link for ${email}: ${resetLink}`);
-        console.log(`\n🔐 PASSWORD RESET LINK (for ${email}):`);
-        console.log(`   ${resetLink}\n`);
+        console.log(`\n🔐 PASSWORD RESET LINK (for ${email}):\n   ${resetLink}\n`);
       }
 
       // Always return the same message regardless of whether email exists

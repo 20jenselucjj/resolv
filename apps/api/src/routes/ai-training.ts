@@ -5,16 +5,48 @@ import { PDFParse } from 'pdf-parse'
 import * as XLSX from 'xlsx'
 import { cosineSimilarity, recursiveChunkText, getEmbedding, processSource, normalizeScores } from './ai-training/helpers'
 
+interface AiConfig {
+  api_key?: string;
+  base_url?: string;
+  model?: string;
+  system_prompt?: string;
+  temperature?: number;
+  max_tokens?: number;
+  embedding_model?: string;
+  enabled?: boolean;
+}
+
+interface RagConfig {
+  retrieval_strategy?: string;
+  top_k?: number;
+  similarity_threshold?: number | string;
+  semantic_weight?: number | string;
+  chunk_size?: number;
+  chunk_overlap?: number;
+  enabled?: boolean;
+  inject_context?: boolean;
+}
+
+const DEFAULT_RAG_CONFIG: RagConfig = { chunk_size: 512, chunk_overlap: 64 };
+
+async function loadAiConfig(): Promise<{ cfg: AiConfig | null; ragCfg: RagConfig }> {
+  const [{ rows: cfgRows }, { rows: ragRows }] = await Promise.all([
+    pool.query('SELECT * FROM ai_config LIMIT 1'),
+    pool.query('SELECT * FROM ai_rag_config LIMIT 1'),
+  ]);
+  return { cfg: cfgRows[0] || null, ragCfg: ragRows[0] || DEFAULT_RAG_CONFIG };
+}
+
 // ─── RAG Retrieval (exported for use in ai.ts) ───────────────────────────────
 export async function retrieveContext(
   query: string,
-  cfg: any,
-  ragCfg: any
+  cfg: AiConfig | null,
+  ragCfg: RagConfig
 ): Promise<{ chunks: any[]; qaPairs: any[]; strategy: string }> {
   const strategy = ragCfg.retrieval_strategy || 'hybrid'
   const topK = ragCfg.top_k || 5
-  const threshold = parseFloat(ragCfg.similarity_threshold) || 0.70
-  const semanticWeight = parseFloat(ragCfg.semantic_weight) || 0.6 // weight for semantic vs keyword in hybrid
+  const threshold = parseFloat(ragCfg.similarity_threshold as any) || 0.70
+  const semanticWeight = parseFloat(ragCfg.semantic_weight as any) || 0.6 // weight for semantic vs keyword in hybrid
 
   let chunks: any[] = []
   let qaPairs: any[] = []
@@ -248,10 +280,7 @@ export async function syncTicketToKnowledgeBase(ticketId: string, userId: string
       [sourceName]
     )
 
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     if (existing.length > 0) {
       await pool.query(
@@ -372,10 +401,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const source = rows[0]
 
     // Load configs for processing
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     // Process asynchronously (don't await — return immediately)
     processSource(source.id, finalContent, cfg, ragCfg).catch(console.error)
@@ -476,10 +502,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const source = rows[0]
 
     // Load configs for processing
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     // Process asynchronously
     processSource(source.id, extractedText, cfg, ragCfg).catch(console.error)
@@ -522,10 +545,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
 
     // If raw_content changed, reprocess the source
     if (body.raw_content !== undefined) {
-      const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-      const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-      const cfg = cfgRows[0] || null
-      const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+      const { cfg, ragCfg } = await loadAiConfig()
       processSource(id, body.raw_content, cfg, ragCfg).catch(console.error)
     }
 
@@ -554,10 +574,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     if (rows.length === 0) return reply.status(404).send({ error: 'Source not found' })
 
     const source = rows[0]
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     processSource(source.id, source.raw_content, cfg, ragCfg).catch(console.error)
 
@@ -598,8 +615,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Question and answer are required' })
     }
 
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const cfg = cfgRows[0] || null
+    const { cfg } = await loadAiConfig()
     const embedding = cfg?.api_key ? await getEmbedding(`${question} ${answer}`, cfg) : null
 
     const { rows } = await pool.query(
@@ -607,7 +623,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [question.trim(), answer.trim(), category || null, tags || [],
        embedding ? JSON.stringify(embedding) : null,
-       embedding ? (cfg.embedding_model || 'text-embedding-3-small') : null,
+       embedding ? (cfg?.embedding_model || 'text-embedding-3-small') : null,
        user.id]
     )
 
@@ -619,8 +635,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const { id } = req.params as any
     const body = req.body as any
 
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const cfg = cfgRows[0] || null
+    const { cfg } = await loadAiConfig()
 
     let embedding = undefined
     if (body.question || body.answer) {
@@ -661,10 +676,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const { query } = body
     if (!query?.trim()) return reply.status(400).send({ error: 'Query is required' })
 
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { retrieval_strategy: 'hybrid', top_k: 5, similarity_threshold: 0.70 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     const startTime = Date.now()
     let chunks: any[] = []
@@ -713,7 +725,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
               { role: 'system', content: `${cfg.system_prompt}\n\nUse the following context to answer:\n\n${contextPreview}` },
               { role: 'user', content: query }
             ],
-            temperature: parseFloat(cfg.temperature),
+            temperature: parseFloat(cfg.temperature as any),
             max_tokens: cfg.max_tokens
           })
         })
@@ -807,10 +819,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
       `SELECT id, title, body, tags FROM knowledge_articles WHERE status='published'`
     )
 
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     let synced = 0
     for (const article of articles) {
@@ -867,10 +876,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
       [limit]
     )
 
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    const { rows: ragRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-    const cfg = cfgRows[0] || null
-    const ragCfg = ragRows[0] || { chunk_size: 512, chunk_overlap: 64 }
+    const { cfg, ragCfg } = await loadAiConfig()
 
     let synced = 0
     for (const ticket of tickets) {

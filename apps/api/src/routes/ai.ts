@@ -9,6 +9,150 @@ import { pipeline } from 'stream/promises'
 const AI_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'ai')
 if (!fs.existsSync(AI_UPLOAD_DIR)) fs.mkdirSync(AI_UPLOAD_DIR, { recursive: true })
 
+const PORTAL_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_tickets',
+      description: 'Get your submitted tickets',
+      parameters: {
+        type: 'object',
+        properties: { status: { type: 'string', enum: ['open','in_progress','resolved','closed','all'] } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_ticket',
+      description: 'Get details of your ticket by ID',
+      parameters: {
+        type: 'object',
+        properties: { ticket_id: { type: 'string' } },
+        required: ['ticket_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_ticket',
+      description: 'Create a support ticket. Ask follow-up questions if the issue description is vague. Create a concise title that describes the issue — do NOT put the user name in the title. You will automatically be set as the requester.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Short, issue-focused title describing WHAT the problem is (not who needs it). Max 10 words. Example: "VPN connection failing after update" not "Alfonso needs VPN access".' },
+          description: { type: 'string', description: 'Detailed description including what, when, and any troubleshooting already tried. Ask follow-up questions if the user gives too little detail.' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'How urgent is this issue. Default medium.' },
+          ticket_type: { type: 'string', enum: ['incident', 'service_request', 'problem', 'change'], description: 'Type of request. Default incident.' },
+          category_name: { type: 'string', description: 'Must match an existing category name exactly. Available categories: IT Support, Network, Hardware, Software, Security, HR, Facilities. Example: "Network" for internet issues, "IT Support" for password resets.' },
+          tags: { type: 'string', description: 'Comma-separated tags (optional)' },
+          attachment_ids: { type: 'array', items: { type: 'string' }, description: 'IDs of files uploaded in this chat to attach to the ticket. Include any relevant uploaded files.' },
+        },
+        required: ['title', 'description']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_knowledge',
+      description: 'Search the knowledge base for helpful articles',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query']
+      }
+    }
+  }
+]
+
+const AGENT_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'search_tickets',
+      description: 'Search tickets by keyword, status, or priority',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          status: { type: 'string', enum: ['open','in_progress','resolved','closed'] },
+          priority: { type: 'string', enum: ['low','medium','high','critical'] },
+          limit: { type: 'number' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_ticket',
+      description: 'Get details of a specific ticket by ID',
+      parameters: {
+        type: 'object',
+        properties: { ticket_id: { type: 'string' } },
+        required: ['ticket_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_ticket',
+      description: 'Create a new support ticket. Ask follow-up questions if details are vague. Create a concise title — do NOT put user names in the title. Names are matched to accounts automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Short issue-focused title describing WHAT the problem is (not who). Max 10 words. Example: "VPN connection failing after update" not "Alfonso needs VPN".' },
+          description: { type: 'string', description: 'Full description. Ask follow-up questions if the user gives too little detail. Include: what happened, when, steps to reproduce, troubleshooting attempted.' },
+          priority: { type: 'string', enum: ['low','medium','high','critical'], description: 'Issue priority level. Default medium.' },
+          ticket_type: { type: 'string', enum: ['incident','service_request','problem','change'], description: 'Type of ticket. Default incident.' },
+          status: { type: 'string', enum: ['open','in_progress','waiting','resolved','closed'], description: 'Ticket status (default: open)' },
+          assigned_to_name: { type: 'string', description: 'Full name of the person to assign to (e.g. "Lucas"). Matched to user accounts by name.' },
+          reporter_name: { type: 'string', description: 'Full name of the person reporting. Defaults to you if not set. (e.g. "Alfonso Bianca")' },
+          category_name: { type: 'string', description: 'Must match an existing category name exactly. Available: IT Support, Network, Hardware, Software, Security, HR, Facilities. Example: "Network" for VPN issues, "IT Support" for password resets.' },
+          due_date: { type: 'string', description: 'Due date in ISO 8601 (e.g. "2026-06-01"). If not set, automatically calculated from SLA policy.' },
+          tags: { type: 'string', description: 'Comma-separated tags (optional)' },
+          attachment_ids: { type: 'array', items: { type: 'string' }, description: 'IDs of files uploaded in chat to attach to the ticket. Include any relevant uploaded files.' },
+        },
+        required: ['title', 'description']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_my_tickets',
+      description: 'Get tickets submitted by the current user',
+      parameters: {
+        type: 'object',
+        properties: { status: { type: 'string', enum: ['open','in_progress','resolved','closed','all'] } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_knowledge',
+      description: 'Search the knowledge base for articles',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_stats',
+      description: 'Get ticket statistics (admin/agent only)',
+      parameters: { type: 'object', properties: {} }
+    }
+  }
+]
+
 export async function aiRoutes(app: FastifyInstance) {
   // Auto-create ai_chat_files table if it doesn't exist yet
   await pool.query(`
@@ -287,152 +431,8 @@ When creating tickets:
     }
 
     // Define tools based on AI type
-    // Portal AI (self-service) has limited tools - read-only access
-    // Admin/Agent AI has full tool access
     const isPortalAI = isPortalUser
-    const tools = isPortalAI ? [
-      // Self-service portal tools - customer-focused with ticket creation
-      {
-        type: 'function',
-        function: {
-          name: 'get_my_tickets',
-          description: 'Get your submitted tickets',
-          parameters: {
-            type: 'object',
-            properties: { status: { type: 'string', enum: ['open','in_progress','resolved','closed','all'] } }
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_ticket',
-          description: 'Get details of your ticket by ID',
-          parameters: {
-            type: 'object',
-            properties: { ticket_id: { type: 'string' } },
-            required: ['ticket_id']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'create_ticket',
-          description: 'Create a support ticket. Ask follow-up questions if the issue description is vague. Create a concise title that describes the issue — do NOT put the user name in the title. You will automatically be set as the requester.',
-          parameters: {
-            type: 'object',
-            properties: {
-              title: { type: 'string', description: 'Short, issue-focused title describing WHAT the problem is (not who needs it). Max 10 words. Example: "VPN connection failing after update" not "Alfonso needs VPN access".' },
-              description: { type: 'string', description: 'Detailed description including what, when, and any troubleshooting already tried. Ask follow-up questions if the user gives too little detail.' },
-              priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'How urgent is this issue. Default medium.' },
-              ticket_type: { type: 'string', enum: ['incident', 'service_request', 'problem', 'change'], description: 'Type of request. Default incident.' },
-              category_name: { type: 'string', description: 'Must match an existing category name exactly. Available categories: IT Support, Network, Hardware, Software, Security, HR, Facilities. Example: "Network" for internet issues, "IT Support" for password resets.' },
-              tags: { type: 'string', description: 'Comma-separated tags (optional)' },
-              attachment_ids: { type: 'array', items: { type: 'string' }, description: 'IDs of files uploaded in this chat to attach to the ticket. Include any relevant uploaded files.' },
-            },
-            required: ['title', 'description']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'search_knowledge',
-          description: 'Search the knowledge base for helpful articles',
-          parameters: {
-            type: 'object',
-            properties: { query: { type: 'string' } },
-            required: ['query']
-          }
-        }
-      }
-    ] : [
-      // Admin/Agent AI tools - full access
-      {
-        type: 'function',
-        function: {
-          name: 'search_tickets',
-          description: 'Search tickets by keyword, status, or priority',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: { type: 'string' },
-              status: { type: 'string', enum: ['open','in_progress','resolved','closed'] },
-              priority: { type: 'string', enum: ['low','medium','high','critical'] },
-              limit: { type: 'number' }
-            }
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_ticket',
-          description: 'Get details of a specific ticket by ID',
-          parameters: {
-            type: 'object',
-            properties: { ticket_id: { type: 'string' } },
-            required: ['ticket_id']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'create_ticket',
-          description: 'Create a new support ticket. Ask follow-up questions if details are vague. Create a concise title — do NOT put user names in the title. Names are matched to accounts automatically.',
-          parameters: {
-            type: 'object',
-            properties: {
-              title: { type: 'string', description: 'Short issue-focused title describing WHAT the problem is (not who). Max 10 words. Example: "VPN connection failing after update" not "Alfonso needs VPN".' },
-              description: { type: 'string', description: 'Full description. Ask follow-up questions if the user gives too little detail. Include: what happened, when, steps to reproduce, troubleshooting attempted.' },
-              priority: { type: 'string', enum: ['low','medium','high','critical'], description: 'Issue priority level. Default medium.' },
-              ticket_type: { type: 'string', enum: ['incident','service_request','problem','change'], description: 'Type of ticket. Default incident.' },
-              status: { type: 'string', enum: ['open','in_progress','waiting','resolved','closed'], description: 'Ticket status (default: open)' },
-              assigned_to_name: { type: 'string', description: 'Full name of the person to assign to (e.g. "Lucas"). Matched to user accounts by name.' },
-              reporter_name: { type: 'string', description: 'Full name of the person reporting. Defaults to you if not set. (e.g. "Alfonso Bianca")' },
-              category_name: { type: 'string', description: 'Must match an existing category name exactly. Available: IT Support, Network, Hardware, Software, Security, HR, Facilities. Example: "Network" for VPN issues, "IT Support" for password resets.' },
-              due_date: { type: 'string', description: 'Due date in ISO 8601 (e.g. "2026-06-01"). If not set, automatically calculated from SLA policy.' },
-              tags: { type: 'string', description: 'Comma-separated tags (optional)' },
-              attachment_ids: { type: 'array', items: { type: 'string' }, description: 'IDs of files uploaded in chat to attach to the ticket. Include any relevant uploaded files.' },
-            },
-            required: ['title', 'description']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_my_tickets',
-          description: 'Get tickets submitted by the current user',
-          parameters: {
-            type: 'object',
-            properties: { status: { type: 'string', enum: ['open','in_progress','resolved','closed','all'] } }
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'search_knowledge',
-          description: 'Search the knowledge base for articles',
-          parameters: {
-            type: 'object',
-            properties: { query: { type: 'string' } },
-            required: ['query']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_stats',
-          description: 'Get ticket statistics (admin/agent only)',
-          parameters: { type: 'object', properties: {} }
-        }
-      }
-    ]
+    const tools = isPortalAI ? PORTAL_TOOLS : AGENT_TOOLS
 
     // Call AI API with appropriate settings
     const apiBase = (cfg.base_url || '').replace(/\/+$/, '')
