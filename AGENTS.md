@@ -4,28 +4,72 @@
 
 Monorepo (npm workspaces: `apps/*`, `packages/*`). IT service management platform.
 
-- `apps/api` — Fastify 4 backend (TypeScript, CommonJS, ts-node-dev)
+- `apps/api` — Fastify 4 backend (TypeScript, CommonJS, ts-node-dev). Entry: `src/index.ts`
 - `apps/web` — Next.js 16 App Router frontend (React 19, TypeScript, Tailwind 4)
-- `packages/shared` — Shared types enums/interfaces (`@resolv/shared`)
+- `apps/agent` — **Two sub-implementations** (not in npm workspaces, managed independently):
+  - `apps/agent/node-agent/` — Plain Node.js Windows service agent; built to `.exe` via `pkg`. Entry: `agent.js`
+  - `apps/agent/` — Electron wrapper (separate; uses `electron-builder` for NSIS installer)
+- `apps/agent-windows` — C# `ResolvAgent.csproj` alternative Windows agent (not the active build path)
+- `packages/shared` — Shared types/enums/interfaces (`@resolv/shared`)
 
-## Build / Lint / Test Commands
+## Build / Dev Commands
 
 ```bash
-# Root (both apps in parallel)
-npm run dev            # dev:web + dev:api concurrently
-npm run build          # build:web then build:api
+# Root (from repo root — kills ports 3000/3001 first via predev hook, then runs both in parallel)
+npm run dev            # concurrently: dev:web + dev:api
+npm run build          # build:web then build:api (sequential)
 
-# API (apps/api)
+# API (apps/api) — or via root shortcut
 npm run dev:api        # ts-node-dev --respawn --transpile-only src/index.ts
-npm run build          # tsc
+npm run build          # (in apps/api) tsc
 
-# Web (apps/web)
+# Web (apps/web) — or via root shortcut
 npm run dev:web        # next dev
-npm run build          # next build
+npm run build          # (in apps/web) next build
 npm run lint           # eslint (Flat config: eslint.config.mjs)
+
+# node-agent (apps/agent/node-agent — NOT in npm workspaces; manage independently)
+npm run build          # bundles nssm then: pkg agent.js → dist/ResolvAgent.exe (node18-win-x64)
+npm run start          # node agent.js (local run, no service install)
+
+# Electron agent (apps/agent — also NOT in npm workspaces)
+npm run build          # tsc
+npm run package        # tsc + electron-builder → NSIS installer
 ```
 
-**No test framework or test files exist yet.** There are no `.test.ts` or `.spec.ts` files in the project source. If adding tests, use a simple approach consistent with the existing code (no jest/playwright config exists). Prefer `node --test` or manual scripts for now.
+**`npm run dev` auto-kills ports 3000 and 3001 before starting** (`predev` hook via `scripts/kill-dev-ports.js`). If you start web/api individually, kill those ports manually first or you'll get EADDRINUSE.
+
+**No test framework or test files exist.** Prefer `node --test` or standalone scripts. No jest/playwright config.
+
+## DB Setup & Migrations
+
+All migration scripts live in `apps/api/src/db/` and run against the pool in `src/db/pool.ts`.
+
+```bash
+# From apps/api:
+node src/db/run_schema.js    # create schema (idempotent-ish; run on fresh DB)
+node src/db/run_seed.js      # seed initial data
+node src/db/run_migration.js # run incremental migrations (e.g. migrate_users_sessions.sql)
+```
+
+Required env vars (copy `.env.example` → `.env` in `apps/api`):
+```
+DATABASE_URL=postgresql://postgres:password@localhost:5432/resolv
+JWT_SECRET=...
+PORT=3001
+WEB_URL=http://localhost:3000
+```
+
+## Agent Deployment (Windows)
+
+The active production path is `apps/agent/node-agent/` → `dist/ResolvAgent.exe`, installed as a Windows service via NSSM.
+
+```powershell
+# deploy.ps1 (repo root) — stop service, replace exe, restart
+.\deploy.ps1
+```
+
+`apps/agent/node-agent/config.json` holds `serverUrl`, `agentSecret`, `assetId`, `agentToken`. **Do not commit real tokens.** The file is not gitignored by default — verify before committing.
 
 ## Code Style Guidelines
 
