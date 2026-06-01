@@ -32,6 +32,7 @@ import {
 
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { SelectSearch } from '@/components/SelectSearch';
 
 interface AssetHardware {
   cpu_usage_percent?: number | null;
@@ -939,44 +940,44 @@ export default function AssetsPage() {
               />
             </div>
 
-            <select
-              value={filters.asset_type}
-              onChange={(event) => handleFilterChange('asset_type', event.target.value)}
-              style={{ ...inputStyle, width: 170 }}
-            >
-              <option value="">All Types</option>
-              {Object.entries(ASSET_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div style={{ width: 170 }}>
+              <SelectSearch
+                options={Object.entries(ASSET_TYPE_LABELS).map(([value, label]) => ({
+                  value,
+                  label
+                }))}
+                value={filters.asset_type || null}
+                onChange={(val) => handleFilterChange('asset_type', val || '')}
+                placeholder="All Types"
+                allowClear
+              />
+            </div>
 
-            <select
-              value={filters.status}
-              onChange={(event) => handleFilterChange('status', event.target.value)}
-              style={{ ...inputStyle, width: 170 }}
-            >
-              <option value="">All Statuses</option>
-              {['active', 'inactive', 'retired', 'maintenance', 'disposed'].map((status) => (
-                <option key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </option>
-              ))}
-            </select>
+            <div style={{ width: 170 }}>
+              <SelectSearch
+                options={['active', 'inactive', 'retired', 'maintenance', 'disposed'].map((status) => ({
+                  value: status,
+                  label: status.charAt(0).toUpperCase() + status.slice(1)
+                }))}
+                value={filters.status || null}
+                onChange={(val) => handleFilterChange('status', val || '')}
+                placeholder="All Statuses"
+                allowClear
+              />
+            </div>
 
-            <select
-              value={filters.group_id}
-              onChange={(event) => handleFilterChange('group_id', event.target.value)}
-              style={{ ...inputStyle, width: 170 }}
-            >
-              <option value="">All Groups</option>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+            <div style={{ width: 170 }}>
+              <SelectSearch
+                options={groups.map((group) => ({
+                  value: group.id,
+                  label: group.name
+                }))}
+                value={filters.group_id || null}
+                onChange={(val) => handleFilterChange('group_id', val || '')}
+                placeholder="All Groups"
+                allowClear
+              />
+            </div>
 
             <button
               onClick={() => setShowFilters((previous) => !previous)}
@@ -1023,16 +1024,19 @@ export default function AssetsPage() {
                 alignItems: 'center'
               }}
             >
-              <select
-                value={filters.agent_status}
-                onChange={(event) => handleFilterChange('agent_status', event.target.value)}
-                style={{ ...inputStyle, width: 170 }}
-              >
-                <option value="">All Agent States</option>
-                <option value="online">Online</option>
-                <option value="offline">Offline</option>
-                <option value="unknown">Unknown</option>
-              </select>
+              <div style={{ width: 170 }}>
+                <SelectSearch
+                  options={[
+                    { value: 'online', label: 'Online' },
+                    { value: 'offline', label: 'Offline' },
+                    { value: 'unknown', label: 'Unknown' }
+                  ]}
+                  value={filters.agent_status || null}
+                  onChange={(val) => handleFilterChange('agent_status', val || '')}
+                  placeholder="All Agent States"
+                  allowClear
+                />
+              </div>
 
               {filterCount > 0 && (
                 <button

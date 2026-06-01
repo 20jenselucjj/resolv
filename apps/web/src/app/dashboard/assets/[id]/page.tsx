@@ -866,6 +866,18 @@ export default function AssetDetailPage({
   const [resyncing, setResyncing] = React.useState(false);
   const [notice, setNotice] = React.useState<{ tone: NoticeTone; text: string } | null>(null);
   const [showEditModal, setShowEditModal] = React.useState(false);
+  const [editingPanel, setEditingPanel] = React.useState<'organization' | 'lifecycle' | null>(null);
+  const [panelForm, setPanelForm] = React.useState({
+    assigned_to_name: '',
+    department: '',
+    location: '',
+    company: '',
+    vendor: '',
+    purchase_date: '',
+    warranty_expiry: '',
+    purchase_cost: ''
+  });
+  const [savingPanel, setSavingPanel] = React.useState(false);
 
   const fetchAsset = React.useCallback(async () => {
     setLoading(true);
@@ -1298,30 +1310,199 @@ export default function AssetDetailPage({
                   />
                 </Panel>
 
-                <Panel title="Organization" subtitle="Ownership and organizational context" icon={Building2}>
-                  <DetailGrid
-                    items={[
-                      {
-                        label: 'Group',
-                        value: asset.group_name ? <Pill>{asset.group_name}</Pill> : '—'
-                      },
-                      { label: 'Assigned to', value: users[0]?.display_name || users[0]?.username || asset.assigned_to_name || asset.owner_name },
-                      { label: 'Department', value: asset.department },
-                      { label: 'Location', value: asset.location },
-                      { label: 'Company', value: asset.company }
-                    ]}
-                  />
+                <Panel
+                  title="Organization"
+                  subtitle="Ownership and organizational context"
+                  icon={Building2}
+                  actions={
+                    canManage ? (
+                      editingPanel === 'organization' ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <ActionButton
+                            icon={Save}
+                            tone="primary"
+                            disabled={savingPanel}
+                            onClick={async () => {
+                              setSavingPanel(true);
+                              try {
+                                await patchAsset({
+                                  assigned_to_name: panelForm.assigned_to_name,
+                                  department: panelForm.department,
+                                  location: panelForm.location,
+                                  company: panelForm.company
+                                }, 'Organization saved');
+                                setEditingPanel(null);
+                              } catch (err: any) {
+                                setNotice({ tone: 'danger', text: err.message || 'Unable to save' });
+                              } finally {
+                                setSavingPanel(false);
+                              }
+                            }}
+                          >
+                            {savingPanel ? 'Saving…' : 'Save'}
+                          </ActionButton>
+                          <ActionButton onClick={() => setEditingPanel(null)}>Cancel</ActionButton>
+                        </div>
+                      ) : (
+                        <ActionButton
+                          icon={Edit3}
+                          onClick={() => {
+                            setPanelForm((f) => ({
+                              ...f,
+                              assigned_to_name: asset.assigned_to_name || '',
+                              department: asset.department || '',
+                              location: asset.location || '',
+                              company: asset.company || ''
+                            }));
+                            setEditingPanel('organization');
+                          }}
+                        >
+                          Edit
+                        </ActionButton>
+                      )
+                    ) : undefined
+                  }
+                >
+                  {editingPanel === 'organization' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
+                        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 700 }}>Group</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{asset.group_name ? <Pill>{asset.group_name}</Pill> : '—'}</div>
+                      </div>
+                      {(['assigned_to_name', 'department', 'location', 'company'] as const).map((field) => (
+                        <div key={field} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
+                          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 700 }}>
+                            {field === 'assigned_to_name' ? 'Assigned to' : field.charAt(0).toUpperCase() + field.slice(1)}
+                          </div>
+                          <input
+                            type="text"
+                            value={panelForm[field]}
+                            onChange={(e) => setPanelForm((f) => ({ ...f, [field]: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              height: 34,
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid var(--border)',
+                              background: 'var(--bg-elevated)',
+                              color: 'var(--text)',
+                              padding: '0 10px',
+                              fontSize: 13,
+                              fontFamily: BODY_FONT,
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <DetailGrid
+                      items={[
+                        {
+                          label: 'Group',
+                          value: asset.group_name ? <Pill>{asset.group_name}</Pill> : '—'
+                        },
+                        { label: 'Assigned to', value: users[0]?.display_name || users[0]?.username || asset.assigned_to_name || asset.owner_name },
+                        { label: 'Department', value: asset.department },
+                        { label: 'Location', value: asset.location },
+                        { label: 'Company', value: asset.company }
+                      ]}
+                    />
+                  )}
                 </Panel>
 
-                <Panel title="Lifecycle" subtitle="Procurement and warranty history" icon={Calendar}>
-                  <DetailGrid
-                    items={[
-                      { label: 'Purchase date', value: formatDate(asset.purchase_date) },
-                      { label: 'Warranty expiry', value: formatDate(asset.warranty_expiry) },
-                      { label: 'Purchase cost', value: formatCurrency(asset.purchase_cost) },
-                      { label: 'Vendor', value: asset.vendor }
-                    ]}
-                  />
+                <Panel
+                  title="Lifecycle"
+                  subtitle="Procurement and warranty history"
+                  icon={Calendar}
+                  actions={
+                    canManage ? (
+                      editingPanel === 'lifecycle' ? (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <ActionButton
+                            icon={Save}
+                            tone="primary"
+                            disabled={savingPanel}
+                            onClick={async () => {
+                              setSavingPanel(true);
+                              try {
+                                await patchAsset({
+                                  vendor: panelForm.vendor,
+                                  purchase_date: panelForm.purchase_date || null,
+                                  warranty_expiry: panelForm.warranty_expiry || null,
+                                  purchase_cost: panelForm.purchase_cost ? Number(panelForm.purchase_cost) : null
+                                } as Partial<AssetDetail>, 'Lifecycle saved');
+                                setEditingPanel(null);
+                              } catch (err: any) {
+                                setNotice({ tone: 'danger', text: err.message || 'Unable to save' });
+                              } finally {
+                                setSavingPanel(false);
+                              }
+                            }}
+                          >
+                            {savingPanel ? 'Saving…' : 'Save'}
+                          </ActionButton>
+                          <ActionButton onClick={() => setEditingPanel(null)}>Cancel</ActionButton>
+                        </div>
+                      ) : (
+                        <ActionButton
+                          icon={Edit3}
+                          onClick={() => {
+                            setPanelForm((f) => ({
+                              ...f,
+                              vendor: asset.vendor || '',
+                              purchase_date: asset.purchase_date ? asset.purchase_date.split('T')[0] : '',
+                              warranty_expiry: asset.warranty_expiry ? asset.warranty_expiry.split('T')[0] : '',
+                              purchase_cost: asset.purchase_cost != null ? String(asset.purchase_cost) : ''
+                            }));
+                            setEditingPanel('lifecycle');
+                          }}
+                        >
+                          Edit
+                        </ActionButton>
+                      )
+                    ) : undefined
+                  }
+                >
+                  {editingPanel === 'lifecycle' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                      {([
+                        { field: 'purchase_date', label: 'Purchase date', type: 'date' },
+                        { field: 'warranty_expiry', label: 'Warranty expiry', type: 'date' },
+                        { field: 'purchase_cost', label: 'Purchase cost', type: 'number' },
+                        { field: 'vendor', label: 'Vendor', type: 'text' }
+                      ] as { field: keyof typeof panelForm; label: string; type: string }[]).map(({ field, label, type }) => (
+                        <div key={field} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
+                          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 700 }}>{label}</div>
+                          <input
+                            type={type}
+                            value={panelForm[field]}
+                            onChange={(e) => setPanelForm((f) => ({ ...f, [field]: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              height: 34,
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid var(--border)',
+                              background: 'var(--bg-elevated)',
+                              color: 'var(--text)',
+                              padding: '0 10px',
+                              fontSize: 13,
+                              fontFamily: BODY_FONT,
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <DetailGrid
+                      items={[
+                        { label: 'Purchase date', value: formatDate(asset.purchase_date) },
+                        { label: 'Warranty expiry', value: formatDate(asset.warranty_expiry) },
+                        { label: 'Purchase cost', value: formatCurrency(asset.purchase_cost) },
+                        { label: 'Vendor', value: asset.vendor }
+                      ]}
+                    />
+                  )}
                 </Panel>
               </div>
             )}
@@ -1679,6 +1860,12 @@ export default function AssetDetailPage({
                     {activity.map((entry, index) => {
                       const meta = getActivityMeta(entry.action);
                       const Icon = meta.icon;
+                      const action = entry.action.toLowerCase();
+                      const isSystemEvent = action.includes('checkin') || action.includes('heartbeat') || action.includes('sync') || action.includes('agent') || action.includes('scan') || !entry.actor_name;
+                      const categoryLabel = isSystemEvent ? 'System' : 'Change';
+                      const categoryColor = isSystemEvent ? 'var(--text-muted)' : 'var(--accent)';
+                      const categoryBg = isSystemEvent ? 'var(--bg-secondary)' : 'var(--accent-subtle)';
+                      const categoryBorder = isSystemEvent ? 'var(--border)' : 'var(--accent)';
 
                       return (
                         <div
@@ -1721,8 +1908,23 @@ export default function AssetDetailPage({
                               }}
                             >
                               <div>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{entry.action}</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{entry.action}</div>
+                                  <span style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: '2px 7px',
+                                    borderRadius: 999,
+                                    border: `1px solid ${categoryBorder}`,
+                                    background: categoryBg,
+                                    color: categoryColor,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.06em'
+                                  }}>
+                                    {categoryLabel}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                                   {entry.actor_name || 'System'}
                                 </div>
                               </div>
