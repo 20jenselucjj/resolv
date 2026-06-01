@@ -40,16 +40,26 @@ export function UserSearchSelect({ users, value, onChange, placeholder = 'Select
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const menuWidth = Math.max(220, rect.width);
-    const menuHeight = 260;
+    const menuHeight = menuRef.current?.offsetHeight || 260;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const top = spaceBelow < menuHeight ? rect.top - menuHeight - 4 : rect.bottom + 4;
+    const top = spaceBelow < menuHeight + 8 ? rect.top - menuHeight - 4 : rect.bottom + 4;
     const left = Math.max(4, Math.min(rect.left, window.innerWidth - menuWidth - 4));
     setMenuPos({ top, left, width: menuWidth });
   }, []);
 
   useLayoutEffect(() => {
-    if (open) calcPos();
+    if (open) {
+      calcPos();
+      // Re-measure after portal paints to get actual menu height
+      const raf = requestAnimationFrame(calcPos);
+      return () => cancelAnimationFrame(raf);
+    }
   }, [open, calcPos]);
+
+  // Re-calculate position when filtered results change (menu height changes with search)
+  useLayoutEffect(() => {
+    if (open) calcPos();
+  }, [open, filtered.length, calcPos]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -190,18 +200,19 @@ export function UserSearchSelect({ users, value, onChange, placeholder = 'Select
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 4px',
-            background: 'transparent',
-            border: 'none',
+            padding: '0 10px',
+            background: 'var(--input-bg, var(--bg-secondary))',
+            border: '1px solid var(--border)',
             borderRadius: 'var(--radius-sm)',
             fontSize: 13,
             color: selectedUser ? 'var(--text)' : 'var(--text-muted)',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            minHeight: 28,
-            transition: 'background 0.15s',
+            height: 34,
+            transition: 'border-color 0.15s',
+            outline: 'none',
           }}
-          onMouseEnter={e => { if (!disabled && !open) e.currentTarget.style.background = 'transparent'; }}
-          onMouseLeave={e => { if (!open) e.currentTarget.style.background = 'transparent'; }}
+          onMouseEnter={e => { if (!disabled && !open) e.currentTarget.style.borderColor = 'var(--border-hover, var(--accent))'; }}
+          onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = 'var(--border)'; }}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
             {selectedUser ? selectedUser.name : placeholder}

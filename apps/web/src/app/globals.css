@@ -783,3 +783,35 @@ kbd {
   font-weight: 800;
   position: relative;
 }
+
+/* ============================================================
+   MOBILE RESPONSIVENESS
+   ============================================================ */
+
+.mobile-header {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+@media (max-width: 767px) {
+  .mobile-header { display: flex; }
+  .desktop-sidebar { display: none !important; }
+}
+
+@media (max-width: 767px) {
+  /* Stack grid columns on mobile */
+  .mobile-stack { grid-template-columns: 1fr !important; }
+  /* Make tables scroll horizontally */  
+  .mobile-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Reduce padding on mobile */
+  .mobile-pad { padding: 12px 16px !important; }
+}
