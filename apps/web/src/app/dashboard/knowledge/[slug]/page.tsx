@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
@@ -7,7 +7,8 @@ import {
   ArrowLeft, Eye, ThumbsUp, ThumbsDown, 
   Calendar, Edit3, Trash2, Tag, BookOpen,
   CheckCircle2, AlertCircle, Clock, Link as LinkIcon, Printer, Search,
-  ChevronRight, Home
+  ChevronRight, Home, Upload, Paperclip, File, Image, Download, BrainCircuit,
+  X, Save
 } from 'lucide-react';
 
 function ConfirmModal({ open, title, message, onConfirm, onCancel, danger = true }: {
@@ -66,6 +67,15 @@ interface Article {
   tags: string[];
 }
 
+interface Attachment {
+  id: string;
+  filename: string;
+  size: number;
+  mime_type: string;
+  url: string;
+  created_at: string;
+}
+
 interface TocItem {
   id: string;
   text: string;
@@ -87,11 +97,29 @@ export default function ArticleDetailPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Inline edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<{ title: string; body: string; tags: string[] }>({ title: '', body: '', tags: [] });
+  const [editTagInput, setEditTagInput] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Attachments
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI sync
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  // Reading progress
+  const [readProgress, setReadProgress] = useState(0);
+
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
   const isAdmin = user?.role === 'admin';
 
   const fetchArticle = useCallback(async () => {
-    // Avoid synchronous state update if already loading
     setLoading(prev => prev ? prev : true);
     try {
       const res = await api.get<{ data: Article }>(`/knowledge/${slug}`);
@@ -107,6 +135,14 @@ export default function ArticleDetailPage() {
         setRelated([...sameCategory, ...otherCategory].slice(0, 3));
       } catch {
         // ignore
+      }
+
+      // Fetch attachments
+      try {
+        const attRes = await api.get<{ data: Attachment[] }>(`/knowledge/${data.id}/attachments`);
+        setAttachments(attRes.data || []);
+      } catch {
+        // ignore if endpoint doesn't exist yet
       }
     } catch (error) {
       console.error('Failed to fetch article:', error);
@@ -130,6 +166,18 @@ export default function ArticleDetailPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Reading progress scroll listener
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      setReadProgress(Math.min(100, Math.max(0, progress)));
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleFeedback = async (helpful: boolean) => {
@@ -169,6 +217,101 @@ export default function ArticleDetailPage() {
     navigator.clipboard.writeText(window.location.href).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Inline edit handlers
+  const handleStartEdit = () => {
+    if (!article) return;
+    setEditForm({ title: article.title, body: article.body, tags: [...(article.tags || [])] });
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditForm({ title: '', body: '', tags: [] });
+    setEditTagInput('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!article) return;
+    setSaving(true);
+    try {
+      await api.patch(`/knowledge/${article.id}`, editForm);
+      setIsEditing(false);
+      setEditTagInput('');
+      await fetchArticle();
+    } catch (error) {
+      console.error('Failed to save article:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddTag = () => {
+    const tag = editTagInput.trim();
+    if (tag && !editForm.tags.includes(tag)) {
+      setEditForm(prev => ({ ...prev, tags: [...prev.tags, tag] }));
+    }
+    setEditTagInput('');
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setEditForm(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }));
+  };
+
+  // File upload handler
+  const handleFileUpload = async (file: File) => {
+    if (!article) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${apiBase}/knowledge/${article.id}/attachments`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      setAttachments(prev => [...prev, data.data || data]);
+    } catch (err) {
+      setUploadError('Upload failed. Please try again.');
+      console.error('File upload error:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // AI sync handler
+  const handleSyncAI = async () => {
+    if (!article) return;
+    setSyncing(true);
+    setSyncStatus('idle');
+    try {
+      await api.post(`/knowledge/${article.id}/sync-ai`, {});
+      setSyncStatus('success');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Failed to sync AI:', error);
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.startsWith('image/')) return <Image size={16} />;
+    return <File size={16} />;
   };
 
   const readingTime = useMemo(() => {
@@ -347,6 +490,17 @@ export default function ArticleDetailPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--background)', overflow: 'auto' }}>
       
+      {/* Reading Progress Bar */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, height: 3,
+        background: 'var(--border)', zIndex: 9998
+      }}>
+        <div style={{
+          height: '100%', background: 'var(--accent)',
+          width: `${readProgress}%`, transition: 'width 0.1s linear'
+        }} />
+      </div>
+
       {/* Top Bar */}
       <div style={{
         padding: '12px 24px',
@@ -401,30 +555,63 @@ export default function ArticleDetailPage() {
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button 
-            onClick={() => setShowSearch(!showSearch)}
-            className="btn btn-ghost btn-sm"
-            title="Search in article (Ctrl+F)"
-          >
-            <Search size={14} style={{ marginRight: 6 }} /> Find
-          </button>
-          <button onClick={handleCopyLink} className="btn btn-ghost btn-sm">
-            {copied ? <CheckCircle2 size={14} style={{ marginRight: 6, color: 'var(--success)' }} /> : <LinkIcon size={14} style={{ marginRight: 6 }} />}
-            {copied ? 'Copied!' : 'Share'}
-          </button>
-          <button onClick={() => window.print()} className="btn btn-ghost btn-sm">
-            <Printer size={14} style={{ marginRight: 6 }} /> Print
-          </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {!isEditing && (
+            <>
+              <button 
+                onClick={() => setShowSearch(!showSearch)}
+                className="btn btn-ghost btn-sm"
+                title="Search in article (Ctrl+F)"
+              >
+                <Search size={14} style={{ marginRight: 6 }} /> Find
+              </button>
+              <button onClick={handleCopyLink} className="btn btn-ghost btn-sm">
+                {copied ? <CheckCircle2 size={14} style={{ marginRight: 6, color: 'var(--success)' }} /> : <LinkIcon size={14} style={{ marginRight: 6 }} />}
+                {copied ? 'Copied!' : 'Share'}
+              </button>
+              <button onClick={() => window.print()} className="btn btn-ghost btn-sm">
+                <Printer size={14} style={{ marginRight: 6 }} /> Print
+              </button>
+            </>
+          )}
           
           <div style={{ width: 1, background: 'var(--border)', margin: '0 8px' }} />
           
-          {isAdminOrAgent && (
-            <button onClick={() => router.push(`/dashboard/knowledge/${slug}/edit`)} className="btn btn-ghost btn-sm" style={{ gap: 6 }}>
+          {/* AI Sync button (admin only) */}
+          {isAdmin && !isEditing && (
+            <button
+              onClick={handleSyncAI}
+              disabled={syncing}
+              className="btn btn-ghost btn-sm"
+              style={{
+                gap: 6,
+                color: syncStatus === 'success' ? 'var(--success)' : syncStatus === 'error' ? 'var(--danger)' : undefined
+              }}
+              title="Sync article to AI training"
+            >
+              <BrainCircuit size={14} />
+              {syncing ? 'Syncing…' : syncStatus === 'success' ? 'Synced!' : syncStatus === 'error' ? 'Failed' : 'Sync AI'}
+            </button>
+          )}
+
+          {/* Edit / Save / Cancel */}
+          {isAdminOrAgent && !isEditing && (
+            <button onClick={handleStartEdit} className="btn btn-ghost btn-sm" style={{ gap: 6 }}>
               <Edit3 size={14} /> Edit
             </button>
           )}
-          {isAdmin && (
+          {isEditing && (
+            <>
+              <button onClick={handleCancelEdit} className="btn btn-ghost btn-sm" style={{ gap: 6 }}>
+                <X size={14} /> Cancel
+              </button>
+              <button onClick={handleSaveEdit} disabled={saving} className="btn btn-sm" style={{ gap: 6, background: 'var(--accent)', color: '#fff', border: 'none' }}>
+                <Save size={14} /> {saving ? 'Saving…' : 'Save'}
+              </button>
+            </>
+          )}
+
+          {isAdmin && !isEditing && (
             <button onClick={handleDelete} className="btn btn-ghost btn-sm" style={{ gap: 6, color: 'var(--danger)' }}>
               <Trash2 size={14} /> Delete
             </button>
@@ -437,7 +624,7 @@ export default function ArticleDetailPage() {
         {/* Main Content */}
         <div style={{ flex: 1, padding: '40px 24px', maxWidth: 840, margin: '0 auto', width: '100%' }}>
           
-          {showSearch && (
+          {showSearch && !isEditing && (
             <div style={{ 
               position: 'sticky', top: 24, zIndex: 5, marginBottom: 24,
               background: 'var(--card)', padding: '8px 16px', borderRadius: 'var(--radius)',
@@ -484,14 +671,29 @@ export default function ArticleDetailPage() {
             )}
           </div>
 
-          {/* Title */}
-          <h1 style={{ 
-            fontSize: 48, fontWeight: 800, color: 'var(--foreground)', 
-            margin: '0 0 24px 0', lineHeight: 1.1, letterSpacing: '-0.03em',
-            fontFamily: 'var(--font-display, inherit)'
-          }}>
-            {article.title}
-          </h1>
+          {/* Title — editable or static */}
+          {isEditing ? (
+            <input
+              type="text"
+              value={editForm.title}
+              onChange={e => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+              style={{
+                width: '100%', fontSize: 36, fontWeight: 800, color: 'var(--foreground)',
+                background: 'var(--card)', border: '2px solid var(--accent)',
+                borderRadius: 'var(--radius)', padding: '10px 16px',
+                outline: 'none', marginBottom: 24, boxSizing: 'border-box',
+                letterSpacing: '-0.02em'
+              }}
+            />
+          ) : (
+            <h1 style={{ 
+              fontSize: 48, fontWeight: 800, color: 'var(--foreground)', 
+              margin: '0 0 24px 0', lineHeight: 1.1, letterSpacing: '-0.03em',
+              fontFamily: 'var(--font-display, inherit)'
+            }}>
+              {article.title}
+            </h1>
+          )}
 
           {/* Meta */}
           <div style={{ 
@@ -526,83 +728,233 @@ export default function ArticleDetailPage() {
             </div>
           </div>
 
-          {/* Body */}
-          <div className="print-body" style={{ 
-            fontSize: 17, lineHeight: 1.8, color: 'var(--foreground)', 
-            marginBottom: 48, fontFamily: 'var(--font-body, inherit)'
-          }}>
-            {renderBody()}
-          </div>
+          {/* Body — editable or rendered */}
+          {isEditing ? (
+            <div style={{ marginBottom: 32 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 8 }}>
+                Article Body (Markdown)
+              </label>
+              <textarea
+                value={editForm.body}
+                onChange={e => setEditForm(prev => ({ ...prev, body: e.target.value }))}
+                rows={20}
+                style={{
+                  width: '100%', fontSize: 14, lineHeight: 1.7,
+                  background: 'var(--card)', border: '2px solid var(--border)',
+                  borderRadius: 'var(--radius)', padding: '12px 16px',
+                  outline: 'none', color: 'var(--foreground)', resize: 'vertical',
+                  fontFamily: 'monospace', boxSizing: 'border-box',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+            </div>
+          ) : (
+            <div className="print-body" style={{ 
+              fontSize: 17, lineHeight: 1.8, color: 'var(--foreground)', 
+              marginBottom: 48, fontFamily: 'var(--font-body, inherit)'
+            }}>
+              {renderBody()}
+            </div>
+          )}
 
-          {/* Tags */}
-          {article.tags && article.tags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 48 }}>
-              {article.tags.map(tag => (
-                <span key={tag} style={{ 
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 16px', background: 'var(--card)', 
-                  border: '1px solid var(--border)', borderRadius: '99px',
-                  fontSize: 13, color: 'var(--muted)', fontWeight: 500
-                }}>
-                  <Tag size={12} /> {tag}
-                </span>
-              ))}
+          {/* Tags — editable or static */}
+          {isEditing ? (
+            <div style={{ marginBottom: 32 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 8 }}>
+                Tags
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {editForm.tags.map(tag => (
+                  <span key={tag} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '4px 12px', background: 'var(--accent)15',
+                    border: '1px solid var(--accent)40', borderRadius: '99px',
+                    fontSize: 13, color: 'var(--accent)', fontWeight: 500
+                  }}>
+                    {tag}
+                    <button
+                      onClick={() => handleRemoveTag(tag)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: 'var(--accent)' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Add tag..."
+                  value={editTagInput}
+                  onChange={e => setEditTagInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
+                  style={{
+                    flex: 1, padding: '8px 12px', fontSize: 14,
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                    background: 'var(--card)', color: 'var(--foreground)', outline: 'none'
+                  }}
+                />
+                <button onClick={handleAddTag} className="btn btn-ghost btn-sm">
+                  Add
+                </button>
+              </div>
+            </div>
+          ) : (
+            article.tags && article.tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 48 }}>
+                {article.tags.map(tag => (
+                  <span key={tag} style={{ 
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 16px', background: 'var(--card)', 
+                    border: '1px solid var(--border)', borderRadius: '99px',
+                    fontSize: 13, color: 'var(--muted)', fontWeight: 500
+                  }}>
+                    <Tag size={12} /> {tag}
+                  </span>
+                ))}
+              </div>
+            )
+          )}
+
+          {/* File Attachments Section */}
+          {!isEditing && isAdminOrAgent && (
+            <div style={{
+              marginBottom: 48, background: 'var(--card)', borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)', padding: '24px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Paperclip size={16} /> Attachments {attachments.length > 0 && `(${attachments.length})`}
+                </h3>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="btn btn-ghost btn-sm"
+                  style={{ gap: 6 }}
+                >
+                  <Upload size={14} /> {uploading ? 'Uploading…' : 'Attach file'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              {uploadError && (
+                <div style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertCircle size={14} /> {uploadError}
+                </div>
+              )}
+
+              {attachments.length === 0 ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    border: '2px dashed var(--border)', borderRadius: 'var(--radius)',
+                    padding: '32px', textAlign: 'center', cursor: 'pointer',
+                    color: 'var(--muted)', fontSize: 14, transition: 'border-color 0.2s'
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                >
+                  <Upload size={24} style={{ display: 'block', margin: '0 auto 8px', opacity: 0.5 }} />
+                  Drop files here or click to upload
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {attachments.map(att => (
+                    <div key={att.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', background: 'var(--background)',
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                      fontSize: 14
+                    }}>
+                      <span style={{ color: 'var(--accent)' }}>{getFileIcon(att.mime_type)}</span>
+                      <span style={{ flex: 1, color: 'var(--foreground)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {att.filename}
+                      </span>
+                      <span style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {formatFileSize(att.size)}
+                      </span>
+                      <a
+                        href={att.url}
+                        download={att.filename}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, textDecoration: 'none' }}
+                      >
+                        <Download size={14} /> Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* Feedback Section */}
-          <div style={{ 
-            background: 'var(--card)', borderRadius: 'var(--radius)', 
-            padding: '32px', textAlign: 'center', border: '1px solid var(--border)'
-          }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontWeight: 700, color: 'var(--foreground)' }}>
-              Was this article helpful?
-            </h3>
-            <p style={{ margin: '0 0 24px 0', fontSize: 14, color: 'var(--muted)' }}>
-              Your feedback helps us improve our knowledge base.
-            </p>
+          {!isEditing && (
+            <div style={{ 
+              background: 'var(--card)', borderRadius: 'var(--radius)', 
+              padding: '32px', textAlign: 'center', border: '1px solid var(--border)'
+            }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: 18, fontWeight: 700, color: 'var(--foreground)' }}>
+                Was this article helpful?
+              </h3>
+              <p style={{ margin: '0 0 24px 0', fontSize: 14, color: 'var(--muted)' }}>
+                Your feedback helps us improve our knowledge base.
+              </p>
 
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
-              <button
-                onClick={() => handleFeedback(true)}
-                disabled={feedbackSent !== null}
-                className={`btn ${feedbackSent === true ? 'btn-success' : 'btn-ghost'}`}
-                style={{ 
-                  minWidth: 120, height: 44, gap: 8,
-                  background: feedbackSent === true ? 'var(--success)' : undefined,
-                  color: feedbackSent === true ? 'var(--background)' : undefined,
-                  border: feedbackSent === true ? 'none' : '1px solid var(--border)',
-                }}
-              >
-                <ThumbsUp size={16} /> Yes ({article.helpful_count})
-              </button>
-              <button
-                onClick={() => handleFeedback(false)}
-                disabled={feedbackSent !== null}
-                className={`btn ${feedbackSent === false ? 'btn-danger' : 'btn-ghost'}`}
-                style={{ 
-                  minWidth: 120, height: 44, gap: 8,
-                  background: feedbackSent === false ? 'var(--danger)' : undefined,
-                  color: feedbackSent === false ? 'var(--background)' : undefined,
-                  border: feedbackSent === false ? 'none' : '1px solid var(--border)',
-                }}
-              >
-                <ThumbsDown size={16} /> No ({article.not_helpful_count})
-              </button>
-            </div>
-
-            {feedbackSent !== null && (
-              <div style={{ 
-                marginTop: 20, fontSize: 14, color: 'var(--success)', fontWeight: 500,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 
-              }}>
-                <CheckCircle2 size={16} /> Thank you for your feedback!
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+                <button
+                  onClick={() => handleFeedback(true)}
+                  disabled={feedbackSent !== null}
+                  className={`btn ${feedbackSent === true ? 'btn-success' : 'btn-ghost'}`}
+                  style={{ 
+                    minWidth: 120, height: 44, gap: 8,
+                    background: feedbackSent === true ? 'var(--success)' : undefined,
+                    color: feedbackSent === true ? 'var(--background)' : undefined,
+                    border: feedbackSent === true ? 'none' : '1px solid var(--border)',
+                  }}
+                >
+                  <ThumbsUp size={16} /> Yes ({article.helpful_count})
+                </button>
+                <button
+                  onClick={() => handleFeedback(false)}
+                  disabled={feedbackSent !== null}
+                  className={`btn ${feedbackSent === false ? 'btn-danger' : 'btn-ghost'}`}
+                  style={{ 
+                    minWidth: 120, height: 44, gap: 8,
+                    background: feedbackSent === false ? 'var(--danger)' : undefined,
+                    color: feedbackSent === false ? 'var(--background)' : undefined,
+                    border: feedbackSent === false ? 'none' : '1px solid var(--border)',
+                  }}
+                >
+                  <ThumbsDown size={16} /> No ({article.not_helpful_count})
+                </button>
               </div>
-            )}
-          </div>
+
+              {feedbackSent !== null && (
+                <div style={{ 
+                  marginTop: 20, fontSize: 14, color: 'var(--success)', fontWeight: 500,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 
+                }}>
+                  <CheckCircle2 size={16} /> Thank you for your feedback!
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Related Articles */}
-          {related.length > 0 && (
+          {!isEditing && related.length > 0 && (
             <div style={{ marginTop: 48, paddingTop: 48, borderTop: '1px solid var(--border)' }}>
               <h3 style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 700, color: 'var(--foreground)' }}>
                 Related Articles
@@ -645,7 +997,7 @@ export default function ArticleDetailPage() {
         </div>
 
         {/* TOC Sidebar */}
-        {toc.length > 0 && (
+        {toc.length > 0 && !isEditing && (
           <div style={{ 
             width: 280, padding: '40px 24px', borderLeft: '1px solid var(--border)',
             display: 'none', // hide on small screens

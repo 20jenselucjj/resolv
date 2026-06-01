@@ -1,16 +1,31 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import {
   ArrowLeft, AlertTriangle, Tag, FileText,
-  Type, X, Layout, Send, Save, History, Eye, Edit3
+  Type, X, Layout, Send, Save, History, Eye, Edit3,
+  Paperclip, Upload, File, Image, Download
 } from 'lucide-react';
 
 interface Category {
   id: string;
   name: string;
+}
+
+interface Attachment {
+  id: string;
+  filename: string;
+  size: number;
+  mime_type: string;
+  url: string;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 interface Article {
@@ -40,6 +55,9 @@ export default function EditArticlePage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
 
@@ -72,6 +90,51 @@ export default function EditArticlePage() {
     fetchArticle();
     api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data || [])).catch(console.error);
   }, [fetchArticle]);
+
+  const fetchAttachments = useCallback(async (id: string) => {
+    try {
+      const res = await api.get<{ data: Attachment[] }>(`/knowledge/${id}/attachments`);
+      setAttachments(res.data || []);
+    } catch {
+      // silently ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (articleId) fetchAttachments(articleId);
+  }, [articleId, fetchAttachments]);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !articleId) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const res = await fetch(`${API_BASE}/knowledge/${articleId}/attachments`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      await fetchAttachments(articleId);
+    } catch {
+      setError('Failed to upload file');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function deleteAttachment(id: string) {
+    try {
+      await api.delete(`/knowledge/attachments/${id}`);
+      setAttachments(prev => prev.filter(a => a.id !== id));
+    } catch {
+      setError('Failed to delete attachment');
+    }
+  }
 
   function addTag(tag: string) {
     const t = tag.trim().toLowerCase();
@@ -268,6 +331,61 @@ export default function EditArticlePage() {
             ) : (
               <div style={{ minHeight: 400, padding: 24, background: 'var(--background)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 16, lineHeight: 1.7 }}>
                 {renderPreview()}
+              </div>
+            )}
+          </div>
+
+          {/* Attachments */}
+          <div style={{ background: 'var(--card)', padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <label style={labelStyle}>
+              <Paperclip size={14} />
+              Attachments
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="btn btn-ghost"
+              style={{ height: 40, padding: '0 16px', fontSize: 14, gap: 8, border: '1px dashed var(--border)', width: '100%', justifyContent: 'center' }}
+            >
+              {uploading ? (
+                <div style={{ width: 16, height: 16, border: '2px solid var(--muted)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              ) : (
+                <Upload size={16} />
+              )}
+              {uploading ? 'Uploading...' : 'Upload File'}
+            </button>
+            {attachments.length > 0 && (
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {attachments.map(att => (
+                  <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                    {att.mime_type.startsWith('image/') ? (
+                      <img src={att.url} alt={att.filename} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                    ) : (
+                      <File size={20} style={{ flexShrink: 0, color: 'var(--muted)' }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.filename}</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{formatFileSize(att.size)}</div>
+                    </div>
+                    <a href={att.url} download={att.filename} style={{ display: 'flex', color: 'var(--muted)', padding: 4 }}>
+                      <Download size={16} />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => deleteAttachment(att.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', padding: 4 }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

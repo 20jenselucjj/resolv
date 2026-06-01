@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { 
   ArrowLeft, AlertTriangle, Tag, FileText, 
-  Type, X, Layout, Send, Save, Link as LinkIcon, Clock, Check
+  Type, X, Layout, Send, Save, Link as LinkIcon, Clock, Check, Paperclip
 } from 'lucide-react';
 
 function ConfirmModal({ open, title, message, onConfirm, onCancel, danger = true }: {
@@ -290,6 +290,15 @@ export default function NewArticlePage() {
               className="textarea"
               style={{ fontSize: 16, lineHeight: 1.7, minHeight: 400, padding: 24, background: 'var(--background)', resize: 'vertical' }}
             />
+          </div>
+
+          {/* Attachments notice */}
+          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 'var(--radius)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Paperclip size={18} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Attachments</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>You can add attachments after creating the article.</div>
+            </div>
           </div>
 
           {/* Tags */}
