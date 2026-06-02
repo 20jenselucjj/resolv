@@ -176,23 +176,30 @@ export function SetupWizard({ setupSteps }: { setupSteps: SetupStep[] }) {
 
                   {isCurrent && step.key === 'oauth' && (
                     <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <a
-                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <span
                         className="resp-btn"
+                        onClick={() => window.open(
+                          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`,
+                          '_blank'
+                        )}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.open(
+                          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`,
+                          '_blank'
+                        ); } }}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 7,
                           padding: '7px 16px', borderRadius: 'var(--radius-md)',
                           background: 'var(--accent)', color: 'white',
-                          fontSize: '12px', fontWeight: 600, textDecoration: 'none',
+                          fontSize: '12px', fontWeight: 600, cursor: 'pointer',
                           transition: 'background 0.15s', whiteSpace: 'nowrap',
                         }}
                       >
                         <Link2 size={13} />
                         <span className="hide-mobile">Connect Google Workspace</span>
                         <span className="show-mobile">Connect</span>
-                      </a>
+                      </span>
                       <span className="hide-mobile" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                         Opens in a new tab. Return here after authorizing.
                       </span>

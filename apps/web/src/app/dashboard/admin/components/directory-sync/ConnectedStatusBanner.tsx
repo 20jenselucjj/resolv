@@ -25,7 +25,8 @@ export function ConnectedStatusBanner({
   handleReauthenticate, handleDisconnectOAuth,
   disconnecting, formatDateTime,
 }: ConnectedStatusBannerProps) {
-  const hasIssue = tokenExpiry?.isExpired || tokenExpiry?.isExpiringSoon || syncStatus?.status === 'error';
+  const isTokenExpired = tokenExpiry?.isExpired === true;
+  const hasIssue = isTokenExpired || syncStatus?.status === 'error';
   const [detailsOpen, setDetailsOpen] = useState(hasIssue);
 
   // Auto-open details if an issue arises after mount
@@ -74,23 +75,29 @@ export function ConnectedStatusBanner({
                 color: hasIssue ? 'var(--warning)' : 'var(--success)',
                 border: `1px solid ${hasIssue ? 'var(--warning-border)' : 'var(--success-border)'}`,
               }}>
-                {hasIssue ? (tokenExpiry?.isExpired ? 'Expired' : 'Issue') : 'Connected'}
+                {hasIssue ? (isTokenExpired ? 'Expired' : 'Issue') : 'Connected'}
               </span>
             </div>
 
-            {/* Token expiry warning — inline when present */}
-            {tokenExpiry && (tokenExpiry.isExpired || tokenExpiry.isExpiringSoon) && (
+            {/* Token auto-refresh note — reassuring, not alarming */}
+            {!isTokenExpired && (
               <div style={{
-                marginTop: 4, fontSize: '11px',
-                color: tokenExpiry.isExpired ? 'var(--danger)' : 'var(--warning)',
+                marginTop: 4, fontSize: '11px', color: 'var(--text-muted)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <RefreshCw size={11} style={{ flexShrink: 0 }} />
+                <span>Token renews automatically</span>
+              </div>
+            )}
+
+            {/* Only show warning when token is actually expired */}
+            {isTokenExpired && (
+              <div style={{
+                marginTop: 4, fontSize: '11px', color: 'var(--danger)',
                 display: 'flex', alignItems: 'center', gap: 4,
               }}>
                 <AlertCircle size={12} style={{ flexShrink: 0 }} />
-                <span style={{
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {tokenExpiry.isExpired ? 'Token expired. Re-authenticate.' : `Expires in ${Math.round(tokenExpiry.hoursLeft)}h`}
-                </span>
+                <span>Token expired. Re-authenticate.</span>
               </div>
             )}
           </div>
@@ -98,7 +105,7 @@ export function ConnectedStatusBanner({
 
         {/* Actions + detail toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          {(tokenExpiry?.isExpired || tokenExpiry?.isExpiringSoon) && (
+          {isTokenExpired && (
             <button
               onClick={handleReauthenticate}
               className="resp-btn"
@@ -182,27 +189,26 @@ export function ConnectedStatusBanner({
               </div>
             )}
             {config.tokenExpiresAt && tokenExpiry && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: tokenExpiry.isExpired ? 'var(--danger)' : tokenExpiry.isExpiringSoon ? 'var(--warning)' : 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: isTokenExpired ? 'var(--danger)' : 'var(--text-secondary)' }}>
                 <Timer size={12} style={{ flexShrink: 0 }} />
                 <span>
-                  Token {tokenExpiry.isExpired ? 'expired' : 'expires'}: <strong>{formatDateTime(config.tokenExpiresAt)}</strong>
+                  Access token {isTokenExpired ? 'expired' : 'renews'}: <strong>{formatDateTime(config.tokenExpiresAt)}</strong>
+                  {!isTokenExpired && ' (auto-refreshes)'}
                 </span>
               </div>
             )}
-            {/* Full warning when expanded */}
-            {tokenExpiry && (tokenExpiry.isExpired || tokenExpiry.isExpiringSoon) && (
+            {/* Full warning only when token is actually expired */}
+            {isTokenExpired && (
               <div style={{
                 marginTop: 4, padding: '8px 12px', borderRadius: 'var(--radius-md)',
-                background: tokenExpiry.isExpired ? 'var(--danger-bg)' : 'var(--warning-bg)',
-                border: `1px solid ${tokenExpiry.isExpired ? 'var(--danger-border)' : 'var(--warning-border)'}`,
-                fontSize: '12px', color: tokenExpiry.isExpired ? 'var(--danger)' : 'var(--warning)',
+                background: 'var(--danger-bg)',
+                border: '1px solid var(--danger-border)',
+                fontSize: '12px', color: 'var(--danger)',
                 display: 'flex', alignItems: 'flex-start', gap: 8,
               }}>
                 <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                 <span>
-                  {tokenExpiry.isExpired
-                    ? 'OAuth token has expired. Re-authenticate to restore sync functionality.'
-                    : 'OAuth token is expiring soon. Re-authenticate to avoid sync interruptions.'}
+                  OAuth token has expired. Re-authenticate to restore sync and email functionality.
                 </span>
               </div>
             )}
