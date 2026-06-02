@@ -73,7 +73,43 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      setAttachedFiles(prev => [...prev, ...files]);
+    }
+  }
 
   useEffect(() => {
     api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {});
@@ -438,10 +474,77 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                 </div>
               ) : null}
 
-              {/* Due Date */}
-              <div>
-                <label style={panelLabelStyle}>Due Date</label>
-                <input type="datetime-local" className="input" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={{ fontSize: 12, maxWidth: 220 }} />
+              {/* Due Date + Attachments row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={panelLabelStyle}>Due Date</label>
+                  <input type="datetime-local" className="input" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={{ fontSize: 12, width: '100%' }} />
+                </div>
+                <div
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  style={{ position: 'relative' }}
+                >
+                  <label style={panelLabelStyle}>Attachments</label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setAttachedFiles(prev => [...prev, ...files]);
+                      if (e.target) e.target.value = '';
+                    }}
+                  />
+                  {attachedFiles.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+                      {attachedFiles.map((file, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '5px 8px', borderRadius: 6,
+                          background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                          fontSize: 11
+                        }}>
+                          <FileText size={11} color="var(--text-muted)" />
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)', fontSize: 11 }}>{file.name}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 10, flexShrink: 0 }}>{(file.size / 1024).toFixed(0)} KB</span>
+                          <button type="button" onClick={() => setAttachedFiles(prev => prev.filter((_, j) => j !== i))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}>
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '7px 10px', borderRadius: 'var(--radius-md)',
+                      border: `1px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
+                      background: isDragging ? 'var(--accent-subtle)' : 'var(--bg-secondary)',
+                      color: isDragging ? 'var(--accent)' : 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: 11, width: '100%', justifyContent: 'center',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {isDragging ? <UploadCloud size={14} /> : <Paperclip size={12} />}
+                    {isDragging ? 'Drop files here' : attachedFiles.length > 0 ? `${attachedFiles.length} file(s)` : 'Add files'}
+                  </button>
+
+                  {/* Drag overlay */}
+                  {isDragging && (
+                    <div style={{
+                      position: 'absolute', inset: 0, borderRadius: 'var(--radius-md)',
+                      border: '2px dashed var(--accent)', pointerEvents: 'none',
+                      background: 'rgba(59,130,246,0.06)', zIndex: 1,
+                    }} />
+                  )}
+                </div>
               </div>
 
               {/* Closing Note */}
@@ -471,56 +574,6 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                   <AlertTriangle size={12} /> {error}
                 </div>
               )}
-
-              {/* File Attachments */}
-              <div>
-                <label style={panelLabelStyle}>Attachments</label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    setAttachedFiles(prev => [...prev, ...files]);
-                    if (e.target) e.target.value = '';
-                  }}
-                />
-                {attachedFiles.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                    {attachedFiles.map((file, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '6px 10px', borderRadius: 6,
-                        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                        fontSize: 12
-                      }}>
-                        <FileText size={13} color="var(--text-muted)" />
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{file.name}</span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>{(file.size / 1024).toFixed(0)} KB</span>
-                        <button type="button" onClick={() => setAttachedFiles(prev => prev.filter((_, j) => j !== i))}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}>
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '8px 12px', borderRadius: 'var(--radius-md)',
-                    border: '1px dashed var(--border)', background: 'var(--bg-secondary)',
-                    color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
-                    width: '100%', justifyContent: 'center'
-                  }}
-                >
-                  <Paperclip size={13} />
-                  {attachedFiles.length > 0 ? `${attachedFiles.length} file(s) selected` : 'Attach files'}
-                </button>
-              </div>
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8, paddingTop: 4, borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}>
