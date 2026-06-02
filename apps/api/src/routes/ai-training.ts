@@ -549,6 +549,12 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
       processSource(id, body.raw_content, cfg, ragCfg).catch(console.error)
     }
 
+    await pool.query(
+      `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data)
+       VALUES ($1, 'update_knowledge_source', 'ai_knowledge_sources', $2, $3)`,
+      [(req as any).user.id, id, JSON.stringify({ name: updated.name, is_active: updated.is_active, category: updated.category })]
+    )
+
     return reply.send({ data: updated })
   })
 
@@ -560,9 +566,9 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     if (rows.length === 0) return reply.status(404).send({ error: 'Source not found' })
     await pool.query('DELETE FROM ai_knowledge_sources WHERE id=$1', [id])
     await pool.query(
-      `INSERT INTO audit_log (actor_id, action, entity_type, entity_id)
-       VALUES ($1, 'delete_knowledge_source', 'ai_knowledge_sources', $2)`,
-      [user.id, id]
+      `INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data)
+       VALUES ($1, 'delete_knowledge_source', 'ai_knowledge_sources', $2, $3)`,
+      [user.id, id, JSON.stringify({ name: rows[0].name })]
     )
     return reply.send({ data: { success: true } })
   })
