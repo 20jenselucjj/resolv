@@ -26,6 +26,64 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
   const [editForm, setEditForm] = useState({ subject: '', body: '' });
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const SAMPLE_VALUES: Record<string, string> = {
+    '[TICKET_ID]': '1042',
+    '[TICKET_TITLE]': 'Cannot access email on mobile device',
+    '[USER_NAME]': 'Jane Smith',
+    '[AGENT_NAME]': 'John Doe',
+    '[TICKET_URL]': 'https://example.com/tickets/abc123',
+    '[PRIORITY]': 'Medium',
+    '[STATUS]': 'Open',
+    '[CLOSE_NOTES]': 'Issue resolved. Updated firewall rules.',
+  };
+
+  function interpolate(text: string): string {
+    let result = text;
+    for (const [key, value] of Object.entries(SAMPLE_VALUES)) {
+      result = result.split(key).join(value);
+    }
+    return result;
+  }
+
+  function EmailPreview({ subject, body }: { subject: string; body: string }) {
+    return (
+      <div style={{
+        marginTop: 16,
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+        background: '#f0f2f5',
+      }}>
+        <div style={{
+          padding: '10px 14px',
+          fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+          textTransform: 'uppercase', letterSpacing: '0.04em',
+          borderBottom: '1px solid var(--border-subtle)',
+          background: 'var(--bg-elevated)',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <Eye size={12} /> Preview
+        </div>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-subtle)', background: '#fafafa' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>SUBJECT</div>
+          <div style={{ fontSize: 13, color: 'var(--text)', fontFamily: 'system-ui, sans-serif', lineHeight: 1.4 }}>
+            {interpolate(subject) || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(empty)</span>}
+          </div>
+        </div>
+        <div style={{ padding: '14px 16px', background: '#ffffff' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>BODY</div>
+          <div style={{
+            fontSize: 13, color: '#333',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            lineHeight: 1.6, fontFamily: 'Georgia, "Times New Roman", serif',
+          }}>
+            {interpolate(body) || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(empty)</span>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     api.get<{ data: EmailTemplate[] }>('/admin/email-templates')
       .then(res => {
@@ -113,6 +171,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Body</label>
               <textarea className="textarea" value={addForm.body} onChange={e => setAddForm({ ...addForm, body: e.target.value })} rows={6} style={{ minHeight: 140, fontSize: 13, fontFamily: 'monospace' }} placeholder={'Hello [USER_NAME],\n\nYour message here.\n\nBest,\nSupport Team'} />
             </div>
+            <EmailPreview subject={addForm.subject} body={addForm.body} />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost" onClick={() => { setIsAdding(false); setAddForm({ name: '', subject: '', body: '' }); }}>Cancel</button>
               <button type="submit" className="btn btn-primary" disabled={!addForm.name.trim() || !addForm.subject.trim()}>Create Template</button>
@@ -176,6 +235,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
                     }}>
                       {t.body}
                     </pre>
+                    <EmailPreview subject={t.subject} body={t.body} />
                     <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
                       <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.body); showAlert('Body copied to clipboard'); }}>
                         <Copy size={12} style={{ marginRight: 4 }} /> Copy Body
@@ -203,6 +263,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Body Content</label>
               <textarea className="textarea" value={editForm.body} onChange={e => setEditForm({ ...editForm, body: e.target.value })} rows={8} style={{ minHeight: 180, fontSize: 13, fontFamily: 'monospace' }} required />
             </div>
+            <EmailPreview subject={editForm.subject} body={editForm.body} />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
               <button type="button" className="btn btn-ghost" onClick={() => setEditingTemplate(null)}>Cancel</button>
               <button type="submit" className="btn btn-primary">Save Changes</button>

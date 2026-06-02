@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { Mail, RefreshCw, ChevronLeft, ChevronRight, ExternalLink, Search, ArrowDown, ArrowUp, Inbox, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -183,7 +183,7 @@ export function EmailLogTab({ showAlert }: { showAlert: (m: string, t?: 'success
                     const st = statStyle[entry.status] || { bg: 'var(--bg-secondary)', color: 'var(--text-muted)' };
                     const isExpanded = expandedId === entry.id;
                     return (
-                      <>
+                      <Fragment key={entry.id}>
                         <tr
                           key={entry.id}
                           onClick={() => setExpandedId(isExpanded ? null : entry.id)}
@@ -247,7 +247,7 @@ export function EmailLogTab({ showAlert }: { showAlert: (m: string, t?: 'success
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>

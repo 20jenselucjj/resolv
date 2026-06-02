@@ -23,7 +23,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newApiKey, setNewApiKey] = useState('');
+
   const [showApiKey, setShowApiKey] = useState(false);
   const [activeSection, setActiveSection] = useState<'general' | 'behavior' | 'tools' | 'security'>('general');
 
@@ -79,12 +79,8 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
         behavior,
         rules,
       };
-      if (newApiKey.trim()) {
-        (payload as any).api_key = newApiKey.trim();
-      }
       await api.put('/ai/config', payload);
       showAlert('AI configuration saved successfully');
-      setNewApiKey('');
       fetchConfig();
     } catch (err: any) {
       showAlert(err.message || 'Failed to save AI configuration', 'error');
@@ -235,9 +231,9 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
                 <input
                   className="input"
                   type={showApiKey ? 'text' : 'password'}
-                  value={newApiKey}
-                  onChange={e => setNewApiKey(e.target.value)}
-                  placeholder={config.api_key ? '••••••••••••••••••••••••• (leave blank to keep current)' : 'Enter API key'}
+                  value={config.api_key || ''}
+                  onChange={e => setConfig({ ...config, api_key: e.target.value })}
+                  placeholder="Enter API key"
                   style={{ paddingRight: '80px' }}
                 />
                 <button
@@ -251,7 +247,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
                   {showApiKey ? 'Hide' : 'Show'}
                 </button>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Stored securely. Leave blank to keep existing key.</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Click Show to view the key. Changes are saved when you click Save Configuration.</span>
             </div>
 
             {/* Temperature & Tokens */}

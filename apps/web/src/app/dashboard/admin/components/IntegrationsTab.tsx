@@ -77,13 +77,6 @@ export function IntegrationsTab({ showAlert }: { showAlert: (m: string, t?: 'suc
     },
   ];
 
-  const comingSoon = [
-    { name: 'Jira', icon: '🔵', description: 'Sync tickets with Jira issues.' },
-    { name: 'Microsoft Teams', icon: '🟣', description: 'Send notifications to Teams channels.' },
-    { name: 'PagerDuty', icon: '🔴', description: 'Escalate critical tickets to PagerDuty.' },
-    { name: 'Zapier', icon: '⚡', description: 'Connect to 5000+ apps via Zapier.' },
-  ];
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
@@ -125,23 +118,6 @@ export function IntegrationsTab({ showAlert }: { showAlert: (m: string, t?: 'suc
         <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 24px' }}>
           {saving ? 'Saving...' : 'Save Integration Settings'}
         </button>
-      </div>
-
-      {/* Coming Soon */}
-      <div>
-        <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Coming Soon</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-          {comingSoon.map(cs => (
-            <div key={cs.name} style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)', opacity: 0.7 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <span style={{ fontSize: 20 }}>{cs.icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{cs.name}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 10, border: '1px solid var(--border)', marginLeft: 'auto' }}>SOON</span>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{cs.description}</div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

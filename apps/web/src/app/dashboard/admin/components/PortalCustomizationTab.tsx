@@ -106,43 +106,28 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Branding & Header</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Company identity shown in the portal hero</p>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Company name displayed in the portal header</p>
           </div>
         </div>
 
-        {/* Preview mockup */}
+        {/* Preview mockup — simplified hero banner */}
         <div style={{
-          marginBottom: 24, padding: '20px 24px',
+          marginBottom: 24, padding: '28px 24px',
           borderRadius: 'var(--radius-md)',
           background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #1e40af 65%, #2563eb 100%)',
           position: 'relative', overflow: 'hidden',
         }}>
-          <div style={{ position: 'absolute', top: -30, right: -20, width: 120, height: 120, background: 'rgba(59,130,246,0.15)', borderRadius: '50%', filter: 'blur(30px)' }} />
           <div style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>🏢</span>
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {form.portal_company_name || 'IT Self Service'}
-              </span>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'white', marginTop: 4 }}>
+              {form.portal_company_name || 'IT Self Service'}
             </div>
-            <div style={{
-              padding: '10px 14px', borderRadius: 10,
-              background: 'rgba(255,255,255,0.95)',
-              fontSize: 13, color: '#6b7280',
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-            }}>
-              <span style={{ color: '#9ca3af', fontSize: 10 }}>🔍</span>
-              {form.portal_hero_title || 'How can we help you today?'}
-            </div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
-              {form.portal_hero_subtitle || 'Search knowledge base, chat with AI, or submit a request.'}
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
+              Welcome to the self-service portal
             </div>
           </div>
         </div>
 
-        <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
               Company Name
@@ -151,27 +136,7 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
               onChange={e => setForm(f => ({ ...f, portal_company_name: e.target.value }))}
               placeholder="e.g. Acme Corp IT"
               style={{ width: '100%' }} />
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Shown in the portal header badge</p>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
-              Hero Title
-            </label>
-            <input className="input" value={form.portal_hero_title}
-              onChange={e => setForm(f => ({ ...f, portal_hero_title: e.target.value }))}
-              placeholder="Leave blank for default greeting"
-              style={{ width: '100%' }} />
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Overrides the personalized greeting if set</p>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
-              Hero Subtitle
-            </label>
-            <input className="input" value={form.portal_hero_subtitle}
-              onChange={e => setForm(f => ({ ...f, portal_hero_subtitle: e.target.value }))}
-              placeholder="How can we help you today?"
-              style={{ width: '100%' }} />
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Descriptive text below the search bar</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Shown in the portal header</p>
           </div>
         </div>
       </div>

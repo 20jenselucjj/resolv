@@ -4,6 +4,36 @@ import { Activity, FileText, Plus, CheckCircle, AlertTriangle, AlertCircle, User
 import { StatCard } from './SharedUI';
 import type { AdminStats, AuditEntry } from './types';
 
+function getAuditDescription(entry: AuditEntry): string {
+  const entity = entry.entity_type?.replace(/_/g, ' ') || '';
+  const newData = entry.new_data || {};
+
+  switch (entry.action) {
+    case 'update_user': {
+      if (newData.name) return `Name → "${newData.name}"`;
+      if (newData.role) return `Role → ${newData.role}`;
+      if (newData.is_active !== undefined) return newData.is_active ? 'Account activated' : 'Account deactivated';
+      if (newData.department) return `Dept → "${newData.department}"`;
+      return 'User updated';
+    }
+    case 'invite_user': return newData.email ? `Invited ${newData.email}` : 'User invited';
+    case 'update_setting': return String(newData.key || '') ? `"${String(newData.key).replace(/_/g, ' ')}" changed` : 'Setting changed';
+    case 'create_automation_rule': return newData.name ? `Rule "${newData.name}"` : 'Automation rule';
+    case 'create_holiday': return newData.name ? `Holiday "${newData.name}"` : 'Holiday added';
+    case 'create_workflow': return newData.name ? `Workflow "${newData.name}"` : 'Workflow created';
+    case 'update_roles': return 'Permissions updated';
+    case 'update_maintenance': return newData.enabled ? 'Maintenance ON' : 'Maintenance OFF';
+    case 'update_knowledge_article': return newData.title ? `"${newData.title}"` : 'KB updated';
+    case 'kb_sync': return 'KB synced to AI';
+    case 'ticket_sync': return 'Tickets synced to AI';
+    case 'login': return 'Signed in';
+    case 'logout': return 'Signed out';
+    default:
+      if (entity) return `${entry.action.replace(/_/g, ' ')} ${entity}`;
+      return entry.action.replace(/_/g, ' ');
+  }
+}
+
 export function OverviewTab({ stats, auditLog }: { stats: AdminStats | null; auditLog: AuditEntry[] }) {
   const byStatus = stats?.tickets?.by_status || {};
   const totalTickets = stats?.tickets?.total || 0;
@@ -79,8 +109,8 @@ export function OverviewTab({ stats, auditLog }: { stats: AdminStats | null; aud
               {auditLog.slice(0, 8).map((entry) => (
                 <tr key={entry.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                   <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 500 }}>{entry.actor_name}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>{entry.action}</td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>{entry.entity_type} <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({entry.entity_id})</span></td>
+                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>{getAuditDescription(entry)}</td>
+                  <td style={{ padding: '12px 16px', fontSize: '11px', color: 'var(--text-muted)' }}>{entry.entity_type?.replace(/_/g, ' ')}</td>
                   <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--text-muted)' }}>{new Date(entry.timestamp || entry.created_at).toLocaleString()}</td>
                 </tr>
               ))}
