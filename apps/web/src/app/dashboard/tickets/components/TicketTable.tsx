@@ -234,15 +234,7 @@ export function TicketTable({
                           </div>
                         )}
                       </div>
-                      {t.tags?.length > 0 && (
-                        <div style={{ display: 'flex', gap: 6, marginTop: 6, overflow: 'hidden' }}>
-                          {t.tags.slice(0, 3).map((tag: string) => (
-                            <span key={tag} style={{ fontSize: 11, padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-full)', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+
                     </td>
                   )}
 

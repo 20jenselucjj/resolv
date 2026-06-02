@@ -3,12 +3,10 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore, Category, User, Ticket } from '@/lib/store';
 import { api } from '@/lib/api';
-import { SelectSearch } from '@/components/SelectSearch';
 import {
-  Search, ChevronsUpDown,
-  Filter, X,
+  Search, ChevronsUpDown, ChevronDown, X,
   Clock, Settings2,
-  Book, Layers, Trash2,
+  Book, Layers, Sparkles,
 } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { NewTicketPanel } from '@/components/NewTicketPanel';
@@ -30,6 +28,73 @@ import {
   UserTicketView,
 } from './components';
 import type { SortField, SortDir } from './components';
+
+// ─── FilterPill Component ─────────────────────────────────────────────────
+function FilterPill({
+  label, value, options, onChange, isOpen, onToggle, ref
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+  ref: React.RefObject<HTMLDivElement | null>;
+}) {
+  const activeOption = options.find(o => o.value === value);
+  const displayLabel = activeOption?.label || `All ${label}`;
+  const isActive = value !== 'all';
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '5px 10px', height: 32, fontSize: 11, fontWeight: 500,
+          borderRadius: 8, border: `1px solid ${isOpen || isActive ? 'var(--accent-border)' : 'var(--border-subtle)'}`,
+          background: isOpen || isActive ? 'var(--accent-subtle)' : 'var(--bg)',
+          color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+          cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
+          {label}
+        </span>
+        <span style={{ color: isActive ? 'var(--text)' : 'var(--text-muted)' }}>
+          {isActive ? activeOption?.label : ''}
+        </span>
+        <ChevronDown size={10} style={{ transition: 'transform 0.15s', transform: isOpen ? 'rotate(180deg)' : 'none', color: 'var(--text-muted)' }} />
+      </button>
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4,
+          background: 'var(--card)', border: '1px solid var(--border)',
+          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          zIndex: 50, minWidth: 180, maxHeight: 280, overflowY: 'auto', padding: 4,
+          animation: 'popIn 0.12s ease-out',
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              onClick={() => { onChange(opt.value); onToggle(); }}
+              style={{
+                padding: '7px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                color: opt.value === value ? 'var(--accent)' : 'var(--text)',
+                background: opt.value === value ? 'var(--accent-subtle)' : 'transparent',
+                fontWeight: opt.value === value ? 600 : 400,
+              }}
+              onMouseEnter={e => { if (opt.value !== value) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+              onMouseLeave={e => { if (opt.value !== value) e.currentTarget.style.background = 'transparent'; }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TicketsPage() {
   const router = useRouter();
@@ -110,12 +175,12 @@ export default function TicketsPage() {
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [showBulkClose, setShowBulkClose] = useState(false);
   const [bulkCloseNote, setBulkCloseNote] = useState('');
+  const [sendEmailOnBulk, setSendEmailOnBulk] = useState(true);
   const [inlineCloseTicket, setInlineCloseTicket] = useState<{ id: string; title: string } | null>(null);
   const [inlineCloseNote, setInlineCloseNote] = useState('');
   const [showBulkPriority, setShowBulkPriority] = useState(false);
   const [showBulkMerge, setShowBulkMerge] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
-  const [showDeleteAll, setShowDeleteAll] = useState(false);
   const [savedFilters, setSavedFilters] = useState<{ name: string; filters: Record<string, string> }[]>(() => {
     if (typeof window !== 'undefined') {
       try { return JSON.parse(localStorage.getItem('resolv_saved_filters') || '[]'); } catch { return []; }
@@ -126,6 +191,23 @@ export default function TicketsPage() {
   const [showLoadFilter, setShowLoadFilter] = useState(false);
   const [filterName, setFilterName] = useState('');
   const loadFilterRef = useRef<HTMLDivElement>(null);
+
+  // Filter dropdown state
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [showAiFilter, setShowAiFilter] = useState(false);
+  const [aiFilterQuery, setAiFilterQuery] = useState('');
+  const [aiFilterLoading, setAiFilterLoading] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+  const typeRef = useRef<HTMLDivElement>(null);
+  const priorityRef = useRef<HTMLDivElement>(null);
+  const assigneeRef = useRef<HTMLDivElement>(null);
+  const timeRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(statusRef as React.RefObject<HTMLElement>, () => { if (openDropdown === 'status') setOpenDropdown(null); });
+  useClickOutside(typeRef as React.RefObject<HTMLElement>, () => { if (openDropdown === 'type') setOpenDropdown(null); });
+  useClickOutside(priorityRef as React.RefObject<HTMLElement>, () => { if (openDropdown === 'priority') setOpenDropdown(null); });
+  useClickOutside(assigneeRef as React.RefObject<HTMLElement>, () => { if (openDropdown === 'assignee') setOpenDropdown(null); });
+  useClickOutside(timeRef as React.RefObject<HTMLElement>, () => { if (openDropdown === 'time') setOpenDropdown(null); });
   
   useClickOutside(colToggleRef, () => setShowColToggle(false));
   useClickOutside(loadFilterRef as React.RefObject<HTMLElement>, () => setShowLoadFilter(false));
@@ -364,15 +446,6 @@ export default function TicketsPage() {
     }
   };
 
-  const handleDeleteAll = async () => {
-    try {
-      await api.delete('/tickets');
-      fetchTickets();
-    } catch (err) {
-      console.error('Delete all failed', err);
-    }
-  };
-
   const handleInlineUpdate = useCallback(async (ticketId: string, updates: Partial<Ticket>) => {
     if (updates.status === 'closed') {
       const ticket = sorted.find(t => t.id === ticketId);
@@ -400,6 +473,56 @@ export default function TicketsPage() {
     setDateFilter('all');
     setCurrentView('All');
   }, []);
+
+  // ── AI Filter ──────────────────────────────────────────────────────────
+  const handleAiFilter = async () => {
+    const query = aiFilterQuery.trim();
+    if (!query) return;
+    setAiFilterLoading(true);
+    try {
+      // Create AI session
+      const sessionRes = await api.post<{ data: { id: string } }>('/ai/sessions', { title: 'Filter: ' + query.substring(0, 30) });
+      const sid = sessionRes.data.id;
+
+      // Send filter request with structured prompt
+      const prompt = [
+        'You are a ticket filter assistant. Based on this natural language request, return ONLY valid JSON (no markdown, no explanation) with these fields:',
+        '- status: "open" | "in_progress" | "waiting" | "resolved" | "closed" | "all"',
+        '- priority: "low" | "medium" | "high" | "critical" | "all"',
+        '- type: "incident" | "service_request" | "problem" | "change" | "all"',
+        '- assignee: person name or "all"',
+        '- date: "today" | "yesterday" | "7d" | "30d" | "all"',
+        '',
+        'Request: "' + query + '"',
+      ].join('\n');
+
+      const chatRes = await api.post<{ data: { content: string } }>('/ai/chat', { session_id: sid, message: prompt });
+      const raw = chatRes.data.content.trim();
+
+      // Extract JSON from response (may have markdown fences)
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) { setAiFilterQuery(''); setShowAiFilter(false); return; }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Apply filters
+      if (parsed.status && parsed.status !== 'all') setStatus(parsed.status);
+      if (parsed.priority && parsed.priority !== 'all') setPriority(parsed.priority);
+      if (parsed.type && parsed.type !== 'all') setType(parsed.type);
+      if (parsed.date && parsed.date !== 'all') setDateFilter(parsed.date);
+      if (parsed.assignee && parsed.assignee !== 'all') {
+        // Try to match assignee name to an existing assignee
+        const matched = assignees.find(a => a.toLowerCase().includes(parsed.assignee.toLowerCase()));
+        if (matched) setAssigneeFilter(matched);
+      }
+    } catch (err) {
+      console.error('AI filter failed:', err);
+    } finally {
+      setAiFilterLoading(false);
+      setAiFilterQuery('');
+      setShowAiFilter(false);
+    }
+  };
 
   const exportCSV = () => {
     if (sorted.length === 0) return;
@@ -536,249 +659,227 @@ export default function TicketsPage() {
         viewCounts={viewCounts}
       />
 
-      {/* Filters */}
+      {/* Filters — Pill Dropdown System */}
       <div style={{
-        padding: '16px 24px',
+        padding: '10px 24px',
         borderBottom: '1px solid var(--border)',
-        display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
         background: 'var(--bg-secondary)',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 0 }}>
-          {/* Search */}
-          <div ref={searchRef} style={{ position: 'relative', width: 300 }}>
-            <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            <input
-              placeholder="Search tickets by title, #ID, or tags..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && search.trim()) {
-                  const updated = [search.trim(), ...recentSearches.filter(s => s !== search.trim())].slice(0, 8);
-                  setRecentSearches(updated);
-                  localStorage.setItem('resolv_recent_searches', JSON.stringify(updated));
-                  setShowRecentSearch(false);
-                }
-              }}
-              onFocus={() => { if (recentSearches.length > 0 && !search) setShowRecentSearch(true); }}
-              className="input"
-              style={{ 
-                paddingLeft: 38, height: 36, fontSize: 13, width: '100%', 
-                background: 'var(--bg)', borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-subtle)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-              }}
-            />
-              {search && (
-              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, transition: 'color 0.15s ease' }}
-                onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                <X size={14} />
-              </button>
-            )}
-            {showRecentSearch && recentSearches.length > 0 && (
-              <div style={{
-                position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-                background: 'var(--card)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                zIndex: 50, padding: 4, animation: 'popIn 0.15s ease-out'
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', padding: '4px 8px 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent Searches</div>
-                {recentSearches.map((s) => (
-                  <div key={s}
-                    onClick={() => { setSearch(s); setShowRecentSearch(false); }}
-                    style={{ padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: 'var(--text)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: 8 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Clock size={11} color="var(--text-muted)" />
-                    {s}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ 
-            display: 'flex', gap: 6, alignItems: 'center', 
-            background: 'var(--bg-tertiary)', padding: '4px 8px', 
-            borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-subtle)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '0 6px', color: 'var(--text-muted)' }}>
-              <Filter size={14} />
+        {/* Search */}
+        <div ref={searchRef} style={{ position: 'relative', width: 260, flexShrink: 0 }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+          <input
+            placeholder="Search tickets..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && search.trim()) {
+                const updated = [search.trim(), ...recentSearches.filter(s => s !== search.trim())].slice(0, 8);
+                setRecentSearches(updated);
+                localStorage.setItem('resolv_recent_searches', JSON.stringify(updated));
+                setShowRecentSearch(false);
+              }
+            }}
+            onFocus={() => { if (recentSearches.length > 0 && !search) setShowRecentSearch(true); }}
+            className="input"
+            style={{
+              paddingLeft: 32, height: 32, fontSize: 12, width: '100%',
+              background: 'var(--bg)', borderRadius: 8,
+              border: '1px solid var(--border-subtle)',
+            }}
+          />
+          {search && (
+            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}>
+              <X size={13} />
+            </button>
+          )}
+          {showRecentSearch && recentSearches.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, padding: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', padding: '4px 8px 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent</div>
+              {recentSearches.map(s => (
+                <div key={s} onClick={() => { setSearch(s); setShowRecentSearch(false); }} style={{ padding: '5px 8px', cursor: 'pointer', fontSize: 12, color: 'var(--text)', borderRadius: 6 }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <Clock size={10} color="var(--text-muted)" style={{ marginRight: 6 }} />{s}
+                </div>
+              ))}
             </div>
-            <div style={{ width: 130 }}>
-              <SelectSearch
-                options={TYPE_OPTIONS.map((t) => ({
-                  value: t,
-                  label: t === 'all' ? 'All Types' : t.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
-                }))}
-                value={type}
-                onChange={(val) => setType(val || 'all')}
-              />
-            </div>
-            <div style={{ width: 130 }}>
-              <SelectSearch
-                options={STATUS_OPTIONS.map((s) => ({
-                  value: s,
-                  label: s === 'all' ? 'All Status' : s.replace('_', ' ')
-                }))}
-                value={status}
-                onChange={(val) => setStatus(val || 'all')}
-              />
-            </div>
-            <div style={{ width: 130 }}>
-              <SelectSearch
-                options={PRIORITY_OPTIONS.map((p) => ({
-                  value: p,
-                  label: p === 'all' ? 'All Priority' : p
-                }))}
-                value={priority}
-                onChange={(val) => setPriority(val || 'all')}
-              />
-            </div>
-            
-            {isAdminOrAgent && (
-              <div style={{ width: 150 }}>
-                <SelectSearch
-                  options={[
-                    { value: 'all', label: 'All Assignees' },
-                    ...assignees.map(a => ({ value: a, label: a }))
-                  ]}
-                  value={assigneeFilter}
-                  onChange={(val) => setAssigneeFilter(val || 'all')}
-                />
-              </div>
-            )}
-            
-            <div style={{ width: 140 }}>
-              <SelectSearch
-                options={DATE_OPTIONS.map(d => ({
-                  value: d.value,
-                  label: d.label
-                }))}
-                value={dateFilter}
-                onChange={(val) => setDateFilter(val || 'all')}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* Filter Pills — each opens a dropdown */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, flexWrap: 'wrap' }}>
+
+          {/* Type filter pill */}
+          <FilterPill
+            label="Type"
+            value={type}
+            options={TYPE_OPTIONS.map(t => ({ value: t, label: t === 'all' ? 'All Types' : t.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') }))}
+            onChange={(v) => setType(v || 'all')}
+            isOpen={openDropdown === 'type'}
+            onToggle={() => setOpenDropdown(openDropdown === 'type' ? null : 'type')}
+            ref={typeRef}
+          />
+
+          {/* Status filter pill */}
+          <FilterPill
+            label="Status"
+            value={status}
+            options={STATUS_OPTIONS.map(s => ({ value: s, label: s === 'all' ? 'All Status' : s.replace(/_/g, ' ') }))}
+            onChange={(v) => setStatus(v || 'all')}
+            isOpen={openDropdown === 'status'}
+            onToggle={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+            ref={statusRef}
+          />
+
+          {/* Priority filter pill */}
+          <FilterPill
+            label="Priority"
+            value={priority}
+            options={PRIORITY_OPTIONS.map(p => ({ value: p, label: p === 'all' ? 'All Priority' : p.charAt(0).toUpperCase() + p.slice(1) }))}
+            onChange={(v) => setPriority(v || 'all')}
+            isOpen={openDropdown === 'priority'}
+            onToggle={() => setOpenDropdown(openDropdown === 'priority' ? null : 'priority')}
+            ref={priorityRef}
+          />
+
+          {/* Assignee filter pill (admin/agent only) */}
+          {isAdminOrAgent && (
+            <FilterPill
+              label="Assignee"
+              value={assigneeFilter}
+              options={[{ value: 'all', label: 'All Assignees' }, ...assignees.map(a => ({ value: a, label: a }))]}
+              onChange={(v) => setAssigneeFilter(v || 'all')}
+              isOpen={openDropdown === 'assignee'}
+              onToggle={() => setOpenDropdown(openDropdown === 'assignee' ? null : 'assignee')}
+              ref={assigneeRef}
+            />
+          )}
+
+          {/* Time filter pill */}
+          <FilterPill
+            label="Time"
+            value={dateFilter}
+            options={DATE_OPTIONS.map(d => ({ value: d.value, label: d.label }))}
+            onChange={(v) => setDateFilter(v || 'all')}
+            isOpen={openDropdown === 'time'}
+            onToggle={() => setOpenDropdown(openDropdown === 'time' ? null : 'time')}
+            ref={timeRef}
+          />
+        </div>
+
+        {/* Right-side actions */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+          {/* AI Filter */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            {showAiFilter ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg)', border: '1px solid var(--accent-border)', borderRadius: 8, padding: '2px 4px 2px 10px', animation: 'popIn 0.15s ease-out' }}>
+                <input
+                  autoFocus
+                  placeholder="Describe what you need and I'll filter it..."
+                  value={aiFilterQuery}
+                  onChange={(e) => setAiFilterQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAiFilter(); if (e.key === 'Escape') { setShowAiFilter(false); setAiFilterQuery(''); } }}
+                  style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 11, color: 'var(--text)', width: 220, padding: '4px 0' }}
+                />
+                <button
+                  onClick={handleAiFilter}
+                  disabled={aiFilterLoading || !aiFilterQuery.trim()}
+                  style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 10, fontWeight: 600, cursor: aiFilterQuery.trim() ? 'pointer' : 'not-allowed', opacity: aiFilterQuery.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}
+                >
+                  {aiFilterLoading ? '...' : 'Go'}
+                </button>
+                <button onClick={() => { setShowAiFilter(false); setAiFilterQuery(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAiFilter(true)}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, fontWeight: 500, gap: 4, color: 'var(--accent)' }}
+                title="AI-powered filter"
+              >
+                <Sparkles size={12} /> AI Filter
+              </button>
+            )}
+          </div>
+
           {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="btn btn-ghost btn-sm"
-              style={{ color: 'var(--danger)', fontSize: 12, fontWeight: 500 }}
-            >
-              <X size={12} /> Clear Filters
+            <button onClick={clearFilters} className="btn btn-ghost btn-sm"
+              style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 500, gap: 3 }}>
+              <X size={11} /> Clear
             </button>
           )}
 
           {/* Saved Filters */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <button
-              onClick={() => setShowSaveFilter(true)}
-              className="btn btn-ghost btn-sm"
-              style={{ fontSize: 12, fontWeight: 500, gap: 4 }}
-              title="Save current filters"
-            >
-              <Book size={12} /> Save
-            </button>
-            <div style={{ position: 'relative' }} ref={loadFilterRef}>
-              <button
-                onClick={() => setShowLoadFilter(!showLoadFilter)}
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: 12, fontWeight: 500, gap: 4 }}
-                title="Load saved filters"
-              >
-                <Layers size={12} /> Filters
-                {savedFilters.length > 0 && (
-                  <span style={{ background: 'var(--accent)', color: '#fff', padding: '1px 5px', borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{savedFilters.length}</span>
-                )}
-              </button>
-              {showLoadFilter && (
-                <div style={{
-                  position: 'absolute', right: 0, top: '100%', marginTop: 8,
-                  background: 'var(--card)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)', padding: '8px',
-                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', zIndex: 50,
-                  width: 240, animation: 'popIn 0.2s ease-out'
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, padding: '0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saved Filters</div>
-                  {savedFilters.length === 0 ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 4px', textAlign: 'center' }}>No saved filters</div>
-                  ) : (
-                    savedFilters.map(f => (
-                      <div key={f.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <span onClick={() => handleLoadFilter(f)} style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, flex: 1 }}>{f.name}</span>
-                        <button onClick={() => handleDeleteFilter(f.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}
-                          onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
+          <button onClick={() => setShowSaveFilter(true)} className="btn btn-ghost btn-sm"
+            style={{ fontSize: 11, fontWeight: 500, gap: 3, color: 'var(--text-muted)' }} title="Save current filters">
+            <Book size={11} /> Save
+          </button>
+
+          <div style={{ position: 'relative' }} ref={loadFilterRef}>
+            <button onClick={() => setShowLoadFilter(!showLoadFilter)} className="btn btn-ghost btn-sm"
+              style={{ fontSize: 11, fontWeight: 500, gap: 3, color: 'var(--text-muted)' }}>
+              <Layers size={11} /> Filters
+              {savedFilters.length > 0 && (
+                <span style={{ background: 'var(--accent)', color: '#fff', padding: '0 4px', borderRadius: 6, fontSize: 9, fontWeight: 700, lineHeight: '14px' }}>{savedFilters.length}</span>
               )}
-            </div>
+            </button>
+            {showLoadFilter && (
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', zIndex: 50, width: 220 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, padding: '0 4px', textTransform: 'uppercase' }}>Saved Filters</div>
+                {savedFilters.length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '6px 4px', textAlign: 'center' }}>No saved filters</div>
+                ) : (
+                  savedFilters.map(f => (
+                    <div key={f.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 6px', borderRadius: 6, cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <span onClick={() => handleLoadFilter(f)} style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, flex: 1 }}>{f.name}</span>
+                      <button onClick={() => handleDeleteFilter(f.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-
-          {user?.role === 'admin' && (
-            <>
-              <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
-              <button
-                onClick={() => setShowDeleteAll(true)}
-                className="btn btn-ghost btn-sm"
-                style={{ color: 'var(--danger)', fontSize: 12, fontWeight: 500, gap: 4 }}
-                title="Delete all tickets"
-              >
-                <Trash2 size={12} /> Delete All
-              </button>
-            </>
-          )}
-
-          <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
           {/* Column Toggle */}
           <div style={{ position: 'relative' }} ref={colToggleRef}>
-            <button
-              onClick={() => setShowColToggle(!showColToggle)}
-              className="btn btn-ghost btn-icon"
-              style={{ color: 'var(--text-muted)' }}
-              title="Toggle columns"
-            >
-              <Settings2 size={16} />
+            <button onClick={() => setShowColToggle(!showColToggle)} className="btn btn-ghost btn-icon"
+              style={{ color: 'var(--text-muted)' }} title="Toggle columns">
+              <Settings2 size={15} />
             </button>
             {showColToggle && (
               <div style={{
-                position: 'absolute', right: 0, top: '100%', marginTop: 8,
+                position: 'absolute', right: 0, top: '100%', marginTop: 6,
                 background: 'var(--card)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)', padding: '12px 8px',
+                borderRadius: 8, padding: '10px 8px',
                 boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', zIndex: 50,
-                width: 200, animation: 'popIn 0.2s ease-out'
+                width: 190, animation: 'popIn 0.15s ease-out'
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, padding: '0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Columns</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, padding: '0 6px', textTransform: 'uppercase' }}>Columns</div>
                 {ALL_COLUMNS.map(c => (
-                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px', cursor: 'pointer', borderRadius: 'var(--radius-sm)', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <input
-                      type="checkbox"
-                      checked={visibleCols.has(c.id)}
+                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 6px', cursor: 'pointer', borderRadius: 6 }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <input type="checkbox" checked={visibleCols.has(c.id)}
                       onChange={() => {
                         const next = new Set(visibleCols);
                         if (next.has(c.id)) next.delete(c.id);
                         else next.add(c.id);
                         setVisibleCols(next);
                       }}
-                      style={{ accentColor: 'var(--accent)', transform: 'scale(1.1)' }}
-                    />
-                    <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{c.label}</span>
+                      style={{ accentColor: 'var(--accent)' }} />
+                    <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{c.label}</span>
                   </label>
                 ))}
               </div>
@@ -848,20 +949,13 @@ export default function TicketsPage() {
         />
       )}
 
-      {showDeleteAll && (
-        <BulkDeleteModal
-          selectedIds={new Set()}
-          handleBulkDelete={handleDeleteAll}
-          onClose={() => setShowDeleteAll(false)}
-          isDeleteAll
-        />
-      )}
-
       {showBulkClose && (
         <BulkCloseModal
           selectedIds={selectedIds}
           bulkCloseNote={bulkCloseNote}
           setBulkCloseNote={setBulkCloseNote}
+          sendEmailOnBulk={sendEmailOnBulk}
+          setSendEmailOnBulk={setSendEmailOnBulk}
           handleBulkUpdate={handleBulkUpdate}
           onClose={() => { setShowBulkClose(false); setBulkCloseNote(''); }}
         />

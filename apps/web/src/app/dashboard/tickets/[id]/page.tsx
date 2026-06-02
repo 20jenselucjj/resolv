@@ -5,16 +5,18 @@ import { api } from '@/lib/api';
 import { useStore, Ticket, Category, Comment, User } from '@/lib/store';
 import { connectSocket } from '@/lib/socket';
 import {
-  ArrowLeft, Send, Lock, ChevronDown,
+  ArrowLeft, Send, Lock,
   AlertTriangle, CheckCircle,
   Edit2, Check, X,
   MessageSquare, Activity, FileText, Book,
-  Paperclip, Trash2, User as UserIcon
+  Paperclip, Trash2, User as UserIcon,
+  Download
 } from 'lucide-react';
 import {
   formatSize,
   TopBar,
   PropertiesCard,
+  AttachmentPreviewModal,
 } from './components';
 import type { Attachment } from './components';
 
@@ -38,6 +40,7 @@ export default function TicketDetailPage() {
   const [isClosing, setIsClosing] = useState(false);
   const [closeNotesDraft, setCloseNotesDraft] = useState('');
   const [sendEmailOnClose, setSendEmailOnClose] = useState(true);
+  const [sendEmailOnResolution, setSendEmailOnResolution] = useState(true);
   
   // New UI states
   const [showMenu, setShowMenu] = useState(false);
@@ -56,6 +59,7 @@ export default function TicketDetailPage() {
     "Closing this ticket due to inactivity. Feel free to reply if you still need help."
   ]);
   const [dragOver, setDragOver] = useState(false);
+  const [previewAttach, setPreviewAttach] = useState<Attachment | null>(null);
   
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -84,7 +88,7 @@ export default function TicketDetailPage() {
     socket.emit('ticket:join', id);
     socket.on('ticket:presence', ({ users }: { users: string[] }) => setPresence(users));
     socket.on(`ticket:comment:${id}`, ({ comment: c }: { comment: Comment }) => {
-      setTicket((prev) => prev ? { ...prev, comments: [...(prev.comments || []), c] } : prev);
+      setTicket((prev) => prev ? { ...prev, comments: [c, ...(prev.comments || [])] } : prev);
     });
     socket.on(`ticket:updated:${id}`, ({ ticket: t }: { ticket: Partial<Ticket> }) => {
       setTicket((prev) => prev ? { ...prev, ...t } as Ticket : prev);
@@ -204,15 +208,14 @@ export default function TicketDetailPage() {
     try {
       await api.post<{ data: Comment }>(`/tickets/${id}/comments`, { 
         body: comment, 
-        is_internal: replyMode === 'note' 
+        is_internal: replyMode === 'note',
       });
       
       if (asResolution) {
-        // Don't set close_notes here — the comment itself IS the closing record.
-        // The Journey tab already shows comments, so duplicating as close_notes
-        // would show the same message twice.
         const resTicket = await api.patch<{ data: Ticket }>(`/tickets/${id}`, { 
-          status: 'closed'
+          status: 'closed',
+          close_notes: comment,
+          send_email: sendEmailOnResolution,
         });
         setTicket((prev) => prev ? ({ ...prev, ...resTicket.data }) : null);
         updateTicket(id, resTicket.data);
@@ -526,25 +529,31 @@ export default function TicketDetailPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {attachments.map((a) => (
-                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+                  <div
+                    key={a.id}
+                    onClick={() => setPreviewAttach(a)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'background 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                  >
                     <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                       <FileText size={16} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.original_name || a.filename}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {formatSize(a.size)} • {a.uploader_name} • {new Date(a.created_at).toLocaleDateString()}
+                        {formatSize(a.size)} &bull; {a.uploader_name} &bull; {new Date(a.created_at).toLocaleDateString()}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <a 
+                    <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                      <a
                         href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/attachments/${a.id}/download?token=${localStorage.getItem('resolv_token')}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-ghost btn-icon btn-sm"
                         title="Download"
                       >
-                        <ChevronDown size={14} style={{ transform: 'rotate(-90deg)' }} />
+                        <Download size={14} />
                       </a>
                       {isAdminOrAgent && (
                         <button onClick={() => handleDeleteAttachment(a.id)} className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--danger)' }} title="Delete">
@@ -738,25 +747,31 @@ export default function TicketDetailPage() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {attachments.map((a) => (
-                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+                    <div
+                      key={a.id}
+                      onClick={() => setPreviewAttach(a)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'background 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--card)'; }}
+                    >
                       <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                         <FileText size={16} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.original_name || a.filename}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {formatSize(a.size)} • {a.uploader_name} • {new Date(a.created_at).toLocaleDateString()}
+                          {formatSize(a.size)} &bull; {a.uploader_name} &bull; {new Date(a.created_at).toLocaleDateString()}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <a 
+                      <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                        <a
                           href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/attachments/${a.id}/download?token=${localStorage.getItem('resolv_token')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-ghost btn-icon btn-sm"
                           title="Download"
                         >
-                          <ChevronDown size={14} style={{ transform: 'rotate(-90deg)' }} />
+                          <Download size={14} />
                         </a>
                         {isAdminOrAgent && (
                           <button onClick={() => handleDeleteAttachment(a.id)} className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--danger)' }} title="Delete">
@@ -871,7 +886,7 @@ export default function TicketDetailPage() {
                   onKeyDown={(e) => {
                     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitComment(replyMode === 'resolution');
                   }}
-                  placeholder={replyMode === 'note' ? 'Write an internal note...' : replyMode === 'resolution' ? 'Write a closing note (ticket will be closed)...' : 'Write a public reply... (⌘↵ to send)'}
+                  placeholder={replyMode === 'note' ? 'Write an internal note...' : replyMode === 'resolution' ? 'Write a closing note (ticket will be closed)...' : 'Write a public reply...'}
                   rows={4}
                   style={{
                     width: '100%', padding: '16px',
@@ -910,7 +925,12 @@ export default function TicketDetailPage() {
                   ) : <div />}
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}><kbd>⌘↵</kbd> to send</span>
+                    {replyMode === 'resolution' && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={sendEmailOnResolution} onChange={e => setSendEmailOnResolution(e.target.checked)} style={{ cursor: 'pointer' }} />
+                        Email user
+                      </label>
+                    )}
                     {replyMode === 'resolution' ? (
                       <button onClick={() => submitComment(true)} disabled={submitting || !comment.trim()} className="btn btn-primary btn-sm" style={{ background: 'var(--success)', color: '#fff' }}>
                         <CheckCircle size={14} /> Close Ticket
@@ -927,6 +947,14 @@ export default function TicketDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Attachment Preview Modal */}
+      {previewAttach && (
+        <AttachmentPreviewModal
+          attachment={previewAttach}
+          onClose={() => setPreviewAttach(null)}
+        />
+      )}
     </div>
   );
 }
