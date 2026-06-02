@@ -8,7 +8,15 @@ const pool = new Pool({
 });
 
 const sql = fs.readFileSync(path.join(__dirname, 'migrate_users_sessions.sql'), 'utf8');
+const emailSql = fs.readFileSync(path.join(__dirname, 'migrate_email.sql'), 'utf8');
 
-pool.query(sql)
-  .then(() => { console.log('✅ Migration applied successfully'); process.exit(0); })
+async function run() {
+  await pool.query(sql);
+  console.log('Users/sessions migration applied');
+  await pool.query(emailSql);
+  console.log('Email migration applied');
+}
+
+run()
+  .then(() => { console.log('✅ All migrations applied successfully'); process.exit(0); })
   .catch(e => { console.error('❌ Error:', e.message); process.exit(1); });

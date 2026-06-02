@@ -169,7 +169,7 @@ function LoginForm() {
   }
 
   function handleSsoClick() {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/oauth/google/authorize`;
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/oauth/google/authorize`;
   }
 
   async function handleForgotSubmit(e: React.FormEvent) {

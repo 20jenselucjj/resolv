@@ -1,7 +1,9 @@
 export enum UserRole {
   ADMIN = 'admin',
+  MANAGER = 'manager',
   AGENT = 'agent',
-  USER = 'user'
+  USER = 'user',
+  READONLY = 'readonly'
 }
 
 export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed';
@@ -118,51 +120,6 @@ export interface AssetGroup {
   color: string;
   asset_count: number;
   created_at: string;
-}
-
-export interface ApiResponse<T> {
-  data: T;
-  error?: string;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  avatarUrl?: string;
-  createdAt: string;
-}
-
-export interface Ticket {
-  id: string;
-  title: string;
-  description: string;
-  status: TicketStatus;
-  priority: TicketPriority;
-  createdById: string;
-  assignedToId?: string;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  resolvedAt?: string;
-}
-
-export interface TicketComment {
-  id: string;
-  ticketId: string;
-  authorId: string;
-  body: string;
-  isInternal: boolean;
-  createdAt: string;
 }
 
 export interface ApiResponse<T> {

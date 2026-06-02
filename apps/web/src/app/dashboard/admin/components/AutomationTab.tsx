@@ -13,6 +13,9 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [form, setForm] = useState({ name: '', trigger: 'ticket_created', condition: '', action: 'change_status', actionValue: '' });
+  const [conditionField, setConditionField] = useState('');
+  const [conditionOp, setConditionOp] = useState('=');
+  const [conditionValue, setConditionValue] = useState('');
 
   const loadRules = useCallback(async () => {
     setLoading(true);
@@ -36,6 +39,7 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
     { value: 'ticket_resolved', label: 'Ticket Resolved' },
     { value: 'sla_breach', label: 'SLA Breach' },
     { value: 'comment_added', label: 'Comment Added' },
+    { value: 'ticket_overdue', label: 'Ticket Overdue' },
   ];
 
   const ACTIONS = [
@@ -44,6 +48,8 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
     { value: 'assign_to_group', label: 'Assign to Group' },
     { value: 'send_notification', label: 'Send Notification' },
     { value: 'add_tag', label: 'Add Tag' },
+    { value: 'send_email', label: 'Send Email' },
+    { value: 'add_internal_note', label: 'Add Internal Note' },
   ];
 
   const handleToggle = async (id: string) => {
@@ -82,7 +88,7 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
       await api.post('/admin/automation-rules', {
         name: form.name,
         trigger: form.trigger,
-        condition: form.condition,
+        condition: [conditionField, conditionOp, conditionValue].filter(Boolean).join(' '),
         action: form.action,
         action_value: form.actionValue,
         enabled: true
@@ -90,6 +96,9 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
       showAlert('Automation rule created');
       setIsAdding(false);
       setForm({ name: '', trigger: 'ticket_created', condition: '', action: 'change_status', actionValue: '' });
+      setConditionField('');
+      setConditionOp('=');
+      setConditionValue('');
       loadRules();
     } catch {
       showAlert('Failed to create rule', 'error');
@@ -98,11 +107,7 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 600 }}>Automation Rules</h3>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>Automatically route, escalate, and manage tickets based on conditions.</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <button className="btn btn-primary" onClick={() => setIsAdding(true)}><Plus size={14} /> Add Rule</button>
       </div>
 
@@ -120,9 +125,27 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
                   {TRIGGERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Condition</label>
-                <input className="input" value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} placeholder="e.g. priority = critical" />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Condition</label>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <select className="select" value={conditionField} onChange={e => setConditionField(e.target.value)} style={{ flex: 1 }}>
+                      <option value="">Field...</option>
+                      <option value="priority">Priority</option>
+                      <option value="status">Status</option>
+                      <option value="ticket_type">Type</option>
+                      <option value="category">Category</option>
+                      <option value="assigned_to">Assigned To</option>
+                    </select>
+                    <select className="select" value={conditionOp} onChange={e => setConditionOp(e.target.value)} style={{ width: 90 }}>
+                      <option value="=">=</option>
+                      <option value="!=">!=</option>
+                      <option value="contains">contains</option>
+                      <option value="starts_with">starts with</option>
+                    </select>
+                    <input className="input" value={conditionValue} onChange={e => setConditionValue(e.target.value)} placeholder="value" style={{ flex: 1 }} />
+                  </div>
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Action</label>
@@ -169,7 +192,18 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
                     {TRIGGERS.find(t => t.value === rule.trigger)?.label || rule.trigger}
                   </span>
                 </td>
-                <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{rule.condition || '—'}</td>
+                <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  {rule.condition ? (() => {
+                    const parts = rule.condition.split(' ');
+                    return (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <span style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>{parts[0]}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{parts[1]}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{parts.slice(2).join(' ')}</span>
+                      </span>
+                    );
+                  })() : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
                 <td style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                   {ACTIONS.find(a => a.value === rule.action)?.label}: <strong>{rule.actionValue}</strong>
                 </td>

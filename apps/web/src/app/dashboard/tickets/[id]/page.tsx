@@ -37,6 +37,7 @@ export default function TicketDetailPage() {
   const [rightTab, setRightTab] = useState<'journey' | 'attachments' | 'activity'>('journey');
   const [isClosing, setIsClosing] = useState(false);
   const [closeNotesDraft, setCloseNotesDraft] = useState('');
+  const [sendEmailOnClose, setSendEmailOnClose] = useState(true);
   
   // New UI states
   const [showMenu, setShowMenu] = useState(false);
@@ -230,12 +231,14 @@ export default function TicketDetailPage() {
     try {
       const res = await api.patch<{ data: Ticket }>(`/tickets/${id}`, { 
         status: 'closed', 
-        close_notes: closeNotesDraft 
+        close_notes: closeNotesDraft,
+        send_email: sendEmailOnClose,
       });
       setTicket((prev) => prev ? ({ ...prev, ...res.data }) : null);
       updateTicket(id, res.data);
       setIsClosing(false);
       setCloseNotesDraft('');
+      setSendEmailOnClose(true);
     } finally {
       setSubmitting(false);
     }
@@ -361,6 +364,8 @@ export default function TicketDetailPage() {
         handleStatusChange={handleStatusChange}
         showMenu={showMenu}
         setShowMenu={setShowMenu}
+        sendEmailOnClose={sendEmailOnClose}
+        setSendEmailOnClose={setSendEmailOnClose}
       />
 
       {/* Main Two-Column Layout */}

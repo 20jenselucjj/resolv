@@ -69,16 +69,6 @@ export function CannedResponsesTab({ showAlert }: { showAlert: (m: string, t?: '
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Book size={16} color="var(--accent)" />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Canned Responses</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Quick reply templates available to agents in the ticket reply box. Agents can insert these with one click.</p>
-          </div>
-        </div>
-
         {/* Add new */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
           <textarea

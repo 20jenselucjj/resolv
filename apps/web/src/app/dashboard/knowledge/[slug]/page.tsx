@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import {
   ArrowLeft, Eye, ThumbsUp, ThumbsDown, 
   Calendar, Edit3, Trash2, Tag, BookOpen,
@@ -732,22 +733,13 @@ export default function ArticleDetailPage() {
           {isEditing ? (
             <div style={{ marginBottom: 32 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 8 }}>
-                Article Body (Markdown)
+                Article Body
               </label>
-              <textarea
+              <RichTextEditor
                 value={editForm.body}
-                onChange={e => setEditForm(prev => ({ ...prev, body: e.target.value }))}
-                rows={20}
-                style={{
-                  width: '100%', fontSize: 14, lineHeight: 1.7,
-                  background: 'var(--card)', border: '2px solid var(--border)',
-                  borderRadius: 'var(--radius)', padding: '12px 16px',
-                  outline: 'none', color: 'var(--foreground)', resize: 'vertical',
-                  fontFamily: 'monospace', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                onChange={(val) => setEditForm(prev => ({ ...prev, body: val }))}
+                height={500}
+                preview="live"
               />
             </div>
           ) : (

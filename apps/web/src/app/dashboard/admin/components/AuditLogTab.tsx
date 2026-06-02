@@ -5,9 +5,20 @@ import { ChevronLeft, ChevronRight, FileText, Filter, Calendar } from 'lucide-re
 import { Badge } from './SharedUI';
 import type { AuditEntry } from './types';
 
-export function AuditLogTab({ auditLog, page, setPage }: { auditLog: AuditEntry[]; page: number; setPage: (p: number) => void }) {
-  const [filterAction, setFilterAction] = useState('');
-  const [filterUser, setFilterUser] = useState('');
+const DATE_OPTIONS = [
+  { label: 'Yesterday', value: '1d' },
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: '7d' },
+  { label: 'This Month', value: '30d' },
+];
+
+export function AuditLogTab({ auditLog, page, setPage, filterAction, setFilterAction, filterUser, setFilterUser }: {
+  auditLog: AuditEntry[]; page: number; setPage: (p: number) => void;
+  filterAction: string; setFilterAction: (a: string) => void;
+  filterUser: string; setFilterUser: (u: string) => void;
+}) {
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateLabel, setDateLabel] = useState('Date');
 
   const exportCSV = () => {
     const headers = ['Timestamp', 'Actor', 'Action', 'Entity Type', 'Entity ID'];
@@ -27,25 +38,38 @@ export function AuditLogTab({ auditLog, page, setPage }: { auditLog: AuditEntry[
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>System Audit Log</h3>
           <button className="btn btn-ghost" style={{ border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }} onClick={exportCSV}><FileText size={14} /> Export CSV</button>
         </div>
         
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-            <Filter size={14} color="var(--text-muted)" />
-            <select className="select" style={{ border: 'none', background: 'transparent', padding: '0 8px', height: '28px', fontSize: '12px' }} value={filterAction} onChange={(e) => setFilterAction(e.target.value)}>
-              <option value="">All Actions</option>
-              <option value="login">Login</option>
-              <option value="created">Created</option>
-              <option value="updated">Updated</option>
-              <option value="deleted">Deleted</option>
-            </select>
-            <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
-            <input type="text" placeholder="Filter by User..." className="input" style={{ border: 'none', background: 'transparent', padding: '0 8px', height: '28px', fontSize: '12px', width: '120px' }} value={filterUser} onChange={(e) => setFilterUser(e.target.value)} />
-            <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
-            <button className="btn btn-ghost" style={{ padding: '0 8px', height: '28px', fontSize: '12px' }}><Calendar size={14} style={{ marginRight: 4 }} /> Date</button>
-          </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', padding: '4px 8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <Filter size={14} color="var(--text-muted)" />
+              <select className="select" style={{ border: 'none', background: 'transparent', padding: '0 8px', height: '28px', fontSize: '12px' }} value={filterAction} onChange={(e) => setFilterAction(e.target.value)}>
+                <option value="">All Actions</option>
+                <option value="login">Login</option>
+                <option value="created">Created</option>
+                <option value="updated">Updated</option>
+                <option value="deleted">Deleted</option>
+              </select>
+              <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
+              <input type="text" placeholder="Filter by User..." className="input" style={{ border: 'none', background: 'transparent', padding: '0 8px', height: '28px', fontSize: '12px', width: '120px' }} value={filterUser} onChange={(e) => setFilterUser(e.target.value)} />
+              <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
+              <div style={{ position: 'relative' }}>
+                <button className="btn btn-ghost" style={{ padding: '0 8px', height: '28px', fontSize: '12px', whiteSpace: 'nowrap' }} onClick={() => setShowDatePicker(!showDatePicker)}>
+                  <Calendar size={14} style={{ marginRight: 4 }} /> {dateLabel}
+                </button>
+                {showDatePicker && (
+                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10, minWidth: 140 }}>
+                    {DATE_OPTIONS.map(opt => (
+                      <button key={opt.value} className="btn btn-ghost" style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        onClick={() => { setDateLabel(opt.label); setShowDatePicker(false); }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '12px' }}>
             <button className="btn btn-ghost" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}><ChevronLeft size={16} /></button>

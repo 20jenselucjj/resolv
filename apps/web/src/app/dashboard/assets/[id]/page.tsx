@@ -173,8 +173,8 @@ interface AssetResponse {
 type TabId = 'overview' | 'hardware' | 'software' | 'network' | 'activity';
 type NoticeTone = 'success' | 'warning' | 'danger' | 'accent';
 
-const DISPLAY_FONT = '"Iowan Old Style", "Palatino Linotype", Georgia, serif';
-const BODY_FONT = 'Aptos, "Segoe UI", system-ui, sans-serif';
+const DISPLAY_FONT = 'var(--font-display, var(--font-inter), system-ui, sans-serif)';
+const BODY_FONT = 'var(--font-body, var(--font-inter), system-ui, sans-serif)';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ElementType }> = [
   { id: 'overview', label: 'Overview', icon: Monitor },
@@ -915,7 +915,25 @@ export default function AssetDetailPage({
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
-  const users = asset?.users || asset?.logged_users || [];
+  const users = React.useMemo(() => {
+    const raw = asset?.users || asset?.logged_users || [];
+    const seen = new Set<string>();
+    const sessions = new Map<string, { session: any; count: number }>();
+    for (const s of raw) {
+      const key = s.username || s.user_id || s.display_name || s.user_email || '';
+      const existing = sessions.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (s.is_current) existing.session = s;
+      } else {
+        sessions.set(key, { session: s, count: 1 });
+      }
+    }
+    return Array.from(sessions.values()).map(({ session, count }) => ({
+      ...session,
+      session_count: count > 1 ? count : undefined
+    }));
+  }, [asset?.users, asset?.logged_users]);
   const activity = React.useMemo(() => {
     const entries = [...(asset?.activity || [])];
 
@@ -1980,22 +1998,23 @@ export default function AssetDetailPage({
               </div>
             </Panel>
 
-            <Panel title="Logged-in users" subtitle="Current sessions on this endpoint" icon={Users}>
+            <Panel title="Logged-in users" subtitle="Unique user sessions on this endpoint" icon={Users}>
               {users.length === 0 ? (
                 <EmptyState icon={User} title="No active user data" description="No logged-in users were returned for this asset." />
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {users.map((session, index) => (
                     <div
                       key={session.id || `${session.username || 'user'}-${index}`}
                       style={{
                         display: 'flex',
-                        alignItems: 'flex-start',
+                        alignItems: 'center',
                         gap: 12,
-                        padding: 14,
+                        padding: '12px 14px',
                         borderRadius: 'var(--radius-md)',
                         border: '1px solid var(--border)',
-                        background: 'var(--bg)'
+                        background: session.is_current ? 'var(--accent-subtle)' : 'var(--bg)',
+                        transition: 'background 0.15s'
                       }}
                     >
                       {session.user_avatar ? (
@@ -2003,7 +2022,7 @@ export default function AssetDetailPage({
                           src={session.user_avatar}
                           alt=""
                           style={{
-                            width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                            width: 32, height: 32, borderRadius: '50%',
                             objectFit: 'cover', flexShrink: 0,
                             border: '1px solid var(--border)',
                           }}
@@ -2011,37 +2030,26 @@ export default function AssetDetailPage({
                       ) : (
                         <div
                           style={{
-                            width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                            width: 32, height: 32, borderRadius: '50%',
                             background: session.user_id ? 'var(--accent-subtle)' : 'var(--bg-tertiary)',
-                            border: '1px solid var(--border)',
+                            border: session.user_id ? '1px solid var(--accent-border)' : '1px solid var(--border)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                           }}
                         >
-                          <User size={16} color={session.user_id ? 'var(--accent)' : 'var(--text-muted)'} />
+                          <User size={14} color={session.user_id ? 'var(--accent)' : 'var(--text-muted)'} />
                         </div>
                       )}
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                            {session.display_name || session.username || 'Unknown user'}
-                          </div>
-                          {session.is_current && <Pill tone="success">Current</Pill>}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {session.display_name || session.username || 'Unknown user'}
                         </div>
-                        {session.user_email && (
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 2 }}>
-                            {session.user_email}
-                          </div>
-                        )}
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {[session.domain, session.username].filter(Boolean).join('\\') || 'No domain available'}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            Signed in {timeAgo(session.logged_in_at)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {session.logged_in_at ? `Active ${timeAgo(session.logged_in_at)}` : 'Unknown session'}
                           </span>
                           {session.session_type && (
                             <span style={{
-                              fontSize: 11, fontWeight: 600, padding: '2px 8px',
+                              fontSize: 10, fontWeight: 600, padding: '1px 6px',
                               borderRadius: 999, border: '1px solid var(--border)',
                               background: 'var(--bg-tertiary)', color: 'var(--text-muted)',
                             }}>
@@ -2050,6 +2058,17 @@ export default function AssetDetailPage({
                           )}
                         </div>
                       </div>
+                      {session.session_count && session.session_count > 1 && (
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 7px',
+                          borderRadius: 999, background: 'var(--accent-subtle)',
+                          color: 'var(--accent)', border: '1px solid var(--accent-border)',
+                          flexShrink: 0
+                        }}>
+                          {session.session_count} sessions
+                        </span>
+                      )}
+                      {session.is_current && <Pill tone="success">Active</Pill>}
                     </div>
                   ))}
                 </div>

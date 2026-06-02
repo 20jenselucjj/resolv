@@ -20,16 +20,18 @@ import templateRoutes from './routes/templates'
 import oauthRoutes from './routes/oauth';
 import directorySyncRoutes from './routes/directory-sync';
 import assetRoutes from './routes/assets';
+import inboundEmailRoutes from './routes/inbound-email';
+import { startInboundListener } from './services/inbound-email';
 import { pool } from './db/pool';
 import { JwtPayload } from './plugins/auth';
 
 const fastify = Fastify({
   logger: {
-    transport: {
-      target: 'pino-pretty',
-      options: { colorize: true },
-    },
+    transport: process.env.NODE_ENV === 'production'
+      ? undefined
+      : { target: 'pino-pretty', options: { colorize: true } },
   },
+  bodyLimit: 10 * 1024 * 1024, // 10MB body size limit
 });
 
 // Socket.io presence tracking
@@ -63,11 +65,11 @@ async function start() {
   });
 
   const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret && process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET environment variable is required in production');
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET environment variable is required. Set it in your .env file.');
   }
   await fastify.register(jwt, {
-    secret: jwtSecret || 'resolv-dev-secret-change-in-production',
+    secret: jwtSecret,
   });
 
   await fastify.register(authPlugin);
@@ -133,6 +135,7 @@ async function start() {
   await fastify.register(oauthRoutes, { prefix: '/api' });
   await fastify.register(directorySyncRoutes, { prefix: '/api' });
   await fastify.register(assetRoutes, { prefix: '/api' });
+  await fastify.register(inboundEmailRoutes, { prefix: '/api' });
 
   // Health check (under /api prefix so the frontend api helper can reach it)
   fastify.get('/api/health', async (request, reply) => {
@@ -212,6 +215,11 @@ async function start() {
   // ─── End Socket.IO relay ──────────────────────────────────────────────────
 
   await fastify.listen({ port, host });
+
+  // Start email inbound listener (IMAP polling — free, no Gmail API billing needed)
+  startInboundListener().catch(err => {
+    console.error('[index] Failed to start inbound email listener:', err.message);
+  });
 
   fastify.log.info(`Resolv API running on http://${host}:${port}`);
 }

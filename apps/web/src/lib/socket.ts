@@ -9,8 +9,9 @@ const inferredWsUrl = (() => {
   }
 
   if (typeof window === 'undefined') return 'http://localhost:3001';
+  // In production, API is typically on the same host behind a reverse proxy
   const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  return `${protocol}//${window.location.hostname}:3001`;
+  return `${protocol}//${window.location.host}`;
 })();
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || inferredWsUrl;

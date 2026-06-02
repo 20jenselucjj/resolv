@@ -98,9 +98,18 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       whereClause += ` AND al.actor_id = $${paramIdx++}`;
       params.push(query.actor_id);
     }
+    if (query.action) {
+      whereClause += ` AND al.action ILIKE $${paramIdx++}`;
+      params.push(`%${query.action}%`);
+    }
+    if (query.actor_name) {
+      whereClause += ` AND u.name ILIKE $${paramIdx++}`;
+      params.push(`%${query.actor_name}%`);
+    }
 
+    // Use a subquery for count when filtering on joined table columns
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM audit_log al ${whereClause}`,
+      `SELECT COUNT(*) FROM audit_log al LEFT JOIN users u ON al.actor_id = u.id ${whereClause}`,
       params
     );
 
@@ -161,6 +170,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'portal_qa_6_label', 'portal_qa_6_prompt',
       'status_label_open', 'status_label_in_progress', 'status_label_waiting', 'status_label_resolved', 'status_label_closed',
       'canned_responses', 'custom_statuses',
+      'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_password', 'smtp_from_email', 'smtp_from_name',
+      'status_order', 'role_permissions',
     ] as const;
 
     const body = z.object({
@@ -386,5 +397,375 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     templates.splice(index, 1);
     await saveEmailTemplates(templates);
     return reply.send({ success: true });
+  });
+
+  // ─── Role Permissions ──────────────────────────────────────────────────
+
+  // GET /admin/roles - get role permissions (with defaults)
+  fastify.get('/admin/roles', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'role_permissions'");
+    if (result.rows.length === 0) {
+      return reply.send({
+        data: [
+          { id: 'admin', permissions: [
+            { key: 'manage_users', enabled: true },
+            { key: 'manage_settings', enabled: true },
+            { key: 'manage_sla', enabled: true },
+            { key: 'manage_categories', enabled: true },
+            { key: 'delete_tickets', enabled: true },
+            { key: 'view_audit_log', enabled: true },
+            { key: 'manage_automation', enabled: true },
+            { key: 'view_all_tickets', enabled: true },
+            { key: 'assign_tickets', enabled: true },
+          ]},
+          { id: 'agent', permissions: [
+            { key: 'manage_users', enabled: false },
+            { key: 'manage_settings', enabled: false },
+            { key: 'manage_sla', enabled: false },
+            { key: 'manage_categories', enabled: false },
+            { key: 'delete_tickets', enabled: false },
+            { key: 'view_audit_log', enabled: false },
+            { key: 'manage_automation', enabled: false },
+            { key: 'view_all_tickets', enabled: true },
+            { key: 'assign_tickets', enabled: true },
+          ]},
+          { id: 'user', permissions: [
+            { key: 'manage_users', enabled: false },
+            { key: 'manage_settings', enabled: false },
+            { key: 'manage_sla', enabled: false },
+            { key: 'manage_categories', enabled: false },
+            { key: 'delete_tickets', enabled: false },
+            { key: 'view_audit_log', enabled: false },
+            { key: 'manage_automation', enabled: false },
+            { key: 'view_all_tickets', enabled: false },
+            { key: 'assign_tickets', enabled: false },
+          ]},
+        ],
+      });
+    }
+    try {
+      return reply.send({ data: JSON.parse(result.rows[0].value) });
+    } catch {
+      return reply.send({ data: [] });
+    }
+  });
+
+  // PUT /admin/roles - persist role permissions
+  fastify.put('/admin/roles', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      roles: z.array(z.object({
+        id: z.string(),
+        permissions: z.array(z.object({ key: z.string(), enabled: z.boolean() })),
+      })),
+    }).parse(request.body);
+
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES ('role_permissions', $1, NOW(), $2)
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW(), updated_by = $2`,
+      [JSON.stringify(body.roles), request.user.id]
+    );
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [request.user.id, 'update_roles', 'system_settings', 'role_permissions', JSON.stringify(body)]
+    );
+
+    return reply.send({ success: true });
+  });
+
+  // ─── Time-Series Stats ─────────────────────────────────────────────────
+
+  // GET /admin/stats/time-series
+  fastify.get('/admin/stats/time-series', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+    const query = request.query as any;
+    const range = query.range || '7d';
+
+    let interval: string;
+    let dateTrunc: string;
+    let since: string;
+
+    if (range === '7d') {
+      interval = '1 day';
+      dateTrunc = 'day';
+      since = '7 days';
+    } else if (range === '30d') {
+      interval = '1 day';
+      dateTrunc = 'day';
+      since = '30 days';
+    } else if (range === '90d') {
+      interval = '1 week';
+      dateTrunc = 'week';
+      since = '90 days';
+    } else {
+      interval = '1 month';
+      dateTrunc = 'month';
+      since = '100 years';
+    }
+
+    const ticketsResult = await pool.query(
+      `SELECT date_trunc('${dateTrunc}', created_at) as date,
+              COUNT(*) as created,
+              COUNT(*) FILTER (WHERE resolved_at IS NOT NULL) as resolved
+       FROM tickets WHERE created_at >= NOW() - INTERVAL '${since}'
+       GROUP BY 1 ORDER BY 1`
+    );
+
+    const slaResult = await pool.query(
+      `SELECT date_trunc('${dateTrunc}', created_at) as date,
+              COUNT(*) as breached
+       FROM tickets WHERE sla_breached = true AND created_at >= NOW() - INTERVAL '${since}'
+       GROUP BY 1 ORDER BY 1`
+    );
+
+    const avgResResult = await pool.query(
+      `SELECT date_trunc('${dateTrunc}', created_at) as date,
+              AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))/3600) as hours
+       FROM tickets WHERE resolved_at IS NOT NULL AND created_at >= NOW() - INTERVAL '${since}'
+       GROUP BY 1 ORDER BY 1`
+    );
+
+    return reply.send({
+      data: {
+        tickets: ticketsResult.rows,
+        sla: slaResult.rows,
+        avg_resolution: avgResResult.rows,
+      },
+    });
+  });
+
+  // ─── Notification Settings ────────────────────────────────────────────
+
+  function getDefaultNotificationSettings() {
+    return {
+      ticket_created: { email: true, in_app: true, slack: false, webhook: false },
+      ticket_assigned: { email: true, in_app: true, slack: false, webhook: false },
+      ticket_updated: { email: false, in_app: true, slack: false, webhook: false },
+      ticket_resolved: { email: true, in_app: true, slack: false, webhook: false },
+      sla_breach: { email: true, in_app: true, slack: true, webhook: true },
+      comment_added: { email: false, in_app: true, slack: false, webhook: false },
+    };
+  }
+
+  // GET /admin/notification-settings
+  fastify.get('/admin/notification-settings', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'notification_settings'");
+    if (result.rows.length === 0) {
+      return reply.send({ data: getDefaultNotificationSettings() });
+    }
+    try {
+      return reply.send({ data: JSON.parse(result.rows[0].value) });
+    } catch {
+      return reply.send({ data: getDefaultNotificationSettings() });
+    }
+  });
+
+  // PUT /admin/notification-settings
+  fastify.put('/admin/notification-settings', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      settings: z.record(z.object({
+        email: z.boolean(),
+        in_app: z.boolean(),
+        slack: z.boolean(),
+        webhook: z.boolean(),
+      })),
+    }).parse(request.body);
+
+    const jsonValue = JSON.stringify(body.settings);
+
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES ('notification_settings', $1, NOW(), $2)
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW(), updated_by = $2`,
+      [jsonValue, request.user.id]
+    );
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [request.user.id, 'update_notification_settings', 'system_settings', 'notification_settings', JSON.stringify(body.settings)]
+    );
+
+    return reply.send({ success: true });
+  });
+
+  // ─── Workflows ────────────────────────────────────────────────────────
+
+  // GET /admin/workflows
+  fastify.get('/admin/workflows', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query('SELECT * FROM ticket_workflows ORDER BY from_status, to_status');
+    return reply.send({ data: result.rows });
+  });
+
+  // POST /admin/workflows
+  fastify.post('/admin/workflows', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      from_status: z.string(),
+      to_status: z.string(),
+      required_fields: z.array(z.string()).optional().default([]),
+    }).parse(request.body);
+
+    const result = await pool.query(
+      'INSERT INTO ticket_workflows (from_status, to_status, required_fields) VALUES ($1, $2, $3) RETURNING *',
+      [body.from_status, body.to_status, body.required_fields]
+    );
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [request.user.id, 'create_workflow', 'ticket_workflows', result.rows[0].id, JSON.stringify(body)]
+    );
+
+    return reply.status(201).send({ data: result.rows[0] });
+  });
+
+  // PATCH /admin/workflows/:id
+  fastify.patch('/admin/workflows/:id', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      from_status: z.string().optional(),
+      to_status: z.string().optional(),
+      required_fields: z.array(z.string()).optional(),
+    }).parse(request.body);
+
+    const fields = Object.entries(body).filter(([, v]) => v !== undefined);
+    if (fields.length === 0) return reply.send({ data: null });
+    const setClauses = fields.map(([k], i) => (k === 'required_fields' ? `${k} = $${i + 2}` : `${k} = $${i + 2}`)).join(', ');
+    const values = fields.map(([, v]) => v);
+    const result = await pool.query(
+      `UPDATE ticket_workflows SET ${setClauses}, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id, ...values]
+    );
+
+    return reply.send({ data: result.rows[0] });
+  });
+
+  // DELETE /admin/workflows/:id
+  fastify.delete('/admin/workflows/:id', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await pool.query('DELETE FROM ticket_workflows WHERE id = $1', [id]);
+    return reply.send({ success: true });
+  });
+
+  // ─── Holidays ─────────────────────────────────────────────────────────
+
+  // GET /admin/holidays
+  fastify.get('/admin/holidays', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query('SELECT * FROM holidays ORDER BY date ASC');
+    return reply.send({ data: result.rows });
+  });
+
+  // POST /admin/holidays
+  fastify.post('/admin/holidays', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      name: z.string().min(1),
+      date: z.string(),
+    }).parse(request.body);
+
+    const result = await pool.query(
+      'INSERT INTO holidays (name, date) VALUES ($1, $2::date) RETURNING *',
+      [body.name, body.date]
+    );
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [request.user.id, 'create_holiday', 'holidays', result.rows[0].id, JSON.stringify(body)]
+    );
+
+    return reply.status(201).send({ data: result.rows[0] });
+  });
+
+  // DELETE /admin/holidays/:id
+  fastify.delete('/admin/holidays/:id', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await pool.query('DELETE FROM holidays WHERE id = $1', [id]);
+    return reply.send({ success: true });
+  });
+
+  // ─── Agent Performance ────────────────────────────────────────────────
+
+  // GET /admin/agent-performance
+  fastify.get('/admin/agent-performance', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+    const query = request.query as any;
+    const range = query.range || '7d';
+
+    let since: string;
+    if (range === '30d') {
+      since = '30 days';
+    } else if (range === '90d') {
+      since = '90 days';
+    } else {
+      since = '7 days';
+    }
+
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email,
+              COUNT(DISTINCT t.id) FILTER (WHERE t.created_at >= NOW() - INTERVAL '${since}') as tickets_assigned,
+              COUNT(DISTINCT t.id) FILTER (WHERE t.resolved_at >= NOW() - INTERVAL '${since}') as tickets_resolved,
+              AVG(EXTRACT(EPOCH FROM (t.first_response_at - t.created_at))/3600) FILTER (WHERE t.first_response_at IS NOT NULL AND t.created_at >= NOW() - INTERVAL '${since}') as avg_response_hours,
+              AVG(EXTRACT(EPOCH FROM (t.resolved_at - t.created_at))/3600) FILTER (WHERE t.resolved_at IS NOT NULL AND t.created_at >= NOW() - INTERVAL '${since}') as avg_resolution_hours,
+              AVG(t.satisfaction_rating) FILTER (WHERE t.satisfaction_rating IS NOT NULL AND t.created_at >= NOW() - INTERVAL '${since}') as csat_avg
+       FROM users u
+       LEFT JOIN tickets t ON t.assigned_to_id = u.id
+       WHERE u.role = 'agent' AND u.is_active = true
+       GROUP BY u.id, u.name, u.email
+       ORDER BY tickets_resolved DESC`
+    );
+
+    return reply.send({ data: result.rows });
+  });
+
+  // ─── Maintenance Mode ─────────────────────────────────────────────────
+
+  // GET /admin/maintenance
+  fastify.get('/admin/maintenance', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query("SELECT value FROM system_settings WHERE key = 'maintenance_mode'");
+    if (result.rows.length === 0) {
+      return reply.send({ data: { enabled: false, message: '' } });
+    }
+    try {
+      return reply.send({ data: JSON.parse(result.rows[0].value) });
+    } catch {
+      return reply.send({ data: { enabled: false, message: '' } });
+    }
+  });
+
+  // PATCH /admin/maintenance
+  fastify.patch('/admin/maintenance', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      enabled: z.boolean(),
+      message: z.string().optional().default(''),
+    }).parse(request.body);
+
+    const jsonValue = JSON.stringify(body);
+
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES ('maintenance_mode', $1, NOW(), $2)
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW(), updated_by = $2`,
+      [jsonValue, request.user.id]
+    );
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [request.user.id, 'update_maintenance', 'system_settings', 'maintenance_mode', jsonValue]
+    );
+
+    return reply.send({ data: body });
+  });
+
+  // ─── Test SMTP ────────────────────────────────────────────────────────
+
+  // POST /admin/settings/test-smtp
+  fastify.post('/admin/settings/test-smtp', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      host: z.string(),
+      port: z.number(),
+      secure: z.boolean(),
+      user: z.string(),
+      password: z.string(),
+    }).parse(request.body);
+
+    const { testSmtpConnection } = await import('../services/outbound-email');
+    const result = await testSmtpConnection(body);
+    return reply.send({ data: result });
   });
 }

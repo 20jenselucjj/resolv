@@ -125,16 +125,6 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
         padding: '24px', background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, var(--bg) 100%)',
         borderRadius: 'var(--radius-lg)', border: '1px solid rgba(37, 99, 235, 0.2)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-            <Brain size={24} />
-          </div>
-          <div>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>AI Assistant Configuration</h3>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>Configure AI capabilities, behavior, and tool access</p>
-          </div>
-        </div>
-
         {/* Enable Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
           <div

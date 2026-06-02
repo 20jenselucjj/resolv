@@ -168,7 +168,7 @@ export function SelectSearch({
                 alignItems: 'center',
                 gap: 10,
                 padding: '8px 10px',
-                background: o.value === value ? 'var(--accent-bg)' : 'none',
+                background: o.value === value ? 'var(--accent-subtle)' : 'none',
                 border: 'none',
                 borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',

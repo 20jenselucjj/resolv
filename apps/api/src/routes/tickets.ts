@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { pool } from '../db/pool';
 import { JwtPayload } from '../plugins/auth';
 import { syncTicketToKnowledgeBase } from './ai-training';
+import { sendTemplateEmail, isEmailEnabledForEvent } from '../services/outbound-email';
 
 const createTicketSchema = z.object({
   title: z.string().min(3).max(500),
@@ -27,6 +28,7 @@ const updateTicketSchema = z.object({
   category_id: z.string().uuid().nullable().optional(),
   due_date: z.string().nullable().optional(),
   close_notes: z.string().nullable().optional(),
+  send_email: z.boolean().optional(),
 });
 
 async function createNotification(db: any, userId: string, type: string, title: string, body: string, ticketId?: string) {
@@ -231,6 +233,15 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
 
       return reply.status(201).send({ data: ticket });
+
+      // Fire-and-forget email notification
+      const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+      sendTemplateEmail(
+        request.user.email,
+        request.user.name,
+        'Ticket Created',
+        { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` }
+      ).catch(() => {});
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -380,6 +391,67 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         syncTicketToKnowledgeBase(id, request.user.id).catch(console.error);
       }
 
+      // Fire-and-forget: email notification on resolution (only if explicitly requested)
+      if (body.status === 'resolved' && body.send_email !== false) {
+        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [updated.created_by_id]);
+        if (creatorResult.rows.length > 0) {
+          sendTemplateEmail(
+            creatorResult.rows[0].email,
+            creatorResult.rows[0].name,
+            'Ticket Resolved',
+            {
+              ticket_id: updated.number,
+              ticket_title: updated.title,
+              user_name: creatorResult.rows[0].name,
+              close_notes: updated.close_notes || 'Your ticket has been resolved.',
+              ticket_url: `${webUrl}/dashboard/tickets/${id}`,
+            }
+          ).catch(() => {});
+        }
+      }
+
+      // Fire-and-forget: email notification on close (only if explicitly requested)
+      if (body.status === 'closed' && body.send_email !== false) {
+        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [updated.created_by_id]);
+        if (creatorResult.rows.length > 0) {
+          sendTemplateEmail(
+            creatorResult.rows[0].email,
+            creatorResult.rows[0].name,
+            'Ticket Resolved',
+            {
+              ticket_id: updated.number,
+              ticket_title: updated.title,
+              user_name: creatorResult.rows[0].name,
+              close_notes: updated.close_notes || 'Your ticket has been closed.',
+              ticket_url: `${webUrl}/dashboard/tickets/${id}`,
+              status: 'closed',
+            }
+          ).catch(() => {});
+        }
+      }
+
+      // Fire-and-forget: email notification on assignment change
+      if (body.assigned_to_id && body.assigned_to_id !== ticket.assigned_to_id && body.assigned_to_id !== request.user.id) {
+        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+        const assigneeResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [body.assigned_to_id]);
+        if (assigneeResult.rows.length > 0) {
+          sendTemplateEmail(
+            assigneeResult.rows[0].email,
+            assigneeResult.rows[0].name,
+            'Ticket Assigned',
+            {
+              ticket_id: updated.number,
+              ticket_title: updated.title,
+              user_name: assigneeResult.rows[0].name,
+              agent_name: assigneeResult.rows[0].name,
+              ticket_url: `${webUrl}/dashboard/tickets/${id}`,
+            }
+          ).catch(() => {});
+        }
+      }
+
       return reply.send({ data: updated });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -508,7 +580,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       const comment = result.rows[0];
 
       // Get ticket info for notification
-      const ticketResult = await client.query('SELECT number, title, created_by_id FROM tickets WHERE id = $1', [id]);
+      const ticketResult = await client.query('SELECT number, title, created_by_id, assigned_to_id FROM tickets WHERE id = $1', [id]);
       if (ticketResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Ticket not found' });
@@ -527,6 +599,18 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         );
       }
 
+      // Also notify the assigned agent if they didn't make the comment
+      if (ticket.assigned_to_id && ticket.assigned_to_id !== request.user.id && !is_internal) {
+        await createNotification(
+          client,
+          ticket.assigned_to_id,
+          'new_comment',
+          `New reply on assigned ticket #${ticket.number}: ${ticket.title}`,
+          '',
+          id
+        );
+      }
+
       // Log activity
       await client.query(
         `INSERT INTO ticket_activity (ticket_id, actor_id, action)
@@ -537,6 +621,37 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       await client.query('COMMIT');
 
       fastify.io.emit(`ticket:comment:${id}`, { comment });
+
+      // Fire-and-forget email notification for non-internal comments
+      if (!is_internal) {
+        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+
+        // Email the ticket creator (if they didn't make the comment)
+        if (ticket.created_by_id !== request.user.id) {
+          const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.created_by_id]);
+          if (creatorResult.rows.length > 0) {
+            sendTemplateEmail(
+              creatorResult.rows[0].email,
+              creatorResult.rows[0].name,
+              'Comment Added',
+              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: creatorResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` }
+            ).catch(() => {});
+          }
+        }
+
+        // Email the assigned agent (if they didn't make the comment)
+        if (ticket.assigned_to_id && ticket.assigned_to_id !== request.user.id && ticket.assigned_to_id !== ticket.created_by_id) {
+          const agentResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.assigned_to_id]);
+          if (agentResult.rows.length > 0) {
+            sendTemplateEmail(
+              agentResult.rows[0].email,
+              agentResult.rows[0].name,
+              'Comment Added',
+              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: agentResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` }
+            ).catch(() => {});
+          }
+        }
+      }
 
       return reply.status(201).send({ data: comment });
     } catch (error) {

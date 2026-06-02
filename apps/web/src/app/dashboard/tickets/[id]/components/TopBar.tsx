@@ -20,12 +20,14 @@ interface TopBarProps {
   handleStatusChange: (status: string) => void;
   showMenu: boolean;
   setShowMenu: (v: boolean) => void;
+  sendEmailOnClose: boolean;
+  setSendEmailOnClose: (v: boolean) => void;
 }
 
 export function TopBar({
   ticket, isAdminOrAgent, isClosing, closeNotesDraft, setCloseNotesDraft,
   setIsClosing, handleCloseTicket, submitting, presence, handleStatusChange,
-  showMenu, setShowMenu,
+  showMenu, setShowMenu, sendEmailOnClose, setSendEmailOnClose,
 }: TopBarProps) {
   const router = useRouter();
   const currentStatus = STATUS_OPTIONS.find((s) => s.value === ticket.status);
@@ -71,8 +73,12 @@ export function TopBar({
               <XCircle size={13} /> Close
             </button>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <input placeholder="Closing note (required)..." value={closeNotesDraft} onChange={e => setCloseNotesDraft(e.target.value)} className="input" style={{ height: 28, fontSize: 12, width: 280 }} autoFocus />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-tertiary)', padding: '4px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <input placeholder="Closing note (required)..." value={closeNotesDraft} onChange={e => setCloseNotesDraft(e.target.value)} className="input" style={{ height: 28, fontSize: 12, width: 260 }} autoFocus />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                <input type="checkbox" checked={sendEmailOnClose} onChange={e => setSendEmailOnClose(e.target.checked)} style={{ cursor: 'pointer' }} />
+                Email user
+              </label>
               <button onClick={handleCloseTicket} disabled={!closeNotesDraft.trim() || submitting} className="btn btn-primary btn-sm" style={{ height: 28, padding: '0 8px' }}>Confirm</button>
               <button onClick={() => setIsClosing(false)} className="btn btn-ghost btn-sm" style={{ height: 28, padding: '0 4px' }}><X size={14} /></button>
             </div>

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { API_BASE } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -148,7 +149,7 @@ export const useStore = create<AppState>((set) => ({
     // Persist to API (fire and forget)
     const token = typeof window !== 'undefined' ? localStorage.getItem('resolv_token') : null;
     if (token) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/notifications/${id}/read`, {
+      fetch(`${API_BASE}/notifications/${id}/read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {}); // silent fail — optimistic update already applied

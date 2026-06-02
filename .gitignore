@@ -55,3 +55,11 @@ nul
 .slim/
 config.json
 codemap.md
+
+# Agent config with secrets
+apps/agent/node-agent/config.json
+
+# Environment files
+.env
+.env.local
+.env.production

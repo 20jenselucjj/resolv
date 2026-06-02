@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash } from 'lucide-react';
+import { Plus, Edit2, Trash, Mail, ChevronDown, ChevronUp, Copy, Eye } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Modal } from './SharedUI';
 import type { EmailTemplate } from './types';
@@ -24,6 +24,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
   const [isAdding, setIsAdding] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', subject: '', body: '' });
   const [editForm, setEditForm] = useState({ subject: '', body: '' });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<{ data: EmailTemplate[] }>('/admin/email-templates')
@@ -60,9 +61,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
       message: 'Are you sure you want to delete this email template?',
       onConfirm: async () => {
         setConfirmModal(null);
-        try {
-          await api.delete(`/admin/email-templates/${id}`);
-        } catch {}
+        try { await api.delete(`/admin/email-templates/${id}`); } catch {}
         setTemplates(prev => prev.filter(t => t.id !== id));
         showAlert('Email template deleted');
       }
@@ -85,92 +84,128 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
     setAddForm({ name: '', subject: '', body: '' });
   };
 
-  if (templatesLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading templates...</div>;
+  if (templatesLoading) return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>Loading templates...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Email Templates</h3>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)' }}>
-            Variables: [TICKET_ID] [USER_NAME] [AGENT_NAME] [TICKET_TITLE]
-          </div>
-          <button className="btn btn-primary" onClick={() => setIsAdding(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> Add Template
-          </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', fontWeight: 500 }}>
+          Variables: <code style={{ background: 'var(--accent-subtle)', padding: '1px 6px', borderRadius: 3, margin: '0 2px', fontSize: 11 }}>[TICKET_ID]</code> <code style={{ background: 'var(--accent-subtle)', padding: '1px 6px', borderRadius: 3, margin: '0 2px', fontSize: 11 }}>[USER_NAME]</code> <code style={{ background: 'var(--accent-subtle)', padding: '1px 6px', borderRadius: 3, margin: '0 2px', fontSize: 11 }}>[AGENT_NAME]</code>
         </div>
+        <button className="btn btn-primary" onClick={() => setIsAdding(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Plus size={14} /> Add Template
+        </button>
       </div>
 
       {isAdding && (
-        <div className="card" style={{ padding: '20px', background: 'var(--bg-secondary)', border: '1px solid var(--accent-border)' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: 16, color: 'var(--text)' }}>New Email Template</div>
-          <form onSubmit={handleAddSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="card" style={{ padding: 24, background: 'var(--bg-secondary)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-lg)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 18, color: 'var(--text)' }}>New Email Template</div>
+          <form onSubmit={handleAddSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Template Name *</label>
-              <input className="input" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. Password Reset Notification" required />
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Template Name</label>
+              <input className="input" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. Password Reset Notification" required style={{ fontSize: 14 }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Subject Line *</label>
-              <input className="input" value={addForm.subject} onChange={e => setAddForm({ ...addForm, subject: e.target.value })} placeholder="e.g. Your password has been reset for Ticket #[TICKET_ID]" required />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Available variables: [TICKET_ID], [USER_NAME], [AGENT_NAME], [TICKET_TITLE]</div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subject Line</label>
+              <input className="input" value={addForm.subject} onChange={e => setAddForm({ ...addForm, subject: e.target.value })} placeholder="e.g. Your password has been reset — Ticket #[TICKET_ID]" required style={{ fontSize: 14 }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Body Content</label>
-              <textarea className="textarea" value={addForm.body} onChange={e => setAddForm({ ...addForm, body: e.target.value })} rows={6} style={{ minHeight: '120px', padding: '12px' }} placeholder={'Hello [USER_NAME],\n\nYour message here.\n\nBest,\nSupport Team'} />
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Body</label>
+              <textarea className="textarea" value={addForm.body} onChange={e => setAddForm({ ...addForm, body: e.target.value })} rows={6} style={{ minHeight: 140, fontSize: 13, fontFamily: 'monospace' }} placeholder={'Hello [USER_NAME],\n\nYour message here.\n\nBest,\nSupport Team'} />
             </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-ghost" onClick={() => { setIsAdding(false); setAddForm({ name: '', subject: '', body: '' }); }}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Create Template</button>
+              <button type="submit" className="btn btn-primary" disabled={!addForm.name.trim() || !addForm.subject.trim()}>Create Template</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="card" style={{ overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
-              <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Template Type</th>
-              <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Subject Line</th>
-              <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {templates.map((t) => (
-              <tr key={t.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600 }}>{t.name}</td>
-                <td style={{ padding: '12px 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>{t.subject}</td>
-                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <button className="btn btn-ghost" style={{ padding: '4px 12px', fontSize: '12px', border: '1px solid var(--border)' }} onClick={() => handleEdit(t)}>
-                      <Edit2 size={12} style={{ marginRight: 6 }} /> Edit
-                    </button>
-                    <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDelete(t.id)}>
-                      <Trash size={12} />
-                    </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {templates.map(t => {
+          const isExpanded = expandedId === t.id;
+          return (
+            <div key={t.id} style={{
+              background: 'var(--bg-elevated)',
+              border: `1px solid ${isExpanded ? 'var(--accent-border)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+              boxShadow: isExpanded ? 'var(--shadow-sm)' : 'none',
+            }}>
+              <div
+                onClick={() => setExpandedId(isExpanded ? null : t.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '14px 18px', cursor: 'pointer',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', background: 'var(--accent-subtle)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Mail size={14} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(t)} title="Edit"><Edit2 size={13} /></button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(t.id)} title="Delete" style={{ color: 'var(--danger)' }}><Trash size={13} /></button>
+                </div>
+                <div style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--border-subtle)' }}>
+                  <div style={{ paddingTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Subject</div>
+                    <div style={{ padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: 13, color: 'var(--text)', marginBottom: 14 }}>
+                      {t.subject}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Body Preview</div>
+                    <pre style={{
+                      margin: 0, padding: '14px 16px', background: 'var(--bg-secondary)',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
+                      fontSize: 12, color: 'var(--text)', whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word', fontFamily: 'monospace',
+                      lineHeight: 1.6, maxHeight: 200, overflowY: 'auto'
+                    }}>
+                      {t.body}
+                    </pre>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.body); showAlert('Body copied to clipboard'); }}>
+                        <Copy size={12} style={{ marginRight: 4 }} /> Copy Body
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleEdit(t); }}>
+                        <Edit2 size={12} style={{ marginRight: 4 }} /> Edit
+                      </button>
+                    </div>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {editingTemplate && (
-        <Modal title={`Edit Template: ${editingTemplate.name}`} onClose={() => setEditingTemplate(null)} maxWidth="600px">
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <Modal title={`Edit: ${editingTemplate.name}`} onClose={() => setEditingTemplate(null)} maxWidth="620px">
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Subject Line</label>
-              <input className="input" value={editForm.subject} onChange={e => setEditForm({ ...editForm, subject: e.target.value })} required />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Available variables: [TICKET_ID], [USER_NAME], [AGENT_NAME], [TICKET_TITLE]</div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subject Line</label>
+              <input className="input" value={editForm.subject} onChange={e => setEditForm({ ...editForm, subject: e.target.value })} required style={{ fontSize: 14 }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>Body Content</label>
-              <textarea className="textarea" value={editForm.body} onChange={e => setEditForm({ ...editForm, body: e.target.value })} rows={8} style={{ minHeight: '150px', padding: '12px' }} required />
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Body Content</label>
+              <textarea className="textarea" value={editForm.body} onChange={e => setEditForm({ ...editForm, body: e.target.value })} rows={8} style={{ minHeight: 180, fontSize: 13, fontFamily: 'monospace' }} required />
             </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
               <button type="button" className="btn btn-ghost" onClick={() => setEditingTemplate(null)}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Save Template</button>
+              <button type="submit" className="btn btn-primary">Save Changes</button>
             </div>
           </form>
         </Modal>

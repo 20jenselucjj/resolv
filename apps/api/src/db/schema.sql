@@ -243,7 +243,7 @@ VALUES
   ('default_sla_policy', 'medium', 'The default SLA priority for new tickets'),
   ('max_attachment_size_mb', '10', 'Maximum allowed size for ticket attachments in MB'),
   ('ticket_auto_close_days', '30', 'Number of days after which resolved tickets are automatically closed'),
-  ('agent_secret_key', 'resolv-agent-secret-change-in-production', 'Shared secret used by Resolv Agent for initial device registration')
+  ('agent_secret_key', '', 'Shared secret used by Resolv Agent for initial device registration — MUST be set before deployment')
 ON CONFLICT (key) DO NOTHING;
 
 -- Automation Rules table
@@ -684,4 +684,26 @@ DO $$ BEGIN
     ALTER TABLE ticket_comments ADD COLUMN is_edited BOOLEAN NOT NULL DEFAULT false;
   END IF;
 END $$;
+
+-- Ticket Workflows table (admin-configurable status transitions)
+CREATE TABLE IF NOT EXISTS ticket_workflows (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  from_status VARCHAR(50) NOT NULL,
+  to_status VARCHAR(50) NOT NULL,
+  required_fields TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_workflows_status ON ticket_workflows(from_status, to_status);
+
+-- Holidays table (for SLA calculation exclusions)
+CREATE TABLE IF NOT EXISTS holidays (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(200) NOT NULL,
+  date DATE NOT NULL,
+  recurring BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
 

@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { 
   ArrowLeft, AlertTriangle, Tag, FileText, 
   Type, X, Layout, Send, Save, Link as LinkIcon, Clock, Check, Paperclip
@@ -283,12 +284,12 @@ export default function NewArticlePage() {
                 <Clock size={14} /> ~{readingTime} min read
               </div>
             </div>
-            <textarea
+            <RichTextEditor
               value={form.body}
-              onChange={(e) => setForm({ ...form, body: e.target.value })}
-              placeholder="Write your article content here in Markdown..."
-              className="textarea"
-              style={{ fontSize: 16, lineHeight: 1.7, minHeight: 400, padding: 24, background: 'var(--background)', resize: 'vertical' }}
+              onChange={(val) => setForm({ ...form, body: val })}
+              height={450}
+              placeholder="Write your article content here..."
+              preview="live"
             />
           </div>
 

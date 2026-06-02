@@ -75,14 +75,11 @@ export function SLAPoliciesTab({ policies, onRefresh, showAlert, setConfirmModal
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>SLA Policies</h3>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }} onClick={() => showAlert('SLA check triggered. Running dry-run simulation.', 'success')}>
-            <Play size={14} style={{ marginRight: '6px' }} /> Test SLA
-          </button>
-          <button className="btn btn-primary" onClick={() => setIsAdding(true)}><Plus size={14} /> Add Policy</button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <button className="btn" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }} onClick={() => showAlert('SLA check triggered. Running dry-run simulation.', 'success')}>
+          <Play size={14} style={{ marginRight: '6px' }} /> Test SLA
+        </button>
+        <button className="btn btn-primary" onClick={() => setIsAdding(true)}><Plus size={14} /> Add Policy</button>
       </div>
 
       {isAdding && (

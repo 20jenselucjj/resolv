@@ -86,10 +86,6 @@ export function IntegrationsTab({ showAlert }: { showAlert: (m: string, t?: 'suc
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div>
-        <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 600 }}>Integrations</h3>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Connect Resolv to external services and tools</p>
-      </div>
 
       {/* Active Integrations */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

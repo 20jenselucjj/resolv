@@ -290,6 +290,45 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // POST /knowledge/images - upload inline content image for articles (supports drag-and-drop)
+  fastify.post('/knowledge/images', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+    const data = await (request as any).file();
+    if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml'];
+    if (!allowedTypes.includes(data.mimetype)) {
+      return reply.status(400).send({ error: 'Only image files are allowed' });
+    }
+
+    const ext = path.extname(data.filename) || '.png';
+    const filename = `kb-img-${crypto.randomUUID()}${ext}`;
+    const dir = path.join(UPLOAD_DIR, 'kb-images');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const storagePath = path.join(dir, filename);
+
+    await pipeline(data.file, fs.createWriteStream(storagePath));
+    const stat = fs.statSync(storagePath);
+
+    const url = `/api/knowledge/images/${filename}`;
+    return reply.send({ data: { url, filename, size: stat.size, mime_type: data.mimetype } });
+  });
+
+  // GET /knowledge/images/:filename - serve inline content images
+  fastify.get('/knowledge/images/:filename', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { filename } = request.params as { filename: string };
+    const filePath = path.join(UPLOAD_DIR, 'kb-images', filename);
+    if (!fs.existsSync(filePath)) return reply.status(404).send({ error: 'Image not found' });
+
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.svg': 'image/svg+xml'
+    };
+    reply.header('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    return reply.send(fs.createReadStream(filePath));
+  });
+
   // POST /knowledge/:id/attachments - upload file to knowledge article
   fastify.post('/knowledge/:id/attachments', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
     const { id } = request.params as { id: string };

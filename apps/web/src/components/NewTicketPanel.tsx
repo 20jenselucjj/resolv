@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useStore, Category, User, Ticket } from '@/lib/store';
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import {
-  X, Maximize2, Minimize2, AlertTriangle, Sparkles, CheckCircle
+  X, Maximize2, Minimize2, AlertTriangle, Sparkles, CheckCircle,
+  Paperclip, UploadCloud, Loader2, FileText, Trash2
 } from 'lucide-react';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import { SelectSearch } from '@/components/SelectSearch';
@@ -70,6 +71,9 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {});
@@ -179,6 +183,24 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
       if (form.status === 'closed') {
         await api.patch(`/tickets/${created.id}`, { status: 'closed', close_notes: closeNote });
       }
+
+      // Upload attached files
+      if (attachedFiles.length > 0) {
+        setUploadingFiles(true);
+        const token = localStorage.getItem('resolv_token') || localStorage.getItem('token');
+        const apiBase = API_BASE || 'http://localhost:3001/api';
+        for (const file of attachedFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          await fetch(`${apiBase}/tickets/${created.id}/attachments`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+          });
+        }
+        setUploadingFiles(false);
+      }
+
       addTicket(created);
       onCreated();
       onClose();
@@ -449,6 +471,56 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                   <AlertTriangle size={12} /> {error}
                 </div>
               )}
+
+              {/* File Attachments */}
+              <div>
+                <label style={panelLabelStyle}>Attachments</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setAttachedFiles(prev => [...prev, ...files]);
+                    if (e.target) e.target.value = '';
+                  }}
+                />
+                {attachedFiles.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                    {attachedFiles.map((file, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 10px', borderRadius: 6,
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                        fontSize: 12
+                      }}>
+                        <FileText size={13} color="var(--text-muted)" />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{file.name}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>{(file.size / 1024).toFixed(0)} KB</span>
+                        <button type="button" onClick={() => setAttachedFiles(prev => prev.filter((_, j) => j !== i))}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 12px', borderRadius: 'var(--radius-md)',
+                    border: '1px dashed var(--border)', background: 'var(--bg-secondary)',
+                    color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
+                    width: '100%', justifyContent: 'center'
+                  }}
+                >
+                  <Paperclip size={13} />
+                  {attachedFiles.length > 0 ? `${attachedFiles.length} file(s) selected` : 'Attach files'}
+                </button>
+              </div>
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8, paddingTop: 4, borderTop: '1px solid var(--border-subtle)', marginTop: 4 }}>

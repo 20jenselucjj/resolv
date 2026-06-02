@@ -112,3 +112,76 @@ export interface AIConfig {
   allowed_roles: string[];
   max_messages_per_day: number;
 }
+
+export interface TimeSeriesPoint {
+  date: string;
+  created: number;
+  resolved: number;
+}
+
+export interface TimeSeriesData {
+  tickets: TimeSeriesPoint[];
+  sla: { date: string; breached: number }[];
+  avg_resolution: { date: string; hours: number }[];
+}
+
+export interface NotificationChannel {
+  email: boolean;
+  in_app: boolean;
+  slack: boolean;
+  webhook: boolean;
+}
+
+export interface NotificationSettings {
+  ticket_created: NotificationChannel;
+  ticket_assigned: NotificationChannel;
+  ticket_updated: NotificationChannel;
+  ticket_resolved: NotificationChannel;
+  sla_breach: NotificationChannel;
+  comment_added: NotificationChannel;
+}
+
+export interface WorkflowTransition {
+  id: string;
+  from_status: string;
+  to_status: string;
+  required_fields: string[];
+}
+
+export interface Holiday {
+  id: string;
+  name: string;
+  date: string;
+}
+
+export interface AgentPerformance {
+  id: string;
+  name: string;
+  email: string;
+  tickets_assigned: number;
+  tickets_resolved: number;
+  avg_response_hours: number;
+  avg_resolution_hours: number;
+  csat_avg: number;
+}
+
+export interface RolePermission {
+  key: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+}
+
+export interface RolePermissions {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  bg: string;
+  permissions: RolePermission[];
+}
+
+export interface MaintenanceMode {
+  enabled: boolean;
+  message: string;
+}

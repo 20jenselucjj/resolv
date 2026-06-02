@@ -65,8 +65,7 @@ export function CategoriesTab({ categories, onRefresh, showAlert, setConfirmModa
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Ticket Categories</h3>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <button onClick={() => setIsAdding(true)} className="btn btn-primary"><Plus size={14} /> Add Category</button>
       </div>
 

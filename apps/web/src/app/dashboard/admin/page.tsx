@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import {
@@ -11,7 +12,7 @@ import {
   RefreshCw, RotateCcw, ChevronLeft, ChevronRight, Filter, Calendar,
   UserPlus, MoreVertical, Edit2, Trash2, Plus, Save,
   AlertTriangle, Hash, Trash, Play, Palette, User,
-  Shield, Monitor, Download
+  Shield, Monitor, Download, Bell, GitBranch
 } from 'lucide-react';
 import { AITrainingTab } from './AITrainingTab';
 import { DirectorySyncTab } from './DirectorySyncTab';
@@ -19,7 +20,9 @@ import {
   OverviewTab, UsersTab, CategoriesTab, SLAPoliciesTab, EmailTemplatesTab,
   SettingsTab, RolesTab, AutomationTab, WorkingHoursTab, AuditLogTab,
   ReportsTab, IntegrationsTab, PortalCustomizationTab, AIConfigTab,
-  TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab
+  TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
+  NotificationSettingsTab, WorkflowTab, BackupRestoreTab,
+  EmailLogTab, EmailInboundTab
 } from './components';
 import { ConfirmModal, Alert, Modal } from './components/SharedUI';
 import type {
@@ -31,7 +34,10 @@ const StackIcon = Layers;
 
 export default function AdminPage() {
   const { user } = useStore();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
+    const tabFromUrl = searchParams?.get('tab');
+    if (tabFromUrl) return tabFromUrl;
     if (typeof window !== 'undefined') {
       try { return localStorage.getItem('resolv_admin_tab') || 'overview'; } catch { return 'overview'; }
     }
@@ -53,6 +59,8 @@ export default function AdminPage() {
   // Forms/Modals
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [auditPage, setAuditPage] = useState(1);
+  const [auditFilterAction, setAuditFilterAction] = useState('');
+  const [auditFilterUser, setAuditFilterUser] = useState('');
 
   // Sidebar Search
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -96,6 +104,11 @@ export default function AdminPage() {
     { tab: 'asset-groups', keywords: ['asset groups', 'groups', 'asset categories', 'asset classification', 'group color', 'organize assets'] },
     { tab: 'agent-settings', keywords: ['agent', 'agent settings', 'agent secret', 'deploy agent', 'download agent', 'agent key', 'agent deployment', 'gpo', 'silent install', 'agent installation', 'asset discovery', 'agent config'] },
     { tab: 'audit-log', keywords: ['audit', 'log', 'history', 'trail', 'audit log', 'operations', 'changes', 'who', 'actor', 'events'] },
+    { tab: 'notification-settings', keywords: ['notifications', 'notification settings', 'alerts', 'channels', 'email alerts', 'in-app', 'slack alerts', 'webhook alerts', 'notify'] },
+    { tab: 'workflow', keywords: ['workflow', 'transitions', 'status flow', 'ticket workflow', 'required fields', 'transition'] },
+    { tab: 'backup-restore', keywords: ['backup', 'restore', 'database backup', 'dump', 'disaster recovery', 'export', 'sql dump'] },
+    { tab: 'email-log', keywords: ['email log', 'email history', 'sent email', 'received email', 'delivery', 'outbound', 'inbound', 'smtp log'] },
+    { tab: 'email-inbound', keywords: ['inbound email', 'imap', 'email polling', 'email routing', 'email ticket', 'gmail inbox', 'ticket from email'] },
   ], []);
 
   // Smart search: find matching tabs from the deep index
@@ -127,6 +140,7 @@ export default function AdminPage() {
       items: [
         { id: 'categories', label: 'Categories', icon: <Layers size={15} /> },
         { id: 'ticket-statuses', label: 'Ticket Statuses', icon: <Circle size={15} /> },
+        { id: 'workflow', label: 'Ticket Workflow', icon: <GitBranch size={15} /> },
         { id: 'sla-policies', label: 'SLA Policies', icon: <Clock size={15} /> },
         { id: 'working-hours', label: 'Working Hours', icon: <CalendarClock size={15} /> },
         { id: 'automation', label: 'Automation', icon: <Zap size={15} /> },
@@ -136,6 +150,9 @@ export default function AdminPage() {
       group: 'COMMUNICATION',
       items: [
         { id: 'email-templates', label: 'Email Templates', icon: <Mail size={15} /> },
+        { id: 'email-inbound', label: 'Inbound Email', icon: <Mail size={15} /> },
+        { id: 'email-log', label: 'Email Log', icon: <Mail size={15} /> },
+        { id: 'notification-settings', label: 'Notification Settings', icon: <Bell size={15} /> },
         { id: 'portal-customization', label: 'Portal', icon: <LayoutGrid size={15} /> },
         { id: 'canned-responses', label: 'Canned Responses', icon: <Book size={15} /> },
       ]
@@ -165,6 +182,7 @@ export default function AdminPage() {
       items: [
         { id: 'settings', label: 'Settings', icon: <Settings size={15} /> },
         { id: 'integrations', label: 'Integrations', icon: <Plug size={15} /> },
+        { id: 'backup-restore', label: 'Backup & Restore', icon: <Database size={15} /> },
         { id: 'audit-log', label: 'Audit Log', icon: <FileText size={15} /> },
       ]
     }
@@ -201,17 +219,9 @@ export default function AdminPage() {
       case 'sla-policies': return 'Set Service Level Agreement response and resolution targets';
       case 'working-hours': return 'Configure business calendars, hours of operation, and holidays';
       case 'automation': return 'Create workflow triggers, automated actions, and conditions';
-      case 'email-templates': return 'Customize system notifications and client communication layouts';
-      case 'portal-customization': return 'Style the end-user support portal layout and branding';
-      case 'canned-responses': return 'Manage quick reply templates available to agents when responding to tickets';
-      case 'ai-config': return 'Configure artificial intelligence response models and behavior';
-      case 'ai-training': return 'Train classification models and fine-tune AI agents';
-      case 'reports': return 'View ticket analytics, agent performance, and CSAT metrics';
-      case 'integrations': return 'Connect third-party services, webhooks, and external tools';
-      case 'asset-groups': return 'Organize assets into logical groups with custom colors';
-      case 'agent-settings': return 'Manage agent deployment, secret keys, and download agents';
-      case 'settings': return 'Adjust application configuration variables and system settings';
-      case 'audit-log': return 'View the history of administrative and system operations';
+      case 'email-templates': return 'Design and manage notification templates for ticket lifecycle events';
+      case 'email-inbound': return 'Set up IMAP email-to-ticket conversion (Gmail, Office 365, or custom IMAP)';
+      case 'email-log': return 'Search and audit all incoming and outgoing email messages';
       default: return 'Manage system configuration and administrative policies';
     }
   };
@@ -256,7 +266,12 @@ export default function AdminPage() {
         const res = await api.get<{ data: any[] }>('/asset-groups');
         setAssetGroups(res.data);
       } else if (tab === 'audit-log') {
-        const res = await api.get<{ data: AuditEntry[] }>(`/admin/audit-log?page=${auditPage}&pageSize=50`);
+        const params = new URLSearchParams();
+        params.set('page', String(auditPage));
+        params.set('pageSize', '50');
+        if (auditFilterAction) params.set('action', auditFilterAction);
+        if (auditFilterUser) params.set('actor_name', auditFilterUser);
+        const res = await api.get<{ data: AuditEntry[] }>(`/admin/audit-log?${params.toString()}`);
         setAuditLog(res.data);
       }
     } catch {
@@ -264,13 +279,13 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [auditPage, showAlert]);
+  }, [auditPage, auditFilterAction, auditFilterUser, showAlert]);
 
   useEffect(() => {
     if (user?.role === 'admin' || user?.role === 'agent') {
       loadTabData(activeTab);
     }
-  }, [user, activeTab, auditPage, loadTabData]);
+  }, [user, activeTab, auditPage, auditFilterAction, auditFilterUser, loadTabData]);
 
   // Persist active admin tab across refreshes
   useEffect(() => {
@@ -496,8 +511,17 @@ export default function AdminPage() {
               auditLog={auditLog}
               page={auditPage}
               setPage={setAuditPage}
+              filterAction={auditFilterAction}
+              setFilterAction={setAuditFilterAction}
+              filterUser={auditFilterUser}
+              setFilterUser={setAuditFilterUser}
             />
           )}
+          {activeTab === 'notification-settings' && <NotificationSettingsTab showAlert={showAlert} />}
+          {activeTab === 'workflow' && <WorkflowTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}
+          {activeTab === 'backup-restore' && <BackupRestoreTab showAlert={showAlert} />}
+          {activeTab === 'email-log' && <EmailLogTab showAlert={showAlert} />}
+          {activeTab === 'email-inbound' && <EmailInboundTab showAlert={showAlert} />}
         </div>
       </div>
 

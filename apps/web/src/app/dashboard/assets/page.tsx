@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
+  Bookmark,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -141,6 +142,20 @@ interface AssetFormState {
 }
 
 const PAGE_SIZE = 50;
+
+interface SavedView {
+  name: string;
+  filters: { asset_type: string; status: string; group_id: string; agent_status: string };
+  search: string;
+}
+
+const DEFAULT_VIEWS: SavedView[] = [
+  { name: 'All Assets', filters: { asset_type: '', status: '', group_id: '', agent_status: '' }, search: '' },
+  { name: 'Online', filters: { asset_type: '', status: '', group_id: '', agent_status: 'online' }, search: '' },
+  { name: 'Needs Attention', filters: { asset_type: '', status: 'maintenance', group_id: '', agent_status: '' }, search: '' },
+  { name: 'Workstations', filters: { asset_type: 'workstation', status: '', group_id: '', agent_status: '' }, search: '' },
+  { name: 'Servers', filters: { asset_type: 'server', status: '', group_id: '', agent_status: '' }, search: '' },
+];
 
 const EMPTY_FORM: AssetFormState = {
   name: '',
@@ -554,12 +569,21 @@ export default function AssetsPage() {
   const [deleting, setDeleting] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [filters, setFilters] = useState({
     asset_type: '',
     status: '',
     group_id: '',
     agent_status: ''
   });
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
+    try {
+      const stored = localStorage.getItem('resolv_asset_views');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const [showSaveView, setShowSaveView] = useState(false);
+  const [newViewName, setNewViewName] = useState('');
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageSize = PAGE_SIZE;
@@ -682,7 +706,7 @@ export default function AssetsPage() {
       setForm({ ...EMPTY_FORM });
       await refreshAll();
     } catch (error: unknown) {
-      window.alert(getErrorMessage(error, 'Unable to save asset.'));
+      setToast({ message: getErrorMessage(error, 'Unable to save asset.'), type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -702,7 +726,7 @@ export default function AssetsPage() {
       });
       await refreshAll();
     } catch (error: unknown) {
-      window.alert(getErrorMessage(error, 'Unable to delete asset.'));
+      setToast({ message: getErrorMessage(error, 'Unable to delete asset.'), type: 'error' });
     }
   }
 
@@ -717,7 +741,7 @@ export default function AssetsPage() {
       setSelected(new Set());
       await refreshAll();
     } catch (error: unknown) {
-      window.alert(getErrorMessage(error, 'Unable to delete selected assets.'));
+      setToast({ message: getErrorMessage(error, 'Unable to delete selected assets.'), type: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -736,6 +760,28 @@ export default function AssetsPage() {
   function clearFilters(): void {
     setPage(1);
     setFilters({ asset_type: '', status: '', group_id: '', agent_status: '' });
+  }
+
+  function applyView(view: SavedView): void {
+    setPage(1);
+    setSearch(view.search);
+    setFilters({ ...view.filters });
+  }
+
+  function saveView(): void {
+    if (!newViewName.trim()) return;
+    const view: SavedView = { name: newViewName.trim(), filters: { ...filters }, search };
+    const updated = [...savedViews.filter(v => v.name !== view.name), view];
+    setSavedViews(updated);
+    localStorage.setItem('resolv_asset_views', JSON.stringify(updated));
+    setNewViewName('');
+    setShowSaveView(false);
+  }
+
+  function deleteView(name: string): void {
+    const updated = savedViews.filter(v => v.name !== name);
+    setSavedViews(updated);
+    localStorage.setItem('resolv_asset_views', JSON.stringify(updated));
   }
 
   function toggleSelect(id: string): void {
@@ -920,6 +966,87 @@ export default function AssetsPage() {
             padding: 14
           }}
         >
+          {/* Saved Views */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Views</span>
+            {[...DEFAULT_VIEWS, ...savedViews].map(view => (
+              <button
+                key={view.name}
+                onClick={() => applyView(view)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px', borderRadius: 999,
+                  border: '1px solid var(--border)',
+                  background: filters.asset_type === view.filters.asset_type &&
+                    filters.status === view.filters.status &&
+                    filters.agent_status === view.filters.agent_status
+                    ? 'var(--accent-subtle)' : 'var(--bg)',
+                  color: filters.asset_type === view.filters.asset_type &&
+                    filters.status === view.filters.status &&
+                    filters.agent_status === view.filters.agent_status
+                    ? 'var(--accent)' : 'var(--text-secondary)',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {view.name}
+                {savedViews.some(v => v.name === view.name) && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); deleteView(view.name); }}
+                    style={{ display: 'flex', color: 'var(--text-muted)', marginLeft: 2 }}
+                    title="Remove saved view"
+                  >
+                    <X size={10} />
+                  </span>
+                )}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowSaveView(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '5px 10px', borderRadius: 999,
+                border: '1px dashed var(--border)',
+                background: 'transparent', color: 'var(--text-muted)',
+                fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+              title="Save current view"
+            >
+              <Bookmark size={11} /> Save
+            </button>
+          </div>
+
+          {/* Save View Modal */}
+          {showSaveView && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1100,
+              background: 'rgba(0,0,0,0.3)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center'
+            }} onClick={() => setShowSaveView(false)}>
+              <div style={{
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-lg)', padding: 24, maxWidth: 360, width: '90%',
+                boxShadow: 'var(--shadow-xl)'
+              }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Save Current View</h3>
+                <input
+                  autoFocus
+                  value={newViewName}
+                  onChange={e => setNewViewName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveView(); }}
+                  placeholder="View name (e.g. Production Servers)..."
+                  className="input"
+                  style={{ width: '100%', marginBottom: 16, boxSizing: 'border-box' }}
+                />
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button onClick={() => { setShowSaveView(false); setNewViewName(''); }} className="btn btn-ghost btn-sm">Cancel</button>
+                  <button onClick={saveView} disabled={!newViewName.trim()} className="btn btn-primary btn-sm">Save</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', minWidth: 280, flex: '1 1 320px' }}>
               <Search
@@ -1146,12 +1273,12 @@ export default function AssetsPage() {
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Asset</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Status</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Type</th>
+                      <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Location</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Network</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>OS</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>CPU</th>
-                      <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>RAM</th>
-                      <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Group</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Owner</th>
+                      <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Group</th>
                       <th style={{ padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Last seen</th>
                       <th style={{ width: 72, padding: '14px 12px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 12 }}>Actions</th>
                     </tr>
@@ -1198,7 +1325,10 @@ export default function AssetsPage() {
                               />
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{asset.name}</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'monospace' }}>
+                                  {asset.id.slice(0, 8)}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
                                   {asset.display_name || [asset.manufacturer, asset.model].filter(Boolean).join(' ') || getAgentLabel(asset)}
                                 </div>
                               </div>
@@ -1244,12 +1374,19 @@ export default function AssetsPage() {
                             </span>
                           </td>
 
-                          <td style={{ padding: '14px 12px', minWidth: 160 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{asset.ip_address || '—'}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{asset.hostname || '—'}</div>
+                          <td style={{ padding: '14px 12px', minWidth: 120 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{asset.location || '—'}</div>
+                            {asset.department && (
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{asset.department}</div>
+                            )}
                           </td>
 
-                          <td style={{ padding: '14px 12px', color: 'var(--text)', minWidth: 160 }}>
+                          <td style={{ padding: '14px 12px', minWidth: 140 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'monospace' }}>{asset.ip_address || '—'}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{asset.hostname || asset.serial_number || '—'}</div>
+                          </td>
+
+                          <td style={{ padding: '14px 12px', color: 'var(--text)', minWidth: 120 }}>
                             <div style={{ fontSize: 12, fontWeight: 600 }}>{asset.os_name || '—'}</div>
                           </td>
 
@@ -1258,7 +1395,10 @@ export default function AssetsPage() {
                           </td>
 
                           <td style={{ padding: '14px 12px' }}>
-                            <ProgressMini value={ramPercent} tone="var(--accent)" />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Avatar name={asset.assigned_to_name} avatarUrl={asset.assigned_to_avatar} />
+                              <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.assigned_to_name || 'Unassigned'}</span>
+                            </div>
                           </td>
 
                           <td style={{ padding: '14px 12px' }}>
@@ -1284,13 +1424,6 @@ export default function AssetsPage() {
                             ) : (
                               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>
                             )}
-                          </td>
-
-                          <td style={{ padding: '14px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <Avatar name={asset.assigned_to_name} avatarUrl={asset.assigned_to_avatar} />
-                              <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.assigned_to_name || 'Unassigned'}</span>
-                            </div>
                           </td>
 
                           <td style={{ padding: '14px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: 12 }}>
@@ -1730,10 +1863,40 @@ export default function AssetsPage() {
         </div>
       ) : null}
 
+      {toast && (
+        <div
+          role="alert"
+          onClick={() => setToast(null)}
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            maxWidth: 420,
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: toast.type === 'error' ? 'var(--danger-bg, #fef2f2)' : 'var(--success-bg, #f0fdf4)',
+            border: `1px solid ${toast.type === 'error' ? 'var(--danger-border, #fecaca)' : 'var(--success-border, #bbf7d0)'}`,
+            color: toast.type === 'error' ? 'var(--danger, #dc2626)' : 'var(--success, #16a34a)',
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: 'var(--shadow-md)',
+            zIndex: 2000,
+            cursor: 'pointer',
+            animation: 'slideUp 0.3s ease'
+          }}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(12px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
       `}</style>
     </div>

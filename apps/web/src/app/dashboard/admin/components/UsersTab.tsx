@@ -131,8 +131,7 @@ export function UsersTab({ users, onRefresh, onShowPassword, showAlert, setConfi
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Manage Users</h3>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <button onClick={() => setIsInviteOpen(true)} className="btn btn-primary">
           <UserPlus size={14} /> Invite User
         </button>

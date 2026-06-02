@@ -20,12 +20,19 @@ const ERROR_MESSAGES: Record<number, string> = {
   503: 'Service is down for maintenance. Please try again shortly.',
 };
 
+const REQUEST_TIMEOUT_MS = 30000; // 30 second timeout
+
 async function request<T>(path: string, options: RequestInit = {}, retries = 1): Promise<T> {
   const token = getToken();
-  
+
+  // Create an AbortController for request timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
     const res = await fetch(`${API_URL}${path}`, {
       ...options,
+      signal: options.signal ?? controller.signal,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -39,16 +46,16 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 1):
         await new Promise(r => setTimeout(r, 1000));
         return request<T>(path, options, retries - 1);
       }
-      
+
       const body = await res.json().catch(() => ({}));
       const serverMsg = body.error || body.message || body.msg;
       const friendlyMsg = ERROR_MESSAGES[res.status];
-      
+
       // If server gave a specific message, use it; otherwise use friendly fallback
-      const message = serverMsg && serverMsg !== 'Request failed' 
-        ? serverMsg 
+      const message = serverMsg && serverMsg !== 'Request failed'
+        ? serverMsg
         : (friendlyMsg || `Request failed (${res.status})`);
-      
+
       const err = new Error(message) as Error & { status: number; serverError?: string };
       err.status = res.status;
       err.serverError = serverMsg;
@@ -58,6 +65,10 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 1):
     if (res.status === 204) return undefined as T;
     return res.json();
   } catch (err: any) {
+    // Timeout error
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
     // Network error (no response)
     if (!err.status && err.name !== 'AbortError') {
       if (retries > 0) {
@@ -67,6 +78,8 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 1):
       throw new Error('Cannot connect to server. Please check your connection.');
     }
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

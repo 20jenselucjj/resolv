@@ -16,3 +16,8 @@ export { TicketStatusesTab } from './TicketStatusesTab';
 export { CannedResponsesTab } from './CannedResponsesTab';
 export { AssetGroupsTab } from './AssetGroupsTab';
 export { AgentSettingsTab } from './AgentSettingsTab';
+export { NotificationSettingsTab } from './NotificationSettingsTab';
+export { WorkflowTab } from './WorkflowTab';
+export { BackupRestoreTab } from './BackupRestoreTab';
+export { EmailLogTab } from './EmailLogTab';
+export { EmailInboundTab } from './EmailInboundTab';
