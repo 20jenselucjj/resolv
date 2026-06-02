@@ -449,4 +449,50 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
 
     return reply.send({ data: { synced: true, message: 'Article synced to AI training' } });
   });
+
+  // GET /knowledge/stats - knowledge base analytics
+  fastify.get('/knowledge/stats', { preHandler: [fastify.authenticate, fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+    const [totalResult, byStatus, topViewed, topHelpful, byCategory, authorStats, viewsDaily] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int as total FROM knowledge_articles`),
+      pool.query(`SELECT status, COUNT(*)::int as count FROM knowledge_articles GROUP BY status`),
+      pool.query(`SELECT id, title, slug, views, helpful_count, not_helpful_count FROM knowledge_articles ORDER BY views DESC LIMIT 10`),
+      pool.query(`
+        SELECT id, title, slug, views, helpful_count, not_helpful_count,
+               CASE WHEN (helpful_count + not_helpful_count) > 0 
+                 THEN ROUND(helpful_count::numeric / (helpful_count + not_helpful_count) * 100, 1) 
+               ELSE 0 END as helpfulness_pct
+        FROM knowledge_articles 
+        WHERE (helpful_count + not_helpful_count) > 0
+        ORDER BY helpfulness_pct DESC LIMIT 10
+      `),
+      pool.query(`
+        SELECT c.name as category, COUNT(*)::int as count
+        FROM knowledge_articles ka LEFT JOIN categories c ON ka.category_id = c.id
+        GROUP BY c.name ORDER BY count DESC
+      `),
+      pool.query(`
+        SELECT u.name as author, COUNT(*)::int as total, SUM(ka.views)::int as total_views
+        FROM knowledge_articles ka JOIN users u ON ka.author_id = u.id
+        GROUP BY u.name ORDER BY total_views DESC
+      `),
+      pool.query(`
+        SELECT DATE(created_at) as date, COUNT(*)::int as count
+        FROM knowledge_articles
+        WHERE created_at > NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at) ORDER BY date ASC
+      `),
+    ]);
+
+    return reply.send({
+      data: {
+        total: totalResult.rows[0].total,
+        byStatus: byStatus.rows,
+        topViewed: topViewed.rows,
+        topHelpful: topHelpful.rows,
+        byCategory: byCategory.rows,
+        authorStats: authorStats.rows,
+        viewsDaily: viewsDaily.rows,
+      }
+    });
+  });
 }
