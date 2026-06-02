@@ -81,6 +81,29 @@ export async function attachmentRoutes(app: FastifyInstance) {
     return reply.send(fs.createReadStream(att.storage_path))
   })
 
+  // GET /attachments/:id/view — view file inline (browser-renderable formats)
+  app.get('/attachments/:id/view', { preHandler: [app.authenticate] }, async (req, reply) => {
+    const user = (req as any).user
+    const { id } = req.params as any
+
+    const { rows } = await pool.query(
+      'SELECT a.*, t.created_by_id as requester_id FROM ticket_attachments a JOIN tickets t ON a.ticket_id=t.id WHERE a.id=$1',
+      [id]
+    )
+    if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' })
+    const att = rows[0]
+    if (user.role === 'user' && att.requester_id !== user.id) {
+      return reply.status(403).send({ error: 'Access denied' })
+    }
+
+    if (!fs.existsSync(att.storage_path)) return reply.status(404).send({ error: 'File not found on disk' })
+
+    reply.header('Content-Disposition', `inline; filename="${att.original_name}"`)
+    reply.header('Content-Type', att.mime_type)
+    reply.header('Cache-Control', 'private, max-age=3600')
+    return reply.send(fs.createReadStream(att.storage_path))
+  })
+
   // DELETE /attachments/:id
   app.delete('/attachments/:id', { preHandler: [app.authenticate] }, async (req, reply) => {
     const user = (req as any).user
