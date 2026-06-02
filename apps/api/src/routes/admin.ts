@@ -106,12 +106,26 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       whereClause += ` AND u.name ILIKE $${paramIdx++}`;
       params.push(`%${query.actor_name}%`);
     }
+    if (query.search) {
+      whereClause += ` AND (al.action ILIKE $${paramIdx} OR al.entity_type ILIKE $${paramIdx} OR u.name ILIKE $${paramIdx})`;
+      params.push(`%${query.search}%`);
+      paramIdx++;
+    }
+    if (query.date_from) {
+      whereClause += ` AND al.created_at >= $${paramIdx++}`;
+      params.push(query.date_from);
+    }
+    if (query.date_to) {
+      whereClause += ` AND al.created_at <= $${paramIdx++}`;
+      params.push(query.date_to);
+    }
 
     // Use a subquery for count when filtering on joined table columns
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM audit_log al LEFT JOIN users u ON al.actor_id = u.id ${whereClause}`,
       params
     );
+    const total = parseInt(countResult.rows[0].count);
 
     const result = await pool.query(
       `SELECT al.*, u.name as actor_name 
@@ -123,11 +137,18 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       [...params, pageSize, offset]
     );
 
+    // Get distinct entity types for filter dropdown
+    const entityTypes = await pool.query(
+      `SELECT DISTINCT entity_type FROM audit_log WHERE entity_type IS NOT NULL ORDER BY entity_type`
+    );
+
     return reply.send({
       data: result.rows,
-      total: parseInt(countResult.rows[0].count),
+      total,
       page,
       pageSize,
+      totalPages: Math.ceil(total / pageSize),
+      entity_types: entityTypes.rows.map((r: any) => r.entity_type),
     });
   });
 
@@ -308,14 +329,27 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/settings/canned-responses', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const result = await pool.query("SELECT value FROM system_settings WHERE key = 'canned_responses'");
     const raw = result.rows[0]?.value;
-    let responses = [
-      "Hi there, we've received your request and are looking into it.",
-      "Could you please provide more details or screenshots to help us investigate?",
-      "We have resolved the issue. Please confirm if everything is working for you now.",
-      "Closing this ticket due to inactivity. Feel free to reply if you still need help.",
+    const defaults = [
+      { id: '1', text: "Hi there, we've received your request and are looking into it.", category: 'General' },
+      { id: '2', text: "Could you please provide more details or screenshots to help us investigate?", category: 'General' },
+      { id: '3', text: "We have resolved the issue. Please confirm if everything is working for you now.", category: 'Resolution' },
+      { id: '4', text: "Closing this ticket due to inactivity. Feel free to reply if you still need help.", category: 'Resolution' },
     ];
-    if (raw) { try { responses = JSON.parse(raw); } catch {} }
-    return reply.send({ data: responses });
+
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        // Handle both legacy (string array) and new (object array) formats
+        const normalized = Array.isArray(parsed) ? parsed.map((item: any, idx: number) => {
+          if (typeof item === 'string') {
+            return { id: String(idx + 1), text: item, category: 'General' };
+          }
+          return { id: item.id || String(idx + 1), text: item.text || '', category: item.category || 'General' };
+        }) : defaults;
+        return reply.send({ data: normalized });
+      } catch { return reply.send({ data: defaults }); }
+    }
+    return reply.send({ data: defaults });
   });
 
   // ─── Email Templates ───────────────────────────────────────────────────
