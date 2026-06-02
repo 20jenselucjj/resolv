@@ -100,6 +100,41 @@ async function httpsGet(url: string, token: string): Promise<any> {
   });
 }
 
+/** Helper: perform an HTTPS POST with JSON body and return parsed JSON */
+async function httpsPostJson(url: string, token: string, body: any): Promise<any> {
+  const parsed = new URL(url);
+  const payload = JSON.stringify(body);
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (res: any) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => (data += chunk.toString()));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            resolve({});
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 // ─── Store & retrieve OAuth tokens ───────────────────────────────────────────
 
 async function storeTokens(accessToken: string, refreshToken: string, expiryDate: string) {
@@ -187,6 +222,8 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
           'profile',
           'https://www.googleapis.com/auth/admin.directory.user.readonly',
           'https://www.googleapis.com/auth/admin.directory.group.readonly',
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.modify',
         ].join(' '),
         state,
         code_challenge: codeChallenge,
@@ -381,7 +418,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         [JSON.stringify(config)]
       );
 
-      // Return success page
+      // Return success page — notify the opener tab so it auto-refreshes
       return reply.type('text/html').send(`<!DOCTYPE html>
 <html><head><title>Connected</title></head>
 <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#f5f5f5">
@@ -389,7 +426,13 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
 <h1 style="color:#34a853">✅ Connected</h1>
 <p>Your Google Workspace directory has been connected successfully.</p>
 <p>You can close this window and return to the admin panel.</p>
-</div></body></html>`);
+</div>
+<script>
+if (window.opener) {
+  window.opener.postMessage({ type: 'oauth-connected', provider: 'google_workspace' }, '*');
+}
+</script>
+</body></html>`);
     } catch (err: any) {
       fastify.log.error(err);
       // In login mode, redirect to frontend with error
@@ -439,4 +482,4 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
 }
 
 // Export helpers for use by other routes
-export { getStoredTokens, storeTokens, clearTokens, httpsPost, httpsGet, oauthStates };
+export { getStoredTokens, storeTokens, clearTokens, httpsPost, httpsGet, httpsPostJson, oauthStates };

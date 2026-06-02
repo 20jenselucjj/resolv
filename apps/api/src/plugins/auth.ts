@@ -53,7 +53,23 @@ function getDefaultPermissions(): Record<string, string[]> {
 export default fp(async function authPlugin(fastify: FastifyInstance) {
   fastify.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
     try {
-      await request.jwtVerify();
+      // Check Authorization header first (standard Bearer token)
+      const authHeader = request.headers.authorization;
+      if (authHeader) {
+        const parts = authHeader.split(' ');
+        if (parts.length === 2 && parts[0] === 'Bearer') {
+          await request.jwtVerify();
+          return;
+        }
+      }
+      // Fallback: check query parameter ?token=... (for attachment view/download via <img>, <iframe>, etc.)
+      const queryToken = request.query ? (request.query as Record<string, string>).token : undefined;
+      if (queryToken) {
+        request.headers.authorization = `Bearer ${queryToken}`;
+        await request.jwtVerify();
+        return;
+      }
+      throw new Error('No token provided');
     } catch (err) {
       reply.status(401).send({ error: 'Unauthorized' });
     }

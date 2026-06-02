@@ -318,7 +318,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         data: {
           enabled,
           provider: enabled ? (config.provider || 'google_workspace') : null,
-          provider_name: enabled ? (config.provider_name || 'Google Workspace') : null,
+          provider_name: enabled ? (config.provider_name || 'SSO') : null,
           login_mode: loginMode,
           has_emergency_bypass: hasEmergencyKey,
         }
@@ -332,6 +332,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // ─── GET /auth/oauth/google/authorize ─────────────────────────────────────
   // Redirects user to Google OAuth for login (openid + email + profile scopes)
   // Uses the shared callback /api/oauth/google/callback (handles both sync + login)
+  // Supports ?prompt=select_account for account switching
   fastify.get('/auth/oauth/google/authorize', async (request, reply) => {
     try {
       // Block SSO login if in password_only mode
@@ -374,8 +375,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
       oauthStates.set(state, { codeVerifier, createdAt: Date.now(), mode: 'login' });
 
       // Build Google OAuth URL (user login scopes only, no admin scopes)
-      // No prompt parameter = Google auto-selects when one account is logged in,
-      // or shows the account picker when multiple accounts are available.
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -386,6 +385,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         code_challenge_method: 'S256',
         access_type: 'offline',
       });
+
+      // Support prompt=select_account for switching Google accounts
+      const queryPrompt = (request.query as any)?.prompt;
+      if (queryPrompt === 'select_account') {
+        params.set('prompt', 'select_account');
+      }
 
       const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
       return reply.redirect(302, authorizeUrl);
