@@ -21,6 +21,7 @@ import oauthRoutes from './routes/oauth';
 import directorySyncRoutes from './routes/directory-sync';
 import assetRoutes from './routes/assets';
 import inboundEmailRoutes from './routes/inbound-email';
+import autoReplyRoutes from './routes/auto-reply';
 import { startInboundListener } from './services/inbound-email';
 import { pool } from './db/pool';
 import { JwtPayload } from './plugins/auth';
@@ -136,6 +137,7 @@ async function start() {
   await fastify.register(directorySyncRoutes, { prefix: '/api' });
   await fastify.register(assetRoutes, { prefix: '/api' });
   await fastify.register(inboundEmailRoutes, { prefix: '/api' });
+  await fastify.register(autoReplyRoutes, { prefix: '/api' });
 
   // Health check (under /api prefix so the frontend api helper can reach it)
   fastify.get('/api/health', async (request, reply) => {
@@ -216,7 +218,7 @@ async function start() {
 
   await fastify.listen({ port, host });
 
-  // Start email inbound listener (IMAP polling — free, no Gmail API billing needed)
+  // Start email inbound listener (Gmail API via OAuth shared with directory sync)
   startInboundListener().catch(err => {
     console.error('[index] Failed to start inbound email listener:', err.message);
   });
