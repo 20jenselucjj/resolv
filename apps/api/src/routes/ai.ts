@@ -436,18 +436,39 @@ function parseTextToolCalls(content: string): {
  * Detect when the model text-simulates ticket creation by saying things like
  * "I've created a ticket #1012 – My computer is slow" without calling the tool.
  * Extract the fields and return them so the real create_ticket handler can execute.
+ *
+ * @param content - The AI response text to scan for simulated ticket details
+ * @param userMessage - The user's current message, used as fallback for title/description
  */
-function extractSimulatedTicket(content: string): Record<string, any> | null {
+function extractSimulatedTicket(content: string, userMessage?: string): Record<string, any> | null {
   const text = content.replace(/<\/?internal_reminder>[\s\S]*?$/gi, '').trim()
 
   // Extract title — look for patterns like:
   //   "ticket #1012 – My computer is slow"
   //   "ticket for you: #42 – Install Office"
   //   "created ticket: "Some Title""
+  //   "Your ticket is in for the boot loop issue"  ← conversational
+  //   "I've opened a ticket for your crashing Outlook"
   const titleMatch = text.match(/(?:ticket|#)\s*(?:#?\d+\s*[–\-:]\s*["']?)([^"'\n]+?)(?:["']?[\.\n]|$)/i)
     || text.match(/(?:ticket|request).*?["']([^"']{3,80})["']/i)
     || text.match(/(?:created|opened|logged|filed).*?["']([^"']{3,80})["']/i)
-  const title = titleMatch ? titleMatch[1].trim().replace(/^#\d+\s*[–\-:]\s*/i, '').replace(/[\.]$/, '').trim() : null
+    // conversational: "Your ticket is in for the [problem]" or "ticket for your [problem]"
+    || text.match(/(?:ticket|I[' ]ve)\s+(?:is|has been|was|will be|for your|in for|for the)\s+(?:a |the |in for )?(?:support )?(?:ticket\s+)?(?:about|regarding|for|for the|regarding the)?\s+(?:your )?(.+?)(?:\.(?:\s|$)|$)/i)
+  let title = titleMatch ? titleMatch[1].trim().replace(/^#\d+\s*[–\-:]\s*/i, '').replace(/[\.]$/, '').trim() : null
+
+  // If title is too short or looks like boilerplate, fall back to the user's message
+  if ((!title || title.length < 4 || /^(support )?ticket/i.test(title)) && userMessage) {
+    // Strip the "create a ticket" request itself to get the actual issue
+    const userIssue = userMessage
+      .replace(/^(create|make|open|file|put in|log|submit)\s+(me\s+)?(a\s+|the\s+)?(support\s+)?ticket\s+(for|about|regarding)?\s*/i, '')
+      .replace(/^(create|make|open|file|put in|log|submit)\s+/i, '')
+      .replace(/\s+(ticket|it would|please|now|thanks|thank you|ty)\s*$/i, '')
+      .trim()
+    if (userIssue.length > 3) {
+      title = userIssue.charAt(0).toUpperCase() + userIssue.slice(1)
+    }
+  }
+
   if (!title || title.length < 2) return null
 
   // Extract structured fields
@@ -997,10 +1018,24 @@ IMPORTANT: All enum values must be LOWERCASE. priority: low|medium|high|critical
 
       // ── Fallback: Detect conversational ticket creation ──────────────────
       // Some models text-simulate by saying "I've created a ticket #X – Title"
-      // and listing fields like Type/Priority/Category without ever calling the
-      // tool. Extract the details and actually create the ticket.
-      if (!assistantMsg.tool_calls?.length && /created (a |the )?ticket/i.test(finalContent)) {
-        const extracted = extractSimulatedTicket(finalContent)
+      // or "Your ticket is in for the boot loop issue" and listing fields like
+      // Type/Priority/Category without ever calling the tool. Extract the details
+      // and actually create the ticket.
+      if (!assistantMsg.tool_calls?.length && (
+        // Direct "created/opened/filed a ticket" statements
+        /(?:created|opened|filed|logged|submitted|put in)\s+(?:a |the )?(?:support )?ticket/i.test(finalContent) ||
+        // "ticket has been/was created" passive voice
+        /ticket\s+(?:has been|was (?:just )?)/i.test(finalContent) ||
+        // "I've created/opened a ticket"
+        /I[`']ve\s+(?:just )?(?:created|opened|filed|logged|submitted|put in)\s+(?:a |the )?(?:support )?ticket/i.test(finalContent) ||
+        // "Your ticket is/has been", "The ticket is in/ready/created"
+        /(?:Your|The)\s+ticket\s+(?:is\s+(?:in|ready|open|set|created|submitted|now)|has been|was)/i.test(finalContent) ||
+        // "ticket is in/ready/open"  
+        /\bticket\s+is\s+(?:in|ready|open|created|submitted)\b/i.test(finalContent) ||
+        // Mentions a ticket number in context of creation
+        /(?:created|opened|filed|logged|submitted|#)\s*\d+\s*(?:created|opened|filed|for|–)/i.test(finalContent)
+      )) {
+        const extracted = extractSimulatedTicket(finalContent, message)
         if (extracted) {
           console.log(`[AI Fallback] Detected text-simulated create_ticket: "${extracted.title}"`)
           assistantMsg.tool_calls = [{
@@ -1008,6 +1043,31 @@ IMPORTANT: All enum values must be LOWERCASE. priority: low|medium|high|critical
             type: 'function',
             function: { name: 'create_ticket', arguments: JSON.stringify(extracted) },
           }]
+        } else {
+          // If the AI clearly claims ticket creation but we couldn't parse details,
+          // create one using the user's message as the title
+          console.log('[AI Fallback] AI claims ticket creation but no structured details found — creating from user message')
+          const fallbackTitle = message
+            .replace(/^(create|make|open|file|put in|log|submit)\s+(me\s+)?(a\s+|the\s+)?(support\s+)?ticket\s+(for|about|regarding)?\s*/i, '')
+            .replace(/^(create|make|open|file|put in|log|submit)\s+/i, '')
+            .replace(/\s+(ticket|it would|please|now|thanks|thank you|ty)\s*$/i, '')
+            .trim()
+          if (fallbackTitle.length > 3) {
+            const title = fallbackTitle.charAt(0).toUpperCase() + fallbackTitle.slice(1)
+            assistantMsg.tool_calls = [{
+              id: crypto.randomUUID(),
+              type: 'function',
+              function: {
+                name: 'create_ticket',
+                arguments: JSON.stringify({
+                  title: title.substring(0, 200),
+                  description: `User request: "${message}"`,
+                  priority: /block(?:ing|ed)|urgent|cannot work|can't work|down|critical|emergency/i.test(message) ? 'high' : 'medium',
+                  ticket_type: 'incident',
+                }),
+              },
+            }]
+          }
         }
       }
     }
