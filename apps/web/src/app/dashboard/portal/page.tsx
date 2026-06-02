@@ -8,12 +8,13 @@ import {
   Clock, CheckCircle2, Check, Circle, Loader2, X, FileText,
   BookOpen, ArrowRight, Paperclip, User as UserIcon,
   UploadCloud, Trash2, ExternalLink, MessageSquare,
-  Zap, Shield, RefreshCw, Headphones
+  Zap, Shield, RefreshCw, History
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Ticket {
   id: string;
+  number: number;
   title: string;
   status: string;
   priority: string;
@@ -33,6 +34,13 @@ interface AiMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+}
+
+interface AiSession {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface SspDoc {
@@ -87,9 +95,8 @@ export default function SelfServicePortal() {
     { icon: HelpCircle,    label: portalSettings.portal_qa_6_label || 'Something Else',    color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb', prompt: portalSettings.portal_qa_6_prompt || 'I need help with something not listed here.' },
   ], [portalSettings]);
 
-  // Search
-  const [search, setSearch] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
+  // Search for KB
+  const [kbSearch, setKbSearch] = useState('');
 
   // My Tickets
   const [myTickets, setMyTickets] = useState<Ticket[]>([]);
@@ -97,7 +104,6 @@ export default function SelfServicePortal() {
 
   // KB Articles
   const [kbArticles, setKbArticles] = useState<KBArticle[]>([]);
-  const [kbSearch, setKbSearch] = useState('');
 
   // AI Chat
   const [messages, setMessages] = useState<AiMessage[]>([]);
@@ -106,7 +112,14 @@ export default function SelfServicePortal() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [chatStarted, setChatStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Chat History
+  const [showHistory, setShowHistory] = useState(false);
+  const [historySessions, setHistorySessions] = useState<AiSession[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   // File upload for AI chat
   const aiFileInputRef = useRef<HTMLInputElement>(null);
@@ -201,6 +214,41 @@ export default function SelfServicePortal() {
       .catch(() => {});
   }, []);
 
+  // ── Restore last chat session (within 1 hour) ───────────────────────────
+  useEffect(() => {
+    const storedId = localStorage.getItem('portal_session_id');
+    const storedTime = localStorage.getItem('portal_session_time');
+    if (!storedId || !storedTime) return;
+
+    const elapsed = Date.now() - parseInt(storedTime, 10);
+    if (elapsed > 3600000) { // older than 1 hour — clear
+      localStorage.removeItem('portal_session_id');
+      localStorage.removeItem('portal_session_time');
+      return;
+    }
+
+    api.get<{ data: { role: string; content: string }[] }>(`/ai/sessions/${storedId}/messages`)
+      .then(res => {
+      const msgs = (res?.data || []).filter(m => m.role !== 'system' && m.role !== 'tool').map(m => ({
+          id: Math.random().toString(36).slice(2),
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+        if (msgs.length > 0) {
+          setMessages(msgs);
+          setSessionId(storedId);
+          setChatStarted(true);
+        } else {
+          localStorage.removeItem('portal_session_id');
+          localStorage.removeItem('portal_session_time');
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem('portal_session_id');
+        localStorage.removeItem('portal_session_time');
+      });
+  }, []);
+
   useEffect(() => {
     if (kbSearch.length > 1) {
       api.get<{ data: KBArticle[] }>(`/knowledge?status=published&search=${encodeURIComponent(kbSearch)}&pageSize=5`)
@@ -214,7 +262,10 @@ export default function SelfServicePortal() {
   }, [kbSearch]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll only the chat messages container, not the entire page
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages, aiLoading]);
 
   // ── AI Chat File Upload ────────────────────────────────────────────────────
@@ -293,9 +344,19 @@ export default function SelfServicePortal() {
         const res = await api.post<{ data: { id: string } }>('/ai/sessions', { title: originalInput.substring(0, 40) });
         sid = res.data.id;
         setSessionId(sid);
+        localStorage.setItem('portal_session_id', sid);
+        localStorage.setItem('portal_session_time', String(Date.now()));
       }
-      const res = await api.post<{ data: { content: string } }>('/ai/chat', { session_id: sid, message: messageText });
+      const res = await api.post<{ data: { content: string; tool_calls?: Array<{ function: { name: string; arguments: string } }> } }>('/ai/chat', { session_id: sid, message: messageText });
       setMessages(prev => [...prev, { id: Date.now().toString() + 'ai', role: 'assistant', content: res.data.content }]);
+
+      // If the AI created a ticket, refresh the ticket list so it shows up without a manual refresh
+      const createdTicket = res.data.tool_calls?.find((tc: any) => tc.function?.name === 'create_ticket')
+      if (createdTicket) {
+        api.get<{ data: Ticket[] }>('/tickets?pageSize=5')
+          .then(ticketsRes => setMyTickets(ticketsRes.data?.slice(0, 5) || []))
+          .catch(() => {})
+      }
     } catch {
       setMessages(prev => [...prev, { id: Date.now().toString() + 'err', role: 'assistant', content: "Sorry, I couldn't process that. Please try again." }]);
     } finally {
@@ -308,6 +369,51 @@ export default function SelfServicePortal() {
     setTimeout(() => inputRef.current?.focus(), 100);
     sendMessage(prompt);
   };
+
+  // ── Chat History ────────────────────────────────────────────────────────────
+  const loadHistorySessions = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get<{ data: AiSession[] }>('/ai/sessions');
+      setHistorySessions((res?.data || []).slice(0, 5));
+    } catch {
+      setHistorySessions([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const loadSession = async (sid: string) => {
+    try {
+      const res = await api.get<{ data: { role: string; content: string }[] }>(`/ai/sessions/${sid}/messages`);
+      const msgs = (res?.data || []).filter(m => m.role !== 'system').map(m => ({
+        id: Math.random().toString(36).slice(2),
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+      setMessages(msgs);
+      setSessionId(sid);
+      setChatStarted(true);
+      setShowHistory(false);
+      localStorage.setItem('portal_session_id', sid);
+      localStorage.setItem('portal_session_time', String(Date.now()));
+    } catch {
+      console.error('Failed to load session');
+    }
+  };
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    };
+    if (showHistory) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showHistory]);
 
   // ── Ticket Form Drag & Drop ────────────────────────────────────────────────
   const handleTicketDragOver = (e: React.DragEvent) => {
@@ -374,7 +480,7 @@ export default function SelfServicePortal() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg) radial-gradient(ellipse at 50% 0%, rgba(30,64,175,0.035) 0%, transparent 60%)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       <style>{`
         @keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeInScale { from { opacity:0; transform:scale(0.98); } to { opacity:1; transform:scale(1); } }
@@ -397,50 +503,14 @@ export default function SelfServicePortal() {
       {/* ── Hero Header ─────────────────────────────────────────────────────── */}
       <div style={{
         background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #1e40af 65%, #2563eb 100%)',
-        padding: '28px 32px 40px',
-        position: 'relative',
-        overflow: 'hidden',
+        padding: '24px 32px',
       }}>
-        {/* Decorative blobs */}
-        <div style={{ position:'absolute', top:-80, right:-40, width:340, height:340, background:'rgba(59,130,246,0.18)', borderRadius:'50%', filter:'blur(60px)', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', bottom:-100, left:80, width:260, height:260, background:'rgba(37,99,235,0.14)', borderRadius:'50%', filter:'blur(50px)', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', top:20, left:'40%', width:180, height:180, background:'rgba(147,197,253,0.08)', borderRadius:'50%', filter:'blur(45px)', pointerEvents:'none' }} />
-
-        <div style={{ maxWidth: 1000, margin: '0 auto', position: 'relative' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Headphones size={16} color="white" />
-            </div>
-            <span style={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.7)', textTransform:'uppercase', letterSpacing:'0.08em' }}>{portalSettings.portal_company_name || 'IT Self Service'}</span>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'white', lineHeight:1.2, marginBottom:2 }}>
+            {portalSettings.portal_company_name || 'IT Self Service'}
           </div>
-
-          {/* Search bar */}
-          <div style={{ position:'relative', maxWidth:640 }}>
-            <Search size={18} style={{ position:'absolute', left:16, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', pointerEvents:'none' }} />
-            <input
-              className="ssp-input"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setKbSearch(e.target.value); }}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-              placeholder="Search knowledge base, tickets, or ask a question..."
-              style={{
-                width:'100%', padding:'14px 16px 14px 48px',
-                borderRadius:12, border:'2px solid rgba(255,255,255,0.2)',
-                background:'rgba(255,255,255,0.95)', fontSize:15,
-                color:'var(--text)', outline:'none',
-                boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
-                transition:'border-color 0.2s, box-shadow 0.2s',
-              }}
-            />
-            {search && (
-              <button onClick={() => { setSearch(''); setKbSearch(''); }} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#94a3b8', display:'flex', transition:'color 0.15s ease' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#475569'}
-                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
-              >
-                <X size={16} />
-              </button>
-            )}
+          <div style={{ fontSize:13, fontWeight:500, color:'rgba(255,255,255,0.7)' }}>
+            {portalSettings.portal_hero_subtitle || 'Welcome to the self-service portal'}
           </div>
         </div>
       </div>
@@ -449,8 +519,7 @@ export default function SelfServicePortal() {
       <div style={{ maxWidth:1000, margin:'0 auto', padding:'32px 32px 60px', width:'100%', flex:1, boxSizing:'border-box' }}>
 
         {/* ── Quick Actions ──────────────────────────────────────────────────── */}
-        {!search && (
-          <div className="page-section" style={{ marginBottom:36, animationDelay:'0.1s' }}>
+        <div className="page-section" style={{ marginBottom:36, animationDelay:'0.1s' }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {quickActions.map((qa, i) => (
                 <button
@@ -475,7 +544,6 @@ export default function SelfServicePortal() {
               ))}
             </div>
           </div>
-        )}
 
         {/* ── Two-column layout: AI Chat + My Tickets ───────────────────────── */}
         <div className="page-section" style={{ display:'grid', gridTemplateColumns:'minmax(0, 1fr) 360px', gap:24, marginBottom:32, animationDelay:'0.2s' }}>
@@ -500,18 +568,62 @@ export default function SelfServicePortal() {
                 </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)' }}>Always here to help</div>
               </div>
-              {chatStarted && (
-                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); }} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
+              <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
+                <div ref={historyRef} style={{ position:'relative' }}>
+                  <button
+                    onClick={() => { loadHistorySessions(); setShowHistory(h => !h); }}
+                    style={{ background:'none', border:'none', cursor:'pointer', color: showHistory ? '#2563eb' : 'var(--text-muted)', display:'flex', padding:4, borderRadius:4, transition:'color 0.15s ease' }}
+                    title="Chat history"
+                  >
+                    <History size={14} />
+                  </button>
+                  {showHistory && (
+                    <div style={{
+                      position:'absolute', right:0, top:'100%', marginTop:6,
+                      width:240, background:'var(--card)', border:'1px solid var(--border)',
+                      borderRadius:12, boxShadow:'0 8px 30px rgba(0,0,0,0.12)',
+                      overflow:'hidden', zIndex:50,
+                    }}>
+                      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-subtle)', fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                        Recent Chats
+                      </div>
+                      <div style={{ maxHeight:280, overflowY:'auto' }}>
+                        {historyLoading ? (
+                          <div style={{ padding:20, textAlign:'center' }}><Loader2 size={16} className="animate-spin" color="#2563eb" /></div>
+                        ) : historySessions.length === 0 ? (
+                          <div style={{ padding:'20px 14px', textAlign:'center', fontSize:12, color:'var(--text-muted)' }}>No previous chats</div>
+                        ) : historySessions.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => loadSession(s.id)}
+                            style={{
+                              width:'100%', padding:'10px 14px', textAlign:'left',
+                              background:'transparent', border:'none', cursor:'pointer',
+                              transition:'background 0.15s ease',
+                              display:'flex', flexDirection:'column', gap:2,
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.title || 'New Chat'}</span>
+                            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(s.updated_at || s.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); localStorage.removeItem('portal_session_id'); localStorage.removeItem('portal_session_time'); }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
                 >
                   <Plus size={12} /> New chat
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Messages */}
-            <div style={{ flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:16 }}>
+            <div ref={messagesContainerRef} style={{ flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:16 }}>
               {!chatStarted ? (
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', textAlign:'center', padding:'0 20px' }}>
                   <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14, boxShadow:'0 8px 20px rgba(37,99,235,0.25)' }}>
@@ -874,14 +986,13 @@ export default function SelfServicePortal() {
                   </div>
                 ) : myTickets.map(ticket => {
                   const s = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
-                  const SIcon = s.icon;
                   return (
                     <a key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 10px', borderRadius:10, textDecoration:'none', transition:'all 0.2s ease', border:'1px solid transparent', marginBottom:4 }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
                     >
-                      <div style={{ width:28, height:28, borderRadius:8, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <SIcon size={14} color={s.color} />
+                      <div style={{ width:28, height:28, borderRadius:8, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, fontWeight:700, color:s.color }}>
+                        #{ticket.number}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ticket.title}</div>

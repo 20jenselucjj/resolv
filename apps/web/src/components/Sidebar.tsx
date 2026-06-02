@@ -26,7 +26,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard/tickets',   icon: Ticket,     label: 'Tickets',         agentAndAbove: true },
   { href: '/dashboard/assets',    icon: Monitor,    label: 'Assets',          agentAndAbove: true },
   { href: '/dashboard/knowledge', icon: BookOpen,   label: 'Knowledge Base',  agentAndAbove: true },
-  { href: '/dashboard/reports', icon: BarChart2,  label: 'Reports',         agentAndAbove: true },
+  { href: '/dashboard/reports', icon: BarChart2,  label: 'Reports',         adminOnly: true },
   { href: '/dashboard/admin',     icon: Shield,     label: 'Admin',           adminOnly: true },
   { href: '/dashboard/settings',  icon: Settings,   label: 'Settings',        agentAndAbove: true },
 ];

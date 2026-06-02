@@ -54,7 +54,7 @@ function LoginForm() {
         const res = await api.get<{ data: { enabled: boolean; provider: string | null; provider_name: string | null; login_mode: string; has_emergency_bypass: boolean } }>('/auth/oauth/config');
         if (res.data?.enabled) {
           setSsoEnabled(true);
-          setSsoProvider(res.data.provider_name || 'Google');
+          setSsoProvider(res.data.provider_name || 'SSO');
         } else {
           setSsoEnabled(false);
         }
@@ -71,6 +71,10 @@ function LoginForm() {
     fetchSsoConfig();
   }, []);
 
+  // Auto-redirect state for SSO-only mode
+  const [autoRedirecting, setAutoRedirecting] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(3);
+
   // Extract emergency key from URL params (for SSO-only bypass)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -81,6 +85,46 @@ function LoginForm() {
       router.replace('/login');
     }
   }, [searchParams, router]);
+
+  // Auto-redirect to SSO when login_mode is sso_only and no emergency key
+  useEffect(() => {
+    if (ssoConfigLoading) return;
+    if (loginMode !== 'sso_only') return;
+    if (emergencyKey) return;
+
+    // Check if user explicitly chose to cancel auto-redirect in this session
+    const cancelled = sessionStorage.getItem('resolv_sso_auto_cancelled');
+    if (cancelled === 'true') return;
+
+    // Check if we already have a valid token (user just logged out or session expired)
+    const existingToken = localStorage.getItem('resolv_token');
+    if (existingToken) {
+      // Token exists but might be expired — try it first
+      return;
+    }
+
+    setAutoRedirecting(true);
+    const timer = setInterval(() => {
+      setRedirectCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Auto-redirect after countdown
+    const redirectTimer = setTimeout(() => {
+      sessionStorage.setItem('resolv_sso_auto_cancelled', 'false');
+      window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/oauth/google/authorize`;
+    }, 3000);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(redirectTimer);
+    };
+  }, [ssoConfigLoading, loginMode, emergencyKey]);
 
   // Handle OAuth callback (token or error in URL params)
   useEffect(() => {
@@ -169,7 +213,13 @@ function LoginForm() {
   }
 
   function handleSsoClick() {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/oauth/google/authorize`;
+    sessionStorage.setItem('resolv_sso_auto_cancelled', 'false');
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/oauth/google/authorize`;
+  }
+
+  function handleSsoSwitchAccount() {
+    sessionStorage.setItem('resolv_sso_auto_cancelled', 'false');
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/auth/oauth/google/authorize?prompt=select_account`;
   }
 
   async function handleForgotSubmit(e: React.FormEvent) {
@@ -250,6 +300,42 @@ function LoginForm() {
               <Image src="/logo.png" alt="Resolv Logo" width={120} height={30} priority style={{ width: '120px', height: 'auto', objectFit: 'contain' }} />
             </div>
 
+            {/* Auto-redirect UI for SSO-only mode */}
+            {autoRedirecting && (
+              <div style={{ width: '100%', textAlign: 'center' }} className="fade-in">
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                    <Building2 size={28} color="#60a5fa" />
+                  </div>
+                  <h1 style={{ color: '#ffffff', fontSize: 22, fontWeight: 700, margin: '0 0 8px 0' }}>
+                    Signing you in...
+                  </h1>
+                  <p style={{ color: '#94A3B8', fontSize: 14, margin: '0 0 16px 0' }}>
+                    Authenticating with SSO in {redirectCountdown} second{redirectCountdown !== 1 ? 's' : ''}
+                  </p>
+                  <div style={{ width: 200, height: 3, borderRadius: 2, background: '#334155', margin: '0 auto 20px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${((3 - redirectCountdown) / 3) * 100}%`, borderRadius: 2, background: 'linear-gradient(90deg, #2563eb, #60a5fa)', transition: 'width 1s linear' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                    <button
+                      onClick={handleSsoSwitchAccount}
+                      style={{ background: 'none', border: 'none', color: '#60A5FA', fontSize: 13, cursor: 'pointer', padding: '8px 16px', transition: 'color 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#93c5fd'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#60A5FA'}
+                    >
+                      Sign in with a different account
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {ssoConfigLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ width: 40, height: 40, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 24px' }} />
+                <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Checking configuration...</p>
+              </div>
+            ) : !autoRedirecting && (
             <div style={{ width: '100%' }}>
               <h1 style={{ color: '#ffffff', fontSize: '28px', fontWeight: 700, margin: '0 0 24px 0', textAlign: 'center' }}>
                 {mode === 'login' ? 'Sign In' : 'Create Account'}
@@ -446,6 +532,8 @@ function LoginForm() {
             </div>
             )}
             </div>
+            )}
+
           </div>
 
           <div style={{ position: 'absolute', bottom: '24px', color: '#475569', fontSize: '13px' }}>
