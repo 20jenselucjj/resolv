@@ -7,22 +7,23 @@ import { api } from '@/lib/api';
 import {
   LayoutDashboard, Users, Layers, Clock, Settings, FileText,
   ShieldCheck, Building, Circle, CalendarClock, Zap, Mail,
-  LayoutGrid, Book, Sparkles, Brain, BarChart3, Plug,
+  LayoutGrid, Book, Sparkles, Brain, Plug,
   Search, Lock, Server, Database, Activity, X, AlertCircle, CheckCircle,
   RefreshCw, RotateCcw, ChevronLeft, ChevronRight, Filter, Calendar,
   UserPlus, MoreVertical, Edit2, Trash2, Plus, Save,
   AlertTriangle, Hash, Trash, Play, Palette, User,
   Shield, Monitor, Download, Bell, GitBranch
 } from 'lucide-react';
-import { AITrainingTab } from './AITrainingTab';
 import { DirectorySyncTab } from './DirectorySyncTab';
+import { AITrainingTab } from './AITrainingTab';
 import {
   OverviewTab, UsersTab, CategoriesTab, SLAPoliciesTab, EmailTemplatesTab,
   SettingsTab, RolesTab, AutomationTab, WorkingHoursTab, AuditLogTab,
-  ReportsTab, IntegrationsTab, PortalCustomizationTab, AIConfigTab,
+  IntegrationsTab, PortalCustomizationTab, AIConfigTab,
   TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
   NotificationSettingsTab, WorkflowTab, BackupRestoreTab,
-  EmailLogTab, EmailInboundTab
+  EmailLogTab, EmailInboundTab, EmailTab,
+  TicketsTab, SlaHoursTab, AiTab
 } from './components';
 import { ConfirmModal, Alert, Modal } from './components/SharedUI';
 import type {
@@ -61,6 +62,12 @@ export default function AdminPage() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditFilterAction, setAuditFilterAction] = useState('');
   const [auditFilterUser, setAuditFilterUser] = useState('');
+  const [auditFilterEntityType, setAuditFilterEntityType] = useState('');
+  const [auditFilterSearch, setAuditFilterSearch] = useState('');
+  const [auditDateRange, setAuditDateRange] = useState('');
+  const [auditTotalPages, setAuditTotalPages] = useState(0);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [entityTypes, setEntityTypes] = useState<string[]>([]);
 
   // Sidebar Search
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -88,24 +95,20 @@ export default function AdminPage() {
     { tab: 'users', keywords: ['users', 'user', 'invite', 'accounts', 'people', 'members', 'staff', 'deactivate', 'activate', 'password', 'reset', 'department', 'bulk'] },
     { tab: 'roles', keywords: ['roles', 'permissions', 'access', 'rbac', 'admin', 'agent', 'privileges', 'security', 'manage users', 'delete tickets', 'assign tickets'] },
     { tab: 'directory-sync', keywords: ['directory sync', 'directory', 'sync', 'provision', 'google workspace', 'azure ad', 'okta', 'ldap', 'active directory', 'scim', 'user provisioning', 'sso', 'single sign-on', 'oauth', 'identity', 'login', 'auth'] },
-    { tab: 'categories', keywords: ['categories', 'category', 'ticket type', 'classification', 'routing', 'organize', 'color'] },
-    { tab: 'ticket-statuses', keywords: ['ticket statuses', 'status labels', 'status names', 'progress text', 'open', 'in progress', 'waiting', 'closed', 'rename status'] },
-    { tab: 'sla-policies', keywords: ['sla', 'service level', 'response time', 'resolution time', 'breach', 'priority', 'critical', 'high', 'medium', 'low', 'policies'] },
-    { tab: 'working-hours', keywords: ['working hours', 'business hours', 'schedule', 'timezone', 'calendar', 'open', 'closed', 'monday', 'friday', 'weekend', 'operating'] },
+    { tab: 'tickets', keywords: ['tickets', 'categories', 'category', 'ticket type', 'classification', 'routing', 'organize', 'color', 'workflow', 'transitions', 'status flow', 'ticket workflow', 'required fields', 'transition', 'ticket statuses', 'status labels', 'status names', 'progress text', 'open', 'in progress', 'waiting', 'closed', 'rename status'] },
+    { tab: 'sla-hours', keywords: ['sla', 'service level', 'response time', 'resolution time', 'breach', 'priority', 'critical', 'high', 'medium', 'low', 'policies', 'working hours', 'business hours', 'schedule', 'timezone', 'calendar', 'open', 'closed', 'monday', 'friday', 'weekend', 'operating'] },
     { tab: 'automation', keywords: ['automation', 'rules', 'trigger', 'workflow', 'escalate', 'escalation', 'auto', 'routing', 'condition', 'action', 'notify'] },
-    { tab: 'email-templates', keywords: ['email', 'templates', 'template', 'notification', 'smtp', 'mail', 'subject', 'body', 'ticket created', 'ticket resolved', 'survey'] },
+    { tab: 'email-templates', keywords: ['email', 'templates', 'template', 'notification', 'smtp', 'mail', 'subject', 'body', 'ticket created', 'ticket resolved', 'survey', 'auto reply', 'auto-reply', 'autoreply', 'automatic reply', 'reply rule', 'trigger reply', 'auto responder', 'auto-responder'] },
     { tab: 'portal-customization', keywords: ['portal', 'branding', 'hero', 'customize', 'customization', 'quick actions', 'company name', 'subtitle', 'end user', 'user portal'] },
     { tab: 'canned-responses', keywords: ['canned responses', 'canned', 'responses', 'quick replies', 'templates', 'reply templates', 'shortcuts'] },
-    { tab: 'ai-config', keywords: ['ai', 'assistant', 'openai', 'gpt', 'model', 'temperature', 'tokens', 'api key', 'system prompt', 'provider', 'base url', 'allowed roles'] },
-    { tab: 'ai-training', keywords: ['ai training', 'training', 'knowledge', 'rag', 'retrieval', 'vector', 'embedding', 'chunks', 'qa pairs', 'q&a', 'sources', 'documents', 'ingest', 'semantic', 'hybrid', 'keyword', 'similarity', 'top k', 'chunk size', 'chunk overlap', 'citation', 'analytics', 'test', 'evaluate', 'rag settings', 'knowledge sources', 'ticket sync', 'kb sync'] },
-    { tab: 'reports', keywords: ['reports', 'report', 'analytics', 'charts', 'volume', 'performance', 'csat', 'export', 'csv', 'trends', 'breakdown'] },
+    { tab: 'ai', keywords: ['ai', 'assistant', 'openai', 'gpt', 'model', 'temperature', 'tokens', 'api key', 'system prompt', 'provider', 'base url', 'allowed roles', 'ai training', 'training', 'knowledge', 'rag', 'retrieval', 'vector', 'embedding', 'chunks', 'qa pairs', 'q&a', 'sources', 'documents', 'ingest', 'semantic', 'hybrid', 'keyword', 'similarity', 'top k', 'chunk size', 'chunk overlap', 'citation', 'analytics', 'test', 'evaluate', 'rag settings', 'knowledge sources', 'ticket sync', 'kb sync'] },
+
     { tab: 'settings', keywords: ['settings', 'configuration', 'config', 'system', 'general', 'integrations key', 'variables', 'global'] },
     { tab: 'integrations', keywords: ['integrations', 'integration', 'slack', 'webhook', 'jira', 'teams', 'pagerduty', 'zapier', 'connect', 'third party', 'external'] },
     { tab: 'asset-groups', keywords: ['asset groups', 'groups', 'asset categories', 'asset classification', 'group color', 'organize assets'] },
     { tab: 'agent-settings', keywords: ['agent', 'agent settings', 'agent secret', 'deploy agent', 'download agent', 'agent key', 'agent deployment', 'gpo', 'silent install', 'agent installation', 'asset discovery', 'agent config'] },
     { tab: 'audit-log', keywords: ['audit', 'log', 'history', 'trail', 'audit log', 'operations', 'changes', 'who', 'actor', 'events'] },
     { tab: 'notification-settings', keywords: ['notifications', 'notification settings', 'alerts', 'channels', 'email alerts', 'in-app', 'slack alerts', 'webhook alerts', 'notify'] },
-    { tab: 'workflow', keywords: ['workflow', 'transitions', 'status flow', 'ticket workflow', 'required fields', 'transition'] },
     { tab: 'backup-restore', keywords: ['backup', 'restore', 'database backup', 'dump', 'disaster recovery', 'export', 'sql dump'] },
     { tab: 'email-log', keywords: ['email log', 'email history', 'sent email', 'received email', 'delivery', 'outbound', 'inbound', 'smtp log'] },
     { tab: 'email-inbound', keywords: ['inbound email', 'imap', 'email polling', 'email routing', 'email ticket', 'gmail inbox', 'ticket from email'] },
@@ -138,18 +141,15 @@ export default function AdminPage() {
     {
       group: 'TICKETING',
       items: [
-        { id: 'categories', label: 'Categories', icon: <Layers size={15} /> },
-        { id: 'ticket-statuses', label: 'Ticket Statuses', icon: <Circle size={15} /> },
-        { id: 'workflow', label: 'Ticket Workflow', icon: <GitBranch size={15} /> },
-        { id: 'sla-policies', label: 'SLA Policies', icon: <Clock size={15} /> },
-        { id: 'working-hours', label: 'Working Hours', icon: <CalendarClock size={15} /> },
+        { id: 'tickets', label: 'Tickets', icon: <Layers size={15} /> },
+        { id: 'sla-hours', label: 'SLA & Hours', icon: <Clock size={15} /> },
         { id: 'automation', label: 'Automation', icon: <Zap size={15} /> },
       ]
     },
     {
       group: 'COMMUNICATION',
       items: [
-        { id: 'email-templates', label: 'Email Templates', icon: <Mail size={15} /> },
+        { id: 'email-templates', label: 'Email', icon: <Mail size={15} /> },
         { id: 'email-inbound', label: 'Inbound Email', icon: <Mail size={15} /> },
         { id: 'email-log', label: 'Email Log', icon: <Mail size={15} /> },
         { id: 'notification-settings', label: 'Notification Settings', icon: <Bell size={15} /> },
@@ -160,8 +160,7 @@ export default function AdminPage() {
     {
       group: 'AI & INTELLIGENCE',
       items: [
-        { id: 'ai-config', label: 'AI Assistant', icon: <Sparkles size={15} /> },
-        { id: 'ai-training', label: 'AI Training', icon: <Brain size={15} /> },
+        { id: 'ai', label: 'AI Settings', icon: <Sparkles size={15} /> },
       ]
     },
     {
@@ -169,12 +168,6 @@ export default function AdminPage() {
       items: [
         { id: 'asset-groups', label: 'Asset Groups', icon: <Monitor size={15} /> },
         { id: 'agent-settings', label: 'Agent Settings', icon: <Download size={15} /> },
-      ]
-    },
-    {
-      group: 'REPORTS',
-      items: [
-        { id: 'reports', label: 'Reports', icon: <BarChart3 size={15} /> },
       ]
     },
     {
@@ -214,14 +207,13 @@ export default function AdminPage() {
       case 'users': return 'Manage user accounts, departments, and active statuses';
       case 'roles': return 'Define security roles, access permissions, and privileges';
       case 'directory-sync': return 'Sync users and groups from your identity provider to automatically provision and manage accounts.';
-      case 'categories': return 'Organize tickets into categories and define routing rules';
-      case 'ticket-statuses': return 'Customize the display labels for ticket status values';
-      case 'sla-policies': return 'Set Service Level Agreement response and resolution targets';
-      case 'working-hours': return 'Configure business calendars, hours of operation, and holidays';
+      case 'tickets': return 'Configure ticket categories, workflow transitions, and status labels';
+      case 'sla-hours': return 'Set Service Level Agreement targets, business hours, and holiday calendars';
       case 'automation': return 'Create workflow triggers, automated actions, and conditions';
-      case 'email-templates': return 'Design and manage notification templates for ticket lifecycle events';
-      case 'email-inbound': return 'Set up IMAP email-to-ticket conversion (Gmail, Office 365, or custom IMAP)';
+      case 'email-templates': return 'Manage notification templates and automatic reply rules';
+      case 'email-inbound': return 'Configure Gmail API inbound email processing and parsing rules';
       case 'email-log': return 'Search and audit all incoming and outgoing email messages';
+      case 'ai': return 'Configure the AI assistant and manage knowledge training sources';
       default: return 'Manage system configuration and administrative policies';
     }
   };
@@ -241,10 +233,10 @@ export default function AdminPage() {
       } else if (tab === 'users') {
         const res = await api.get<{ data: UserProfile[] }>('/users');
         setUsers(res.data);
-      } else if (tab === 'categories') {
+      } else if (tab === 'tickets') {
         const res = await api.get<{ data: Category[] }>('/categories');
         setCategories(res.data);
-      } else if (tab === 'sla-policies') {
+      } else if (tab === 'sla-hours') {
         const res = await api.get<{ data: SLAPolicy[] }>('/sla-policies');
         setSLAPolicies(res.data);
       } else if (tab === 'settings') {
@@ -271,21 +263,41 @@ export default function AdminPage() {
         params.set('pageSize', '50');
         if (auditFilterAction) params.set('action', auditFilterAction);
         if (auditFilterUser) params.set('actor_name', auditFilterUser);
-        const res = await api.get<{ data: AuditEntry[] }>(`/admin/audit-log?${params.toString()}`);
+        if (auditFilterEntityType) params.set('entity_type', auditFilterEntityType);
+        if (auditFilterSearch) params.set('search', auditFilterSearch);
+        if (auditDateRange) {
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          if (auditDateRange === 'today') {
+            params.set('date_from', today.toISOString());
+          } else if (auditDateRange === 'yesterday') {
+            const yesterday = new Date(today.getTime() - 86400000);
+            params.set('date_from', yesterday.toISOString());
+            params.set('date_to', today.toISOString());
+          } else if (auditDateRange === '7d') {
+            params.set('date_from', new Date(today.getTime() - 7 * 86400000).toISOString());
+          } else if (auditDateRange === '30d') {
+            params.set('date_from', new Date(today.getTime() - 30 * 86400000).toISOString());
+          }
+        }
+        const res = await api.get<{ data: AuditEntry[]; total: number; totalPages: number; entity_types: string[] }>(`/admin/audit-log?${params.toString()}`);
         setAuditLog(res.data);
+        setAuditTotal(res.total || 0);
+        setAuditTotalPages(res.totalPages || 0);
+        setEntityTypes(res.entity_types || []);
       }
     } catch {
       showAlert('Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
-  }, [auditPage, auditFilterAction, auditFilterUser, showAlert]);
+  }, [auditPage, auditFilterAction, auditFilterUser, auditFilterEntityType, auditFilterSearch, auditDateRange, showAlert]);
 
   useEffect(() => {
     if (user?.role === 'admin' || user?.role === 'agent') {
       loadTabData(activeTab);
     }
-  }, [user, activeTab, auditPage, auditFilterAction, auditFilterUser, loadTabData]);
+  }, [user, activeTab, auditPage, auditFilterAction, auditFilterUser, auditFilterEntityType, auditFilterSearch, auditDateRange, loadTabData]);
 
   // Persist active admin tab across refreshes
   useEffect(() => {
@@ -458,24 +470,24 @@ export default function AdminPage() {
               setConfirmModal={setConfirmModal}
             />
           )}
-          {activeTab === 'categories' && (
-            <CategoriesTab
-              categories={categories}
-              onRefresh={() => loadTabData('categories')}
+          {activeTab === 'tickets' && (
+            <TicketsTab
               showAlert={showAlert}
               setConfirmModal={setConfirmModal}
+              categories={categories}
+              onRefreshCategories={() => loadTabData('tickets')}
             />
           )}
-          {activeTab === 'sla-policies' && (
-            <SLAPoliciesTab
-              policies={slaPolicies}
-              onRefresh={() => loadTabData('sla-policies')}
+          {activeTab === 'sla-hours' && (
+            <SlaHoursTab
               showAlert={showAlert}
               setConfirmModal={setConfirmModal}
+              policies={slaPolicies}
+              onRefresh={() => loadTabData('sla-hours')}
             />
           )}
           {activeTab === 'email-templates' && (
-            <EmailTemplatesTab showAlert={showAlert} setConfirmModal={setConfirmModal} />
+            <EmailTab showAlert={showAlert} setConfirmModal={setConfirmModal} />
           )}
           {activeTab === 'settings' && (
             <SettingsTab
@@ -484,16 +496,12 @@ export default function AdminPage() {
               showAlert={showAlert}
             />
           )}
-          {activeTab === 'ai-config' && <AIConfigTab showAlert={showAlert} />}
-          {activeTab === 'ai-training' && <AITrainingTab showAlert={showAlert} />}
+          {activeTab === 'ai' && <AiTab showAlert={showAlert} />}
           {activeTab === 'directory-sync' && <DirectorySyncTab showAlert={showAlert} />}
           {activeTab === 'roles' && <RolesTab showAlert={showAlert} />}
           {activeTab === 'automation' && <AutomationTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}
-          {activeTab === 'working-hours' && <WorkingHoursTab showAlert={showAlert} />}
           {activeTab === 'portal-customization' && <PortalCustomizationTab showAlert={showAlert} />}
-          {activeTab === 'ticket-statuses' && <TicketStatusesTab showAlert={showAlert} />}
           {activeTab === 'canned-responses' && <CannedResponsesTab showAlert={showAlert} />}
-          {activeTab === 'reports' && <ReportsTab showAlert={showAlert} />}
           {activeTab === 'asset-groups' && (
             <AssetGroupsTab
               groups={assetGroups}
@@ -511,14 +519,22 @@ export default function AdminPage() {
               auditLog={auditLog}
               page={auditPage}
               setPage={setAuditPage}
+              totalPages={auditTotalPages}
+              total={auditTotal}
               filterAction={auditFilterAction}
               setFilterAction={setAuditFilterAction}
               filterUser={auditFilterUser}
               setFilterUser={setAuditFilterUser}
+              filterEntityType={auditFilterEntityType}
+              setFilterEntityType={setAuditFilterEntityType}
+              filterSearch={auditFilterSearch}
+              setFilterSearch={setAuditFilterSearch}
+              dateRange={auditDateRange}
+              setDateRange={setAuditDateRange}
+              entityTypes={entityTypes}
             />
           )}
           {activeTab === 'notification-settings' && <NotificationSettingsTab showAlert={showAlert} />}
-          {activeTab === 'workflow' && <WorkflowTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}
           {activeTab === 'backup-restore' && <BackupRestoreTab showAlert={showAlert} />}
           {activeTab === 'email-log' && <EmailLogTab showAlert={showAlert} />}
           {activeTab === 'email-inbound' && <EmailInboundTab showAlert={showAlert} />}

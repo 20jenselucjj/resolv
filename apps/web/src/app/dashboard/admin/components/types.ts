@@ -30,6 +30,9 @@ export interface AuditEntry {
   entity_id: string;
   created_at: string;
   timestamp?: string;
+  old_data?: Record<string, unknown> | null;
+  new_data?: Record<string, unknown> | null;
+  description?: string;
 }
 
 export interface UserProfile {

@@ -146,6 +146,17 @@ export function DirectorySyncTab({
     fetchLoginMode();
   }, [fetchAll, fetchLoginMode]);
 
+  // Listen for OAuth completion from the callback tab
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'oauth-connected' && event.data?.provider === 'google_workspace') {
+        fetchAll();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [fetchAll]);
+
   // --- Handlers ---
 
   const handleSave = async () => {
@@ -240,8 +251,7 @@ export function DirectorySyncTab({
   const handleReauthenticate = () => {
     window.open(
       `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/oauth/google/authorize`,
-      '_blank',
-      'noopener,noreferrer'
+      '_blank'
     );
   };
 
