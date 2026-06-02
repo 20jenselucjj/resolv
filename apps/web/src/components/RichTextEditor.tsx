@@ -33,7 +33,7 @@ export function RichTextEditor({
       const formData = new FormData();
       formData.append('file', file);
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('resolv_token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || `${API_BASE}`;
+      const apiBase = API_BASE;
       const res = await fetch(`${apiBase}/knowledge/images`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
