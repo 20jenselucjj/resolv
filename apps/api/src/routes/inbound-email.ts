@@ -1,11 +1,11 @@
 ﻿// inbound-email.ts ΓÇö API routes for email operations
-// Webhook endpoint for direct inbound email processing, email log viewer, etc.
+// Gmail API inbound email processing via OAuth, email log viewer, SMTP config.
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
 import { testSmtpConnection, invalidateTransporter, sendTemplateEmail, loadSmtpConfig } from '../services/outbound-email';
-import { startInboundListener, stopInboundListener, forcePoll } from '../services/inbound-email';
+import { startInboundListener, stopInboundListener, forcePoll, getGmailStatus } from '../services/inbound-email';
 
 export default async function inboundEmailRoutes(fastify: FastifyInstance) {
 
@@ -175,38 +175,53 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
-  // GET /admin/email/inbound/config ΓÇö Get inbound email settings
+  // GET /admin/email/inbound/config ΓÇö Get inbound email settings and Gmail connection status
   fastify.get('/admin/email/inbound/config', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     const result = await pool.query(
-      "SELECT key, value FROM system_settings WHERE key LIKE 'email_inbound_%'"
+      "SELECT key, value FROM system_settings WHERE key LIKE 'email_inbound_%' OR key LIKE 'email_%'"
     );
     const config: Record<string, string> = {};
-    result.rows.forEach(r => { config[r.key.replace('email_inbound_', '')] = r.value; });
-    return reply.send({ data: config });
+    result.rows.forEach(r => { config[r.key.replace('email_inbound_', '').replace('email_', '')] = r.value; });
+
+    // Remap address key to inbound_email_address for the frontend
+    if (config.address !== undefined) {
+      config.inbound_email_address = config.address;
+      delete config.address;
+    }
+
+    // Get Gmail OAuth connection status
+    const gmailStatus = await getGmailStatus();
+
+    return reply.send({ data: { ...config, gmail_status: gmailStatus } });
   });
 
-  // POST /admin/email/inbound/config ΓÇö Save inbound email settings
+  // POST /admin/email/inbound/config ΓÇö Save inbound email settings (Gmail API via OAuth)
   fastify.post('/admin/email/inbound/config', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     const body = z.object({
       enabled: z.string().optional(),
-      host: z.string().optional(),
-      port: z.string().optional(),
-      user: z.string().optional(),
-      password: z.string().optional(),
+      protocol: z.string().optional(),
       poll_interval: z.string().optional(),
-      folder: z.string().optional(),
-      processed_folder: z.string().optional(),
+      label: z.string().optional(),
       ticket_creation_enabled: z.string().optional(),
       reply_enabled: z.string().optional(),
+      inbound_email_address: z.string().optional(),
     }).parse(request.body);
 
     for (const [key, value] of Object.entries(body)) {
       if (value !== undefined) {
+        // Protocol is stored as email_inbound_protocol, others as email_inbound_<key>
+        const settingKey = key === 'protocol'
+          ? 'email_inbound_protocol'
+          : key === 'inbound_email_address'
+            ? 'email_inbound_address'
+            : (key.startsWith('ticket_') || key.startsWith('reply_'))
+              ? `email_${key}`
+              : `email_inbound_${key}`;
         await pool.query(
           `INSERT INTO system_settings (key, value, updated_at, updated_by)
            VALUES ($1, $2, NOW(), $3)
            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW(), updated_by = $3`,
-          [`email_inbound_${key}`, value, request.user.id]
+          [settingKey, value, request.user.id]
         );
       }
     }
@@ -224,6 +239,99 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/email/inbound/test', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     const result = await forcePoll();
     return reply.send(result);
+  });
+
+  // GET /admin/email/inbound/parsing — Get email parsing configuration
+  fastify.get('/admin/email/inbound/parsing', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key = 'email_parsing_config'"
+    );
+    let config = { require_known_sender: true, default_priority: 'medium', default_type: 'incident', default_status: 'open' };
+    if (result.rows.length > 0) {
+      try {
+        config = JSON.parse(result.rows[0].value);
+      } catch { /* use defaults */ }
+    }
+    return reply.send({ data: config });
+  });
+
+  // POST /admin/email/inbound/parsing — Save email parsing configuration
+  fastify.post('/admin/email/inbound/parsing', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      require_known_sender: z.boolean().optional(),
+      default_priority: z.string().optional(),
+      default_type: z.string().optional(),
+      default_status: z.string().optional(),
+      domain_whitelist: z.array(z.string()).optional(),
+      priority_keywords: z.record(z.array(z.string())).optional(),
+      type_keywords: z.record(z.array(z.string())).optional(),
+    }).parse(request.body);
+
+    // Read existing config
+    const existing = await pool.query(
+      "SELECT value FROM system_settings WHERE key = 'email_parsing_config'"
+    );
+    let config: Record<string, any> = { require_known_sender: true, default_priority: 'medium', default_type: 'incident', default_status: 'open' };
+    if (existing.rows.length > 0) {
+      try {
+        config = JSON.parse(existing.rows[0].value);
+      } catch { /* use defaults */ }
+    }
+
+    // Merge with new values
+    if (body.require_known_sender !== undefined) config.require_known_sender = body.require_known_sender;
+    if (body.default_priority !== undefined) config.default_priority = body.default_priority;
+    if (body.default_type !== undefined) config.default_type = body.default_type;
+    if (body.default_status !== undefined) config.default_status = body.default_status;
+    if (body.domain_whitelist !== undefined) config.domain_whitelist = body.domain_whitelist;
+    if (body.priority_keywords !== undefined) config.priority_keywords = body.priority_keywords;
+    if (body.type_keywords !== undefined) config.type_keywords = body.type_keywords;
+
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES ($1, $2, NOW(), $3)
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW(), updated_by = $3`,
+      ['email_parsing_config', JSON.stringify(config), (request.user as any).id]
+    );
+
+    return reply.send({ success: true });
+  });
+
+  // GET /admin/email/ticket-type-defaults
+  fastify.get('/admin/email/ticket-type-defaults', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key = 'ticket_type_defaults'"
+    );
+    let defaults = {
+      incident: { due_hours: 24 },
+      service_request: { due_hours: 72 },
+      problem: { due_hours: 168 },
+      change: { due_hours: 336 },
+    };
+    if (result.rows.length > 0) {
+      try {
+        defaults = JSON.parse(result.rows[0].value);
+      } catch { /* use defaults */ }
+    }
+    return reply.send({ data: defaults });
+  });
+
+  // POST /admin/email/ticket-type-defaults
+  fastify.post('/admin/email/ticket-type-defaults', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      ticket_type_defaults: z.record(z.string(), z.object({
+        due_hours: z.number().min(1).max(8760),
+      })),
+    }).parse(request.body);
+
+    await pool.query(
+      `INSERT INTO system_settings (key, value, updated_at, updated_by)
+       VALUES ($1, $2, NOW(), $3)
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW(), updated_by = $3`,
+      ['ticket_type_defaults', JSON.stringify(body.ticket_type_defaults), (request.user as any).id]
+    );
+
+    return reply.send({ success: true });
   });
 
   // GET /admin/email/smtp/config ΓÇö Get SMTP config
