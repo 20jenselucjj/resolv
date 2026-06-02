@@ -176,3 +176,44 @@ export function invalidateTransporter(): void {
   transporter = null;
   cachedSmtpConfig = null;
 }
+
+/**
+ * Send a custom email with explicit subject and body (no template lookup).
+ * Used for auto-replies and other programmatic emails.
+ */
+export async function sendCustomEmail(
+  toEmail: string,
+  toName: string,
+  subject: string,
+  body: string,
+  ticketId?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const config = await loadSmtpConfig();
+    if (!config || !config.host) {
+      await logEmail(ticketId || null, 'outbound', toEmail, subject, body, 'failed', 'SMTP not configured');
+      return { success: false, error: 'SMTP not configured' };
+    }
+
+    const fullBody = body + `\n\n---\nThis email was sent by Resolv IT Service Management.`;
+
+    const transport = await getTransporter();
+    if (!transport) {
+      await logEmail(ticketId || null, 'outbound', toEmail, subject, body, 'failed', 'No transporter available');
+      return { success: false, error: 'No transporter available' };
+    }
+
+    const info = await transport.sendMail({
+      from: config.fromName ? `"${config.fromName}" <${config.fromEmail}>` : config.fromEmail,
+      to: toName ? `"${toName}" <${toEmail}>` : toEmail,
+      subject,
+      text: fullBody,
+    });
+
+    await logEmail(ticketId || null, 'outbound', toEmail, subject, body, 'sent', undefined, info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (err: any) {
+    await logEmail(ticketId || null, 'outbound', toEmail, subject, body, 'failed', err.message);
+    return { success: false, error: err.message };
+  }
+}
