@@ -4,6 +4,7 @@ import { pool } from '../db/pool';
 import { JwtPayload } from '../plugins/auth';
 import { syncTicketToKnowledgeBase } from './ai-training';
 import { sendTemplateEmail, isEmailEnabledForEvent } from '../services/outbound-email';
+import { triggerAutoReplies } from './auto-reply';
 
 const createTicketSchema = z.object({
   title: z.string().min(3).max(500),
@@ -163,7 +164,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       commentsQuery += ` AND tc.is_internal = false`;
     }
     
-    commentsQuery += ` ORDER BY tc.created_at ASC`;
+    commentsQuery += ` ORDER BY tc.created_at DESC`;
 
     const comments = await pool.query(commentsQuery, commentsParams);
 
@@ -220,6 +221,21 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           '',
           ticket.id
         );
+      } else {
+        // Unassigned ticket — notify all agents and admins
+        const agentResult = await client.query(
+          "SELECT id, email, name FROM users WHERE role IN ('admin', 'agent') AND is_active = true"
+        );
+        for (const agent of agentResult.rows) {
+          await createNotification(
+            client,
+            agent.id,
+            'ticket_created',
+            `New unassigned ticket #${ticket.number}: ${ticket.title}`,
+            `Created by ${request.user.name}`,
+            ticket.id
+          );
+        }
       }
 
       await client.query('COMMIT');
@@ -227,21 +243,57 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       // Emit real-time event
       fastify.io.emit('ticket:created', { ticket });
 
-      // Also notify the assigned user's personal room
+      // Notify assigned user's personal room via socket
       if (ticket.assigned_to_id) {
         fastify.io.to(`user:${ticket.assigned_to_id}`).emit('notification:new', { ticketId: ticket.id });
+      } else {
+        // Notify all agents/admins via socket for unassigned tickets
+        const agentResult = await pool.query(
+          "SELECT id FROM users WHERE role IN ('admin', 'agent') AND is_active = true"
+        );
+        for (const agent of agentResult.rows) {
+          fastify.io.to(`user:${agent.id}`).emit('notification:new', { ticketId: ticket.id });
+        }
       }
 
-      return reply.status(201).send({ data: ticket });
-
-      // Fire-and-forget email notification
+      // Fire-and-forget email notifications
       const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+
+      // Notify ticket creator
       sendTemplateEmail(
         request.user.email,
         request.user.name,
         'Ticket Created',
         { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` }
       ).catch(() => {});
+
+      // If unassigned, also email all agents/admins
+      if (!ticket.assigned_to_id) {
+        const allAgents = await pool.query(
+          "SELECT id, email, name FROM users WHERE role IN ('admin', 'agent') AND is_active = true"
+        );
+        for (const agent of allAgents.rows) {
+          if (agent.email && agent.email !== request.user.email) {
+            sendTemplateEmail(
+              agent.email,
+              agent.name,
+              'Ticket Created',
+              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` }
+            ).catch(() => {});
+          }
+        }
+      }
+
+      // Trigger auto-reply rules for this ticket (fire-and-forget)
+      triggerAutoReplies(
+        { id: ticket.id, number: ticket.number, title: ticket.title, description: ticket.description,
+          priority: ticket.priority, ticket_type: ticket.ticket_type, status: ticket.status,
+          category_id: ticket.category_id, created_by_id: ticket.created_by_id, assigned_to_id: ticket.assigned_to_id },
+        { id: request.user.id, email: request.user.email, name: request.user.name },
+        ticket.assigned_to_id ? await pool.query('SELECT id, email, name FROM users WHERE id = $1', [ticket.assigned_to_id]).then(r => r.rows[0] || null) : null
+      ).catch(() => {});
+
+      return reply.status(201).send({ data: ticket });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -259,6 +311,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
         assigned_to_id: z.string().uuid().nullable().optional(),
         close_notes: z.string().optional(),
+        send_email: z.boolean().optional(),
       }),
     }).parse(request.body);
 
@@ -433,7 +486,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
 
       // Fire-and-forget: email notification on assignment change
-      if (body.assigned_to_id && body.assigned_to_id !== ticket.assigned_to_id && body.assigned_to_id !== request.user.id) {
+      if (body.assigned_to_id && body.assigned_to_id !== ticket.assigned_to_id && body.assigned_to_id !== request.user.id && body.send_email !== false) {
         const webUrl = process.env.WEB_URL || 'http://localhost:3000';
         const assigneeResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [body.assigned_to_id]);
         if (assigneeResult.rows.length > 0) {
@@ -545,6 +598,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
     const body = z.object({
       body: z.string().min(1),
       is_internal: z.boolean().default(false),
+      send_email: z.boolean().optional(),
     }).parse(request.body);
 
     // Restrict is_internal
@@ -623,7 +677,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       fastify.io.emit(`ticket:comment:${id}`, { comment });
 
       // Fire-and-forget email notification for non-internal comments
-      if (!is_internal) {
+      if (!is_internal && body.send_email !== false) {
         const webUrl = process.env.WEB_URL || 'http://localhost:3000';
 
         // Email the ticket creator (if they didn't make the comment)
