@@ -148,6 +148,13 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
       const autoProvision = config.autoProvision || false;
       const defaultRole = config.defaultRole || 'user';
 
+      // Check if directory sync is enabled
+      if (config.enabled !== true) {
+        await logSync('success', 0, 0, 0, 0, undefined, syncId);
+        syncStatus = { ...syncStatus, status: 'success' as const, lastSyncAt: new Date().toISOString() };
+        return reply.send({ message: 'Directory sync is disabled. Enable it in the Directory Sync config to sync users.' });
+      }
+
       // Get valid access token
       let accessToken: string;
       try {
@@ -254,9 +261,10 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
         } else if (autoProvision) {
           // Create new user (existence already checked above)
           try {
+            const placeholderHash = crypto.randomBytes(32).toString('hex');
             await pool.query(
-              `INSERT INTO users (email, name, role, department, title, phone, external_id, source, is_active, last_sync_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, 'google_workspace', true, NOW())`,
+              `INSERT INTO users (email, name, role, department, title, phone, external_id, source, is_active, last_sync_at, password_hash)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, 'google_workspace', true, NOW(), $8)`,
               [
                 email,
                 mapped.name || email.split('@')[0],
@@ -265,6 +273,7 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
                 mapped.job_title ?? null,
                 mapped.phone ?? null,
                 mapped.external_id ?? null,
+                placeholderHash,
               ]
             );
             usersCreated++;
@@ -277,10 +286,28 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
         usersSynced++;
       }
 
-      // Deactivate users not found in directory but with source='google_workspace'
+      // Remove users not found in directory but with source='google_workspace'
+      // Delete users with no associated content; deactivate users with content for safety
       if (syncedEmails.length > 0) {
-        // Build parameterized query to find users to deactivate
         const placeholders = syncedEmails.map((_, i) => `$${i + 1}`).join(',');
+        const params = [...syncedEmails];
+
+        // Delete users who were removed from Google Directory and have no tickets, comments, or articles
+        const deleteResult = await pool.query(
+          `DELETE FROM users
+           WHERE source = 'google_workspace'
+             AND LOWER(email) NOT IN (${placeholders})
+             AND last_sync_at IS NOT NULL
+             AND id NOT IN (SELECT DISTINCT created_by_id FROM tickets WHERE created_by_id IS NOT NULL)
+             AND id NOT IN (SELECT DISTINCT author_id FROM ticket_comments WHERE author_id IS NOT NULL)
+             AND id NOT IN (SELECT DISTINCT author_id FROM knowledge_articles WHERE author_id IS NOT NULL)
+             AND id NOT IN (SELECT DISTINCT assigned_to_id FROM tickets WHERE assigned_to_id IS NOT NULL)
+           RETURNING id`,
+          params
+        );
+        const deletedCount = deleteResult.rowCount || 0;
+
+        // Deactivate remaining users who have associated content (safety fallback)
         const deactivateResult = await pool.query(
           `UPDATE users SET is_active = false
            WHERE source = 'google_workspace'
@@ -288,9 +315,9 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
              AND LOWER(email) NOT IN (${placeholders})
              AND last_sync_at IS NOT NULL
            RETURNING id`,
-          [...syncedEmails]
+          params
         );
-        usersDeactivated = deactivateResult.rowCount || 0;
+        usersDeactivated = deletedCount + (deactivateResult.rowCount || 0);
       }
 
       // Mark sync as complete
@@ -351,7 +378,6 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
       const config = JSON.parse(configResult.rows[0].value);
       const fieldMapping: Record<string, string> = config.fieldMapping || {};
       const roleMapping: Array<{ directoryGroup: string; role: string }> = config.roleMapping || [];
-      const autoProvision = config.autoProvision || false;
       const defaultRole = config.defaultRole || 'user';
 
       // Get valid access token
@@ -441,12 +467,13 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
                 }
 
                 return { email: resolvedEmail, status: 'updated', name: mapped.name || resolvedEmail };
-              } else if (autoProvision) {
-                // Create new user
+              } else {
+                // Create new user (auto-provision is bypassed for manual user selection)
                 try {
+                  const placeholderHash = crypto.randomBytes(32).toString('hex');
                   await pool.query(
-                    `INSERT INTO users (email, name, role, department, title, phone, external_id, source, is_active, last_sync_at)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'google_workspace', true, NOW())`,
+                    `INSERT INTO users (email, name, role, department, title, phone, external_id, source, is_active, last_sync_at, password_hash)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'google_workspace', true, NOW(), $8)`,
                     [
                       resolvedEmail,
                       mapped.name || resolvedEmail.split('@')[0],
@@ -455,6 +482,7 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
                       mapped.job_title ?? null,
                       mapped.phone ?? null,
                       mapped.external_id ?? null,
+                      placeholderHash,
                     ]
                   );
                   return { email: resolvedEmail, status: 'created', name: mapped.name || resolvedEmail };
@@ -464,8 +492,6 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
                   }
                   throw insertErr;
                 }
-              } else {
-                return { email: resolvedEmail, status: 'skipped', error: 'Auto-provision is disabled. User does not exist locally.' };
               }
             } catch (err: any) {
               return { email, status: 'error', error: err.message || 'Unknown error' };
