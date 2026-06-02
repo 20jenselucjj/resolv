@@ -1,4 +1,4 @@
-﻿-- migrate_email.sql ΓÇö Email infrastructure tables and system settings
+-- migrate_email.sql ΓÇö Email infrastructure tables and system settings
 -- Run: psql -d resolv -f migrate_email.sql
 
 -- Email log table: records every sent/received email
@@ -38,14 +38,9 @@ CREATE TABLE IF NOT EXISTS email_routing_rules (
 INSERT INTO system_settings (key, value, updated_at)
 VALUES
   ('email_inbound_enabled', 'false', NOW()),
-  ('email_inbound_protocol', 'imap', NOW()),
-  ('email_inbound_host', '', NOW()),
-  ('email_inbound_port', '993', NOW()),
-  ('email_inbound_user', '', NOW()),
-  ('email_inbound_password', '', NOW()),
+  ('email_inbound_protocol', 'gmail_api', NOW()),
   ('email_inbound_poll_interval', '60', NOW()),
-  ('email_inbound_folder', 'INBOX', NOW()),
-  ('email_inbound_processed_folder', 'Processed', NOW()),
+  ('email_inbound_label', 'INBOX', NOW()),
   ('email_ticket_creation_enabled', 'false', NOW()),
   ('email_reply_enabled', 'false', NOW())
 ON CONFLICT (key) DO NOTHING;
