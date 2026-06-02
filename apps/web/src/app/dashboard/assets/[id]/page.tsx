@@ -2,845 +2,17 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Activity,
-  ArrowLeft,
-  Building2,
-  Calendar,
-  Circle,
-  Clock3,
-  Cpu,
-  Database,
-  DollarSign,
-  Download,
-  Edit3,
-  FileText,
-  Globe,
-  HardDrive,
-  Laptop,
-  LoaderCircle,
-  MapPin,
-  MemoryStick,
-  Monitor,
-  Network,
-  Package,
-  Printer,
-  RefreshCw,
-  Save,
-  Search,
-  Server,
-  Shield,
-  Smartphone,
-  Ticket,
-  Trash2,
-  User,
-  Users,
-  Wifi,
-  X
-} from 'lucide-react';
+import { Activity, ArrowLeft, Building2, Calendar, Circle, Clock3, Cpu, Database, Edit3, Globe, HardDrive, LoaderCircle, MemoryStick, Monitor, Package, RefreshCw, Save, Search, Trash2, Wifi } from 'lucide-react';
 
 import { api, API_BASE } from '@/lib/api';
 import { connectSocket, createSocket } from '@/lib/socket';
 import { useStore } from '@/lib/store';
 
-interface AssetDisk {
-  name?: string | null;
-  size?: number | null;
-  type?: string | null;
-  vendor?: string | null;
-  mount?: string | null;
-  serial_number?: string | null;
-}
-
-interface AssetDisplay {
-  name?: string | null;
-  manufacturer?: string | null;
-  model?: string | null;
-  resolution?: string | null;
-  refresh_rate_hz?: number | null;
-  is_primary?: boolean | null;
-}
-
-interface AssetHardware {
-  cpu_model?: string | null;
-  cpu_cores?: number | null;
-  cpu_threads?: number | null;
-  cpu_speed_mhz?: number | null;
-  cpu_usage_percent?: number | null;
-  ram_total_gb?: number | null;
-  ram_used_gb?: number | null;
-  ram_free_gb?: number | null;
-  disk_total_gb?: number | null;
-  disk_used_gb?: number | null;
-  disk_free_gb?: number | null;
-  gpu_model?: string | null;
-  gpu_vram_gb?: number | null;
-  motherboard_manufacturer?: string | null;
-  bios_version?: string | null;
-  bios_release_date?: string | null;
-  disks?: AssetDisk[] | null;
-  displays?: AssetDisplay[] | null;
-}
-
-interface AssetSoftware {
-  id?: string;
-  name: string;
-  version?: string | null;
-  publisher?: string | null;
-  install_date?: string | null;
-  size_mb?: number | null;
-}
-
-interface AssetNetworkAdapter {
-  id?: string;
-  adapter_name?: string | null;
-  name?: string | null;
-  ip_address?: string | null;
-  mac_address?: string | null;
-  subnet?: string | null;
-  subnet_mask?: string | null;
-  gateway?: string | null;
-  dns_servers?: string[] | string | null;
-  adapter_type?: string | null;
-  speed_mbps?: number | null;
-  is_virtual?: boolean | null;
-  is_active?: boolean | null;
-}
-
-interface AssetUser {
-  id?: string;
-  username?: string | null;
-  display_name?: string | null;
-  domain?: string | null;
-  user_id?: string | null;
-  user_email?: string | null;
-  user_avatar?: string | null;
-  session_type?: string | null;
-  session_host?: string | null;
-  is_current?: boolean | null;
-  logged_in_at?: string | null;
-}
-
-interface AssetActivityEntry {
-  id?: string;
-  action: string;
-  actor_name?: string | null;
-  details?: string | null;
-  created_at: string;
-}
-
-interface AssetDetail {
-  id: string;
-  name?: string | null;
-  hostname?: string | null;
-  display_name?: string | null;
-  asset_type: string;
-  agent_status: 'online' | 'offline' | string;
-  agent_last_seen?: string | null;
-  agent_version?: string | null;
-  serial_number?: string | null;
-  manufacturer?: string | null;
-  model?: string | null;
-  ip_address?: string | null;
-  mac_address?: string | null;
-  domain?: string | null;
-  group_name?: string | null;
-  assigned_to_name?: string | null;
-  owner_name?: string | null;
-  department?: string | null;
-  location?: string | null;
-  company?: string | null;
-  vendor?: string | null;
-  purchase_date?: string | null;
-  warranty_expiry?: string | null;
-  purchase_cost?: number | null;
-  notes?: string | null;
-  tags?: string[] | null;
-  os_name?: string | null;
-  os_version?: string | null;
-  hardware?: AssetHardware | null;
-  software?: AssetSoftware[] | null;
-  network_adapters?: AssetNetworkAdapter[] | null;
-  users?: AssetUser[] | null;
-  logged_users?: AssetUser[] | null;
-  activity?: AssetActivityEntry[] | null;
-}
-
-interface AssetResponse {
-  data: AssetDetail;
-}
-
-type TabId = 'overview' | 'hardware' | 'software' | 'network' | 'activity';
-type NoticeTone = 'success' | 'warning' | 'danger' | 'accent';
-
-const DISPLAY_FONT = 'var(--font-display, var(--font-inter), system-ui, sans-serif)';
-const BODY_FONT = 'var(--font-body, var(--font-inter), system-ui, sans-serif)';
-
-const TABS: Array<{ id: TabId; label: string; icon: React.ElementType }> = [
-  { id: 'overview', label: 'Overview', icon: Monitor },
-  { id: 'hardware', label: 'Hardware', icon: Cpu },
-  { id: 'software', label: 'Software', icon: Package },
-  { id: 'network', label: 'Network', icon: Wifi },
-  { id: 'activity', label: 'Activity', icon: Activity }
-];
-
-function useSocketConnection() {
-  const socketRef = React.useRef<ReturnType<typeof connectSocket> | null>(null);
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-
-  React.useEffect(() => {
-    if (!socketRef.current && typeof window !== 'undefined') {
-      socketRef.current = connectSocket();
-      forceUpdate();
-    }
-  }, []);
-
-  return socketRef.current;
-}
-
-function useCompactLayout(breakpoint = 1120): boolean {
-  const [compact, setCompact] = React.useState(false);
-
-  React.useEffect(() => {
-    const update = () => setCompact(window.innerWidth < breakpoint);
-    update();
-    window.addEventListener('resize', update);
-
-    return () => window.removeEventListener('resize', update);
-  }, [breakpoint]);
-
-  return compact;
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return '—';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
-}
-
-function formatDateTime(value?: string | null): string {
-  if (!value) return '—';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  });
-}
-
-function timeAgo(value?: string | null): string {
-  if (!value) return 'Never';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Never';
-
-  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-
-  if (diff < 60) return 'Just now';
-
-  const minutes = Math.floor(diff / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-
-  return formatDate(value);
-}
-
-function formatCurrency(value?: number | null): string {
-  if (value == null || Number.isNaN(Number(value))) return '—';
-
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0
-  }).format(value);
-}
-
-function formatBytes(value?: number | null): string {
-  if (value == null || Number.isNaN(Number(value))) return '—';
-
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let size = Number(value);
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  const digits = unitIndex === 0 ? 0 : size >= 100 ? 0 : 1;
-  return `${size.toFixed(digits)} ${units[unitIndex]}`;
-}
-
-function formatGb(value?: number | null): string {
-  if (value == null || Number.isNaN(Number(value))) return '—';
-
-  return `${Number(value).toFixed(Number(value) >= 100 ? 0 : 1)} GB`;
-}
-
-function clampPercent(value?: number | null): number {
-  if (value == null || Number.isNaN(Number(value))) return 0;
-  return Math.max(0, Math.min(100, Number(value)));
-}
-
-function normalizeDns(value?: string[] | string | null): string[] {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.filter(Boolean);
-  return value.split(',').map((item) => item.trim()).filter(Boolean);
-}
-
-function getAssetIcon(type?: string | null): React.ElementType {
-  const normalized = type?.toLowerCase();
-
-  if (normalized === 'server') return Server;
-  if (normalized === 'laptop') return Laptop;
-  if (normalized === 'printer') return Printer;
-  if (normalized === 'mobile' || normalized === 'phone') return Smartphone;
-  if (normalized === 'network_device' || normalized === 'network') return Network;
-
-  return Monitor;
-}
-
-function getActivityMeta(action: string): { icon: React.ElementType; tone: NoticeTone } {
-  const value = action.toLowerCase();
-
-  if (value.includes('software') || value.includes('install') || value.includes('package')) {
-    return { icon: Package, tone: 'accent' };
-  }
-
-  if (value.includes('network') || value.includes('adapter') || value.includes('ip')) {
-    return { icon: Wifi, tone: 'warning' };
-  }
-
-  if (value.includes('user') || value.includes('login') || value.includes('session')) {
-    return { icon: Users, tone: 'success' };
-  }
-
-  if (value.includes('policy') || value.includes('security') || value.includes('compliance')) {
-    return { icon: Shield, tone: 'danger' };
-  }
-
-  if (value.includes('hardware') || value.includes('bios') || value.includes('disk')) {
-    return { icon: Cpu, tone: 'warning' };
-  }
-
-  return { icon: Activity, tone: 'accent' };
-}
-
-function toneColor(tone: NoticeTone): string {
-  if (tone === 'success') return 'var(--success)';
-  if (tone === 'warning') return 'var(--warning)';
-  if (tone === 'danger') return 'var(--danger)';
-  return 'var(--accent)';
-}
-
-function getDiskSummary(hardware?: AssetHardware | null): {
-  total: number;
-  used: number;
-  free: number;
-} {
-  if (!hardware) {
-    return { total: 0, used: 0, free: 0 };
-  }
-
-  if (hardware.disk_total_gb != null) {
-    return {
-      total: Number(hardware.disk_total_gb || 0),
-      used: Number(hardware.disk_used_gb || 0),
-      free: Number(hardware.disk_free_gb || 0)
-    };
-  }
-
-  const disks = hardware.disks || [];
-
-  return disks.reduce<{ total: number; used: number; free: number }>(
-    (acc, disk) => {
-      const size = disk.size ? Number(disk.size) / (1024 * 1024 * 1024) : 0;
-      return {
-        total: acc.total + size,
-        used: acc.used,
-        free: acc.free
-      };
-    },
-    { total: 0, used: 0, free: 0 }
-  );
-}
-
-function Panel({
-  title,
-  subtitle,
-  icon: Icon,
-  actions,
-  children
-}: {
-  title: string;
-  subtitle?: string;
-  icon?: React.ElementType;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <section
-      style={{
-        background: 'linear-gradient(180deg, var(--bg-elevated), var(--bg-secondary))',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-sm)',
-        overflow: 'hidden'
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 16,
-          padding: '18px 20px 14px',
-          borderBottom: '1px solid var(--border)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {Icon && (
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--accent-subtle)',
-                border: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}
-            >
-              <Icon size={16} color="var(--accent)" />
-            </div>
-          )}
-
-          <div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: 'var(--text)',
-                letterSpacing: '-0.01em'
-              }}
-            >
-              {title}
-            </div>
-            {subtitle && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{subtitle}</div>
-            )}
-          </div>
-        </div>
-
-        {actions}
-      </div>
-
-      <div style={{ padding: 20 }}>{children}</div>
-    </section>
-  );
-}
-
-function DetailGrid({
-  items,
-  columns = 2
-}: {
-  items: Array<{ label: string; value?: React.ReactNode; accent?: boolean }>;
-  columns?: number;
-}): React.JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        gap: 12
-      }}
-    >
-      {items.map((item) => (
-        <div
-          key={item.label}
-          style={{
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            padding: '12px 14px'
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--text-muted)',
-              marginBottom: 6,
-              fontWeight: 700
-            }}
-          >
-            {item.label}
-          </div>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: item.accent ? 'var(--accent)' : 'var(--text)',
-              wordBreak: 'break-word'
-            }}
-          >
-            {item.value ?? '—'}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ProgressBar({
-  percent,
-  color,
-  label,
-  meta
-}: {
-  percent: number;
-  color: string;
-  label: string;
-  meta?: string;
-}): React.JSX.Element {
-  return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          marginBottom: 8
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{label}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{meta || `${percent}%`}</div>
-      </div>
-      <div
-        style={{
-          height: 12,
-          borderRadius: 999,
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden'
-        }}
-      >
-        <div
-          style={{
-            width: `${percent}%`,
-            height: '100%',
-            background: color,
-            transition: 'width 180ms ease'
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function Pill({
-  children,
-  tone = 'accent'
-}: {
-  children: React.ReactNode;
-  tone?: NoticeTone;
-}): React.JSX.Element {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '8px 12px',
-        borderRadius: 999,
-        border: '1px solid var(--border)',
-        background: tone === 'accent' ? 'var(--accent-subtle)' : 'var(--bg)',
-        color: toneColor(tone),
-        fontSize: 12,
-        fontWeight: 700
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function ActionButton({
-  icon: Icon,
-  children,
-  tone = 'neutral',
-  disabled,
-  onClick
-}: {
-  icon?: React.ElementType;
-  children: React.ReactNode;
-  tone?: 'neutral' | 'primary' | 'danger';
-  disabled?: boolean;
-  onClick?: () => void;
-}): React.JSX.Element {
-  const background = tone === 'primary' ? 'var(--accent)' : tone === 'danger' ? 'var(--bg)' : 'var(--bg-elevated)';
-  const color = tone === 'primary' ? 'var(--text-inverse)' : tone === 'danger' ? 'var(--danger)' : 'var(--text)';
-  const border = tone === 'primary' ? 'var(--accent)' : tone === 'danger' ? 'var(--danger)' : 'var(--border)';
-
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        height: 42,
-        padding: '0 16px',
-        borderRadius: 'var(--radius-md)',
-        border: `1px solid ${border}`,
-        background,
-        color,
-        fontSize: 13,
-        fontWeight: 700,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-        boxShadow: tone === 'primary' ? 'var(--shadow-md)' : 'none',
-        transition: 'transform 140ms ease, opacity 140ms ease'
-      }}
-    >
-      {Icon && <Icon size={15} />}
-      {children}
-    </button>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-}): React.JSX.Element {
-  return (
-    <div
-      style={{
-        padding: '48px 24px',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px dashed var(--border)',
-        background: 'var(--bg-secondary)',
-        textAlign: 'center'
-      }}
-    >
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 'var(--radius-lg)',
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 16px'
-        }}
-      >
-        <Icon size={22} color="var(--text-muted)" />
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{title}</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 420, margin: '0 auto' }}>{description}</div>
-    </div>
-  );
-}
-
-function EditAssetModal({
-  asset,
-  onClose,
-  onSaved
-}: {
-  asset: AssetDetail;
-  onClose: () => void;
-  onSaved: (next: AssetDetail) => void;
-}): React.JSX.Element {
-  const [form, setForm] = React.useState({
-    display_name: asset.display_name || '',
-    assigned_to_name: asset.assigned_to_name || '',
-    department: asset.department || '',
-    location: asset.location || '',
-    company: asset.company || '',
-    vendor: asset.vendor || '',
-    purchase_date: asset.purchase_date || '',
-    warranty_expiry: asset.warranty_expiry || ''
-  });
-  const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState('');
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    height: 42,
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)',
-    background: 'var(--bg)',
-    color: 'var(--text)',
-    padding: '0 12px',
-    fontSize: 13,
-    fontFamily: BODY_FONT,
-    boxSizing: 'border-box'
-  };
-
-  const save = async () => {
-    setSaving(true);
-    setError('');
-
-    try {
-      const response = await api.patch<AssetResponse | undefined>(`/assets/${asset.id}`, form);
-      onSaved(response?.data || { ...asset, ...form });
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Unable to save asset');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'var(--bg)',
-        padding: 24,
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 720,
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-md)',
-          overflow: 'hidden'
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            padding: '18px 20px',
-            borderBottom: '1px solid var(--border)'
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Edit asset</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              Update ownership, lifecycle, and display details.
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border)',
-              background: 'var(--bg)',
-              color: 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {[
-            ['Display name', 'display_name', 'text'],
-            ['Assigned to', 'assigned_to_name', 'text'],
-            ['Department', 'department', 'text'],
-            ['Location', 'location', 'text'],
-            ['Company', 'company', 'text'],
-            ['Vendor', 'vendor', 'text'],
-            ['Purchase date', 'purchase_date', 'date'],
-            ['Warranty expiry', 'warranty_expiry', 'date']
-          ].map(([label, key, type]) => (
-            <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--text-muted)',
-                  fontWeight: 700
-                }}
-              >
-                {label}
-              </span>
-              <input
-                type={type}
-                value={form[key as keyof typeof form]}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    [key]: event.target.value
-                  }))
-                }
-                style={inputStyle}
-              />
-            </label>
-          ))}
-        </div>
-
-        {error && (
-          <div style={{ padding: '0 20px 20px', color: 'var(--danger)', fontSize: 13, fontWeight: 600 }}>{error}</div>
-        )}
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 12,
-            padding: '16px 20px 20px',
-            borderTop: '1px solid var(--border)'
-          }}
-        >
-          <ActionButton onClick={onClose}>Cancel</ActionButton>
-          <ActionButton icon={Save} tone="primary" disabled={saving} onClick={save}>
-            {saving ? 'Saving…' : 'Save changes'}
-          </ActionButton>
-        </div>
-      </div>
-    </div>
-  );
-}
+import type { AssetDetail, AssetResponse, AssetSoftware, TabId, NoticeTone } from '@/lib/asset-detail-types';
+import { BODY_FONT, DISPLAY_FONT, TABS } from '@/lib/asset-detail-types';
+import { useSocketConnection, useCompactLayout, formatDate, formatDateTime, timeAgo, formatCurrency, formatGb, clampPercent, normalizeDns, getAssetIcon, getActivityMeta, toneColor, getDiskSummary } from '@/components/asset-detail-utils';
+import { Panel, DetailGrid, ProgressBar, Pill, ActionButton, EmptyState, EditAssetModal } from '@/components/asset-detail-ui';
+import { AssetDetailSidebar } from '@/components/asset-detail-sidebar';
 
 export default function AssetDetailPage({
   params
@@ -1037,7 +209,7 @@ export default function AssetDetailPage({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, fontWeight: 700 }}>
           <LoaderCircle size={18} />
-          Loading asset detail…
+          Loading asset detail\u2026
         </div>
       </div>
     );
@@ -1176,11 +348,10 @@ export default function AssetDetailPage({
                       try {
                         if (isOnline && socket) {
                           socket.emit('agent:request-checkin', { assetId: id });
-                          setNotice({ tone: 'success', text: 'Agent notified — refreshing data…' });
-                          // Give agent time to check in and DB to update
+                          setNotice({ tone: 'success', text: 'Agent notified \u2014 refreshing data\u2026' });
                           await new Promise((r) => setTimeout(r, 3000));
                         } else {
-                          setNotice({ tone: 'warning', text: 'Agent is offline — can only reload cached data' });
+                          setNotice({ tone: 'warning', text: 'Agent is offline \u2014 can only reload cached data' });
                         }
                         await Promise.all([fetchAsset(), fetchSoftware()]);
                         if (isOnline && socket) {
@@ -1233,7 +404,7 @@ export default function AssetDetailPage({
               {canManage && <ActionButton icon={Edit3} onClick={() => setShowEditModal(true)}>Edit</ActionButton>}
               {canManage && (
                 <ActionButton icon={Trash2} tone="danger" disabled={deleting} onClick={deleteAsset}>
-                  {deleting ? 'Deleting…' : 'Delete'}
+                  {deleting ? 'Deleting\u2026' : 'Delete'}
                 </ActionButton>
               )}
             </div>
@@ -1311,7 +482,7 @@ export default function AssetDetailPage({
                       { label: 'Serial number', value: asset.serial_number },
                       { label: 'Manufacturer', value: asset.manufacturer },
                       { label: 'Model', value: asset.model },
-                      { label: 'OS', value: `${asset.os_name || ''} ${asset.os_version || ''}`.trim() || '—' },
+                      { label: 'OS', value: `${asset.os_name || ''} ${asset.os_version || ''}`.trim() || '\u2014' },
                       { label: 'Primary name', value: primaryName, accent: true }
                     ]}
                   />
@@ -1357,7 +528,7 @@ export default function AssetDetailPage({
                               }
                             }}
                           >
-                            {savingPanel ? 'Saving…' : 'Save'}
+                            {savingPanel ? 'Saving\u2026' : 'Save'}
                           </ActionButton>
                           <ActionButton onClick={() => setEditingPanel(null)}>Cancel</ActionButton>
                         </div>
@@ -1385,7 +556,7 @@ export default function AssetDetailPage({
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
                         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 700 }}>Group</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{asset.group_name ? <Pill>{asset.group_name}</Pill> : '—'}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{asset.group_name ? <Pill>{asset.group_name}</Pill> : '\u2014'}</div>
                       </div>
                       {(['assigned_to_name', 'department', 'location', 'company'] as const).map((field) => (
                         <div key={field} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
@@ -1417,7 +588,7 @@ export default function AssetDetailPage({
                       items={[
                         {
                           label: 'Group',
-                          value: asset.group_name ? <Pill>{asset.group_name}</Pill> : '—'
+                          value: asset.group_name ? <Pill>{asset.group_name}</Pill> : '\u2014'
                         },
                         { label: 'Assigned to', value: users[0]?.display_name || users[0]?.username || asset.assigned_to_name || asset.owner_name },
                         { label: 'Department', value: asset.department },
@@ -1457,7 +628,7 @@ export default function AssetDetailPage({
                               }
                             }}
                           >
-                            {savingPanel ? 'Saving…' : 'Save'}
+                            {savingPanel ? 'Saving\u2026' : 'Save'}
                           </ActionButton>
                           <ActionButton onClick={() => setEditingPanel(null)}>Cancel</ActionButton>
                         </div>
@@ -1532,7 +703,7 @@ export default function AssetDetailPage({
                     <Panel title="CPU" subtitle="Processor profile and live usage" icon={Cpu}>
                       <div style={{ marginBottom: 18 }}>
                         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
-                          {hardware.cpu_model || '—'}
+                          {hardware.cpu_model || '\u2014'}
                         </div>
                         <DetailGrid
                           columns={2}
@@ -1543,7 +714,7 @@ export default function AssetDetailPage({
                               label: 'Speed',
                               value: hardware.cpu_speed_mhz != null
                                 ? `${(Number(hardware.cpu_speed_mhz) / 1000).toFixed(2)} GHz`
-                                : '—'
+                                : '\u2014'
                             },
                             { label: 'Usage', value: `${cpuPercent.toFixed(1)}%` }
                           ]}
@@ -1643,7 +814,7 @@ export default function AssetDetailPage({
                                     {disk.name || `Disk ${index + 1}`}
                                   </div>
                                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                                    {[disk.type, disk.mount, disk.serial_number].filter(Boolean).join(' • ') || 'Storage device'}
+                                    {[disk.type, disk.mount, disk.serial_number].filter(Boolean).join(' \u2022 ') || 'Storage device'}
                                   </div>
                                 </div>
                                 <Pill tone="warning">{percent.toFixed(1)}% used</Pill>
@@ -1677,7 +848,7 @@ export default function AssetDetailPage({
                                   {display.name || `Display ${index + 1}`}
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                                  {[display.manufacturer, display.model].filter(Boolean).join(' • ') || 'Monitor'}
+                                  {[display.manufacturer, display.model].filter(Boolean).join(' \u2022 ') || 'Monitor'}
                                 </div>
                               </div>
                               {display.is_primary && <Pill tone="success">Primary</Pill>}
@@ -1688,7 +859,7 @@ export default function AssetDetailPage({
                                 { label: 'Resolution', value: display.resolution },
                                 {
                                   label: 'Refresh rate',
-                                  value: display.refresh_rate_hz != null ? `${display.refresh_rate_hz} Hz` : '—'
+                                  value: display.refresh_rate_hz != null ? `${display.refresh_rate_hz} Hz` : '\u2014'
                                 }
                               ]}
                             />
@@ -1709,7 +880,7 @@ export default function AssetDetailPage({
             {activeTab === 'software' && (
               <Panel
                 title="Installed software"
-                subtitle={`${filteredSoftware.length} applications shown${softwareQuery ? ` • filtered from ${software.length}` : ''}`}
+                subtitle={`${filteredSoftware.length} applications shown${softwareQuery ? ` \u2022 filtered from ${software.length}` : ''}`}
                 icon={Package}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1795,9 +966,9 @@ export default function AssetDetailPage({
                         <div>Size</div>
                       </div>
 
-                      {filteredSoftware.map((software, index) => (
+                      {filteredSoftware.map((sw, index) => (
                         <div
-                          key={software.id || `${software.name}-${index}`}
+                          key={sw.id || `${sw.name}-${index}`}
                           style={{
                             display: 'grid',
                             gridTemplateColumns: 'minmax(200px, 2fr) minmax(120px, 1fr) minmax(160px, 1.2fr) minmax(140px, 1fr) minmax(100px, 0.8fr)',
@@ -1808,12 +979,12 @@ export default function AssetDetailPage({
                             color: 'var(--text)'
                           }}
                         >
-                          <div style={{ fontWeight: 700 }}>{software.name}</div>
-                          <div style={{ color: 'var(--text-muted)' }}>{software.version || '—'}</div>
-                          <div style={{ color: 'var(--text-muted)' }}>{software.publisher || '—'}</div>
-                          <div style={{ color: 'var(--text-muted)' }}>{formatDate(software.install_date)}</div>
+                          <div style={{ fontWeight: 700 }}>{sw.name}</div>
+                          <div style={{ color: 'var(--text-muted)' }}>{sw.version || '\u2014'}</div>
+                          <div style={{ color: 'var(--text-muted)' }}>{sw.publisher || '\u2014'}</div>
+                          <div style={{ color: 'var(--text-muted)' }}>{formatDate(sw.install_date)}</div>
                           <div style={{ color: 'var(--text-muted)' }}>
-                            {software.size_mb != null ? `${Number(software.size_mb).toFixed(1)} MB` : '—'}
+                            {sw.size_mb != null ? `${Number(sw.size_mb).toFixed(1)} MB` : '\u2014'}
                           </div>
                         </div>
                       ))}
@@ -1839,7 +1010,7 @@ export default function AssetDetailPage({
                       <Panel
                         key={adapter.id || `${adapter.adapter_name || adapter.name || 'adapter'}-${index}`}
                         title={adapter.adapter_name || adapter.name || `Adapter ${index + 1}`}
-                        subtitle={[adapter.adapter_type, adapter.speed_mbps ? `${adapter.speed_mbps} Mbps` : null].filter(Boolean).join(' • ') || 'Network adapter'}
+                        subtitle={[adapter.adapter_type, adapter.speed_mbps ? `${adapter.speed_mbps} Mbps` : null].filter(Boolean).join(' \u2022 ') || 'Network adapter'}
                         icon={Wifi}
                         actions={
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1854,7 +1025,7 @@ export default function AssetDetailPage({
                             { label: 'MAC', value: adapter.mac_address },
                             { label: 'Subnet', value: adapter.subnet || adapter.subnet_mask },
                             { label: 'Gateway', value: adapter.gateway },
-                            { label: 'DNS', value: dns.length > 0 ? dns.join(', ') : '—' },
+                            { label: 'DNS', value: dns.length > 0 ? dns.join(', ') : '\u2014' },
                             { label: 'Type', value: adapter.adapter_type }
                           ]}
                         />
@@ -1963,219 +1134,19 @@ export default function AssetDetailPage({
             )}
           </div>
 
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: 20, position: compactLayout ? 'static' : 'sticky', top: 24 }}>
-            <Panel title="Agent status" subtitle="Realtime endpoint health" icon={Shield}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 16,
-                    padding: 14,
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg)'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Status</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-                      <Circle size={10} fill={isOnline ? 'var(--success)' : 'var(--text-muted)'} color={isOnline ? 'var(--success)' : 'var(--text-muted)'} />
-                      {isOnline ? 'Online' : 'Offline'}
-                    </div>
-                  </div>
-                  {isOnline ? <Pill tone="success">Agent active</Pill> : <Pill tone="warning">Awaiting heartbeat</Pill>}
-                </div>
-
-                <DetailGrid
-                  items={[
-                    { label: 'Last seen', value: formatDateTime(lastSeen) },
-                    { label: 'Agent version', value: asset.agent_version },
-                    { label: 'Remote access', value: isOnline ? 'Available' : 'Unavailable' }
-                  ]}
-                />
-              </div>
-            </Panel>
-
-            <Panel title="Logged-in users" subtitle="Unique user sessions on this endpoint" icon={Users}>
-              {users.length === 0 ? (
-                <EmptyState icon={User} title="No active user data" description="No logged-in users were returned for this asset." />
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {users.map((session, index) => (
-                    <div
-                      key={session.id || `${session.username || 'user'}-${index}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '12px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--border)',
-                        background: session.is_current ? 'var(--accent-subtle)' : 'var(--bg)',
-                        transition: 'background 0.15s'
-                      }}
-                    >
-                      {session.user_avatar ? (
-                        <img
-                          src={session.user_avatar}
-                          alt=""
-                          style={{
-                            width: 32, height: 32, borderRadius: '50%',
-                            objectFit: 'cover', flexShrink: 0,
-                            border: '1px solid var(--border)',
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: 32, height: 32, borderRadius: '50%',
-                            background: session.user_id ? 'var(--accent-subtle)' : 'var(--bg-tertiary)',
-                            border: session.user_id ? '1px solid var(--accent-border)' : '1px solid var(--border)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                          }}
-                        >
-                          <User size={14} color={session.user_id ? 'var(--accent)' : 'var(--text-muted)'} />
-                        </div>
-                      )}
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {session.display_name || session.username || 'Unknown user'}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            {session.logged_in_at ? `Active ${timeAgo(session.logged_in_at)}` : 'Unknown session'}
-                          </span>
-                          {session.session_type && (
-                            <span style={{
-                              fontSize: 10, fontWeight: 600, padding: '1px 6px',
-                              borderRadius: 999, border: '1px solid var(--border)',
-                              background: 'var(--bg-tertiary)', color: 'var(--text-muted)',
-                            }}>
-                              {session.session_type === 'console' ? 'Local' : session.session_type}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {session.session_count && session.session_count > 1 && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 7px',
-                          borderRadius: 999, background: 'var(--accent-subtle)',
-                          color: 'var(--accent)', border: '1px solid var(--accent-border)',
-                          flexShrink: 0
-                        }}>
-                          {session.session_count} sessions
-                        </span>
-                      )}
-                      {session.is_current && <Pill tone="success">Active</Pill>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
-
-            <Panel
-              title="Notes"
-              subtitle="Internal context for operators"
-              icon={FileText}
-              actions={
-                <ActionButton icon={Save} disabled={savingNotes} onClick={saveNotes}>
-                  {savingNotes ? 'Saving…' : 'Save'}
-                </ActionButton>
-              }
-            >
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Document useful context, known issues, or field notes…"
-                rows={8}
-                style={{
-                  width: '100%',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg)',
-                  color: 'var(--text)',
-                  padding: 14,
-                  fontSize: 13,
-                  fontFamily: BODY_FONT,
-                  lineHeight: 1.6,
-                  resize: 'vertical',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </Panel>
-
-            <Panel title="Quick links" subtitle="Jump into adjacent workflows" icon={Ticket}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <button
-                  onClick={() => router.push(`/dashboard/tickets?asset_id=${asset.id}`)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    padding: '14px 16px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg)',
-                    color: 'var(--text)',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                    <Ticket size={15} color="var(--accent)" />
-                    Open Tickets for this Asset
-                  </span>
-                  <span style={{ color: 'var(--text-muted)' }}>→</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    window.open(
-                      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/assets/${asset.id}/logs`,
-                      '_blank'
-                    );
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    padding: '14px 16px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg)',
-                    color: 'var(--text)',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                    <Download size={15} color="var(--accent)" />
-                    Download Agent Logs
-                  </span>
-                  <span style={{ color: 'var(--text-muted)' }}>→</span>
-                </button>
-              </div>
-            </Panel>
-
-            <Panel title="Snapshot" subtitle="Fast operational readout" icon={Clock3}>
-              <DetailGrid
-                items={[
-                  { label: 'Users', value: users.length },
-                  { label: 'Adapters', value: (asset.network_adapters || []).length },
-                  { label: 'Apps', value: software.length },
-                  { label: 'Recent activity', value: activity.length },
-                  { label: 'Purchase cost', value: formatCurrency(asset.purchase_cost) },
-                  { label: 'Warranty', value: formatDate(asset.warranty_expiry) }
-                ]}
-              />
-            </Panel>
-          </aside>
+          <AssetDetailSidebar
+            asset={asset}
+            compactLayout={compactLayout}
+            isOnline={isOnline}
+            lastSeen={lastSeen}
+            notes={notes}
+            setNotes={setNotes}
+            savingNotes={savingNotes}
+            saveNotes={saveNotes}
+            users={users}
+            software={software}
+            activity={activity}
+          />
         </div>
       </div>
 
