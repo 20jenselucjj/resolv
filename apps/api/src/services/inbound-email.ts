@@ -119,6 +119,50 @@ function extractTicketNumber(subject: string): number | null {
 }
 
 /**
+ * Strip quoted reply content from an email body.
+ * Removes:
+ * - Lines starting with > (standard email quote prefix)
+ * - Common reply separator patterns (On ... wrote, From:/Sent:/etc. headers)
+ * - Outlook-style underscore/dash separators
+ * Everything at or after a quote boundary line is removed.
+ * Returns the cleaned body with trailing whitespace trimmed.
+ */
+export function stripQuotedReply(body: string): string {
+  if (!body) return '';
+
+  const lines = body.split('\n');
+  const cleaned: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+
+    // Outlook-style separator line of 32+ underscores or dashes
+    if (/^_{32,}$/.test(trimmed) || /^-{32,}$/.test(trimmed)) {
+      break;
+    }
+
+    // Standard email quote prefix: line starts with > (after optional whitespace)
+    if (/^\s*>/.test(line)) {
+      break;
+    }
+
+    // Gmail/Apple Mail style: "On <date/time>, <person> wrote:"
+    if (/^On\s+.+wrote:\s*$/i.test(trimmed)) {
+      break;
+    }
+
+    // Common reply header lines that precede quoted text
+    if (/^(From|Sent|To|Subject|Date|Cc|Bcc):\s+/i.test(trimmed)) {
+      break;
+    }
+
+    cleaned.push(line);
+  }
+
+  return cleaned.join('\n').trim();
+}
+
+/**
  * Find ticket number by examining email References / In-Reply-To headers
  * against our email_log. Handles replies to notification emails.
  */
@@ -348,7 +392,7 @@ async function createTicketFromEmail(fromEmail: string, fromName: string, subjec
        RETURNING *`,
       [
         ticketSubject,
-        body,
+        stripQuotedReply(body),
         detectedPriority,
         config.defaultStatus,
         ticketType,
@@ -398,13 +442,29 @@ async function createTicketFromEmail(fromEmail: string, fromName: string, subjec
 }
 
 /**
+ * Check if auto-reopen on reply is enabled.
+ */
+async function isAutoReopenEnabled(): Promise<boolean> {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM system_settings WHERE key = 'email_parsing_config'"
+    );
+    if (result.rows.length > 0) {
+      const config = JSON.parse(result.rows[0].value);
+      return config.auto_reopen_on_reply === true;
+    }
+  } catch { /* use default */ }
+  return false;
+}
+
+/**
  * Process a reply to an existing ticket via email.
  */
 async function addCommentFromEmail(ticketNumber: number, fromEmail: string, fromName: string, body: string, messageId: string, attachments?: AttachmentInfo[]): Promise<void> {
-  const ticketResult = await pool.query('SELECT id, created_by_id, assigned_to_id, title FROM tickets WHERE number = $1', [ticketNumber]);
+  const ticketResult = await pool.query('SELECT id, created_by_id, assigned_to_id, title, status FROM tickets WHERE number = $1', [ticketNumber]);
   if (ticketResult.rows.length === 0) {
-    console.log(`[inbound-email] Ticket #${ticketNumber} not found for email reply`);
-    await logEmail(null, 'inbound', '', `Re: #${ticketNumber}`, body, 'failed', 'Ticket not found', messageId, fromEmail);
+    console.log(`[inbound-email] Ticket #${ticketNumber} not found (may have been deleted) — skipping email reply`);
+    await logEmail(null, 'inbound', '', `Re: #${ticketNumber}`, body, 'skipped', 'Ticket not found (deleted)', messageId, fromEmail);
     return;
   }
 
@@ -417,7 +477,8 @@ async function addCommentFromEmail(ticketNumber: number, fromEmail: string, from
   try {
     await client.query('BEGIN');
 
-    const commentBody = `[Via email from ${authorName}]\n\n${body}`;
+    const cleanBody = stripQuotedReply(body);
+    const commentBody = cleanBody.trim() ? `[Via email from ${authorName}]\n\n${cleanBody}` : `[Via email from ${authorName}]`;
     const commentResult = await client.query(
       "INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal) VALUES ($1, $2, $3, false) RETURNING id",
       [ticket.id, authorId, commentBody]
@@ -443,7 +504,21 @@ async function addCommentFromEmail(ticketNumber: number, fromEmail: string, from
       [ticket.id, authorId]
     );
 
-    await client.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticket.id]);
+    // Auto-reopen closed/resolved tickets when the reporter replies via email
+    const isClosed = ticket.status === 'closed' || ticket.status === 'resolved';
+    if (isClosed && (await isAutoReopenEnabled())) {
+      await client.query(
+        "UPDATE tickets SET status = 'open', closed_at = NULL, resolved_at = NULL, updated_at = NOW() WHERE id = $1",
+        [ticket.id]
+      );
+      await client.query(
+        "INSERT INTO ticket_activity (ticket_id, actor_id, action, old_value, new_value) VALUES ($1, $2, 'status_changed', $3, 'open')",
+        [ticket.id, authorId, ticket.status]
+      );
+      console.log(`[inbound-email] Reopened ticket #${ticketNumber} (was ${ticket.status}) due to email reply from ${fromEmail}`);
+    } else {
+      await client.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticket.id]);
+    }
 
     await client.query('COMMIT');
 
