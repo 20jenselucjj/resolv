@@ -160,10 +160,8 @@ DO $$ BEGIN ALTER TABLE users ADD COLUMN title VARCHAR(200); EXCEPTION WHEN dupl
 DO $$ BEGIN ALTER TABLE users ADD COLUMN location VARCHAR(200); EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE users ADD COLUMN windows_username VARCHAR(255); EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
--- Asset users table additions: resolved user FK and richer session info
-DO $$ BEGIN ALTER TABLE asset_users ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE SET NULL; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE asset_users ADD COLUMN session_type VARCHAR(50); EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE asset_users ADD COLUMN session_host VARCHAR(255); EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+-- Note: asset_users columns (user_id, session_type, session_host) are
+-- defined in the CREATE TABLE below — no ALTER needed.
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);

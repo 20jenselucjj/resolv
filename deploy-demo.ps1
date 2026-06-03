@@ -1,4 +1,4 @@
-# ===============================================================
+﻿# ===============================================================
 #  Resolv Demo Deployment Script
 #  Sets up the IT service management platform on any Windows PC
 # ===============================================================
@@ -9,7 +9,7 @@ $repoRoot = Split-Path $MyInvocation.MyCommand.Path -Parent
 # Check admin rights (needed for installing software)
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-  Write-Host "⚠️  Not running as Administrator." -ForegroundColor Yellow
+  Write-Host "[!] Not running as Administrator." -ForegroundColor Yellow
   Write-Host "   Installing Node.js or PostgreSQL will fail without admin rights." -ForegroundColor Yellow
   Write-Host "   Re-run PowerShell as Administrator if you need software installed." -ForegroundColor Yellow
   Write-Host ""
@@ -23,7 +23,7 @@ Write-Host "=====================================================" -ForegroundCo
 Write-Host ""
 
 # ---------------------------------------------------------------
-# 1. PREREQUISITES — AUTO-INSTALL MISSING SOFTWARE
+# 1. PREREQUISITES - AUTO-INSTALL MISSING SOFTWARE
 # ---------------------------------------------------------------
 Write-Host "[1/6] Setting up prerequisites..." -ForegroundColor Yellow
 
@@ -58,7 +58,7 @@ function Install-WithWinget($packageId, $displayName) {
   try {
     $result = winget install --id $packageId --accept-source-agreements --accept-package-agreements --silent 2>&1
     if ($LASTEXITCODE -eq 0) {
-      Write-Host "  ✓ $displayName installed via winget" -ForegroundColor Green
+      Write-Host "  [OK] $displayName installed via winget" -ForegroundColor Green
       return $true
     }
   } catch {}
@@ -94,29 +94,29 @@ function Find-PgBin {
 
 # ======== CHECK / INSTALL NODE.JS ========
 $nodeOk = $false
-try { $nv = (node --version 2>$null) -replace 'v',''; if ([int]($nv -split '\.')[0] -ge 18) { $nodeOk = $true; Write-Host "  ✓ Node.js v$nv" -ForegroundColor Green } }
+try { $nv = (node --version 2>$null) -replace 'v',''; if ([int]($nv -split '\.')[0] -ge 18) { $nodeOk = $true; Write-Host "  [OK] Node.js v$nv" -ForegroundColor Green } }
 catch {}
 if (-not $nodeOk) {
   Write-Host "  Node.js 18+ not found. Installing..." -ForegroundColor Yellow
   if ($isAdmin) {
     $installed = Install-WithWinget "OpenJS.NodeJS.LTS" "Node.js LTS"
     if (-not $installed) {
-      Write-Host "  ❌ Could not install Node.js automatically." -ForegroundColor Red
+      Write-Host "  [FAIL] Could not install Node.js automatically." -ForegroundColor Red
       Write-Host "     Download manually: https://nodejs.org/ (LTS version)" -ForegroundColor Gray
       exit 1
     }
     Refresh-Path
-    try { $nv = (node --version 2>$null) -replace 'v',''; if ($nv) { Write-Host "  ✓ Node.js v$nv" -ForegroundColor Green; $nodeOk = $true } }
-    catch { Write-Host "  ❌ Node.js installed but not in PATH. Restart PowerShell and re-run." -ForegroundColor Red; exit 1 }
+    try { $nv = (node --version 2>$null) -replace 'v',''; if ($nv) { Write-Host "  [OK] Node.js v$nv" -ForegroundColor Green; $nodeOk = $true } }
+    catch { Write-Host "  [FAIL] Node.js installed but not in PATH. Restart PowerShell and re-run." -ForegroundColor Red; exit 1 }
   } else {
-    Write-Host "  ❌ Node.js 18+ required but not installed." -ForegroundColor Red
+    Write-Host "  [FAIL] Node.js 18+ required but not installed." -ForegroundColor Red
     Write-Host "     Run this script as Administrator or install Node.js manually." -ForegroundColor Gray
     Write-Host "     Download: https://nodejs.org/" -ForegroundColor Gray
     exit 1
   }
 }
-try { $npmVer = npm --version 2>$null; Write-Host "  ✓ npm v$npmVer" -ForegroundColor Green }
-catch { Write-Host "  ❌ npm not found (should come with Node.js)" -ForegroundColor Red; exit 1 }
+try { $npmVer = npm --version 2>$null; Write-Host "  [OK] npm v$npmVer" -ForegroundColor Green }
+catch { Write-Host "  [FAIL] npm not found (should come with Node.js)" -ForegroundColor Red; exit 1 }
 
 # ======== CHECK / INSTALL POSTGRESQL ========
 $pgBin = Find-PgBin
@@ -130,7 +130,7 @@ if (-not $pgInstalled) {
       $installed = Install-WithWinget "PostgreSQL.PostgreSQL.16" "PostgreSQL 16"
     }
     if (-not $installed) {
-      Write-Host "  ❌ Could not install PostgreSQL automatically." -ForegroundColor Red
+      Write-Host "  [FAIL] Could not install PostgreSQL automatically." -ForegroundColor Red
       Write-Host "     Download manually: https://www.postgresql.org/download/windows/" -ForegroundColor Gray
       Write-Host "     Install with default options. Set superuser password to 'postgres' for simplicity." -ForegroundColor Gray
       exit 1
@@ -138,16 +138,16 @@ if (-not $pgInstalled) {
     Refresh-Path
     Start-Sleep -Seconds 3
     $pgBin = Find-PgBin
-    if ($pgBin) { $pgInstalled = $true; Write-Host "  ✓ PostgreSQL installed" -ForegroundColor Green }
-    else { Write-Host "  ❌ PostgreSQL installed but psql not found. Restart PowerShell and re-run." -ForegroundColor Red; exit 1 }
+    if ($pgBin) { $pgInstalled = $true; Write-Host "  [OK] PostgreSQL installed" -ForegroundColor Green }
+    else { Write-Host "  [FAIL] PostgreSQL installed but psql not found. Restart PowerShell and re-run." -ForegroundColor Red; exit 1 }
   } else {
-    Write-Host "  ❌ PostgreSQL required but not installed." -ForegroundColor Red
+    Write-Host "  [FAIL] PostgreSQL required but not installed." -ForegroundColor Red
     Write-Host "     Run this script as Administrator or install PostgreSQL manually." -ForegroundColor Gray
     Write-Host "     Download: https://www.postgresql.org/download/windows/" -ForegroundColor Gray
     exit 1
   }
 } else {
-  Write-Host "  ✓ PostgreSQL found" -ForegroundColor Green
+  Write-Host "  [OK] PostgreSQL found" -ForegroundColor Green
 }
 
 # ======== ENSURE POSTGRESQL SERVICE IS RUNNING ========
@@ -163,12 +163,12 @@ if ($svc) {
     Start-Sleep -Seconds 3
   }
   if ((Get-Service $svc.Name).Status -eq "Running") {
-    Write-Host "  ✓ PostgreSQL service running" -ForegroundColor Green
+    Write-Host "  [OK] PostgreSQL service running" -ForegroundColor Green
   } else {
-    Write-Host "  ⚠️  Could not start PostgreSQL service. Try starting it manually." -ForegroundColor Yellow
+    Write-Host "  [!]  Could not start PostgreSQL service. Try starting it manually." -ForegroundColor Yellow
   }
 } else {
-  Write-Host "  ⚠️  No PostgreSQL service found. You may need to start PostgreSQL manually." -ForegroundColor Yellow
+  Write-Host "  [!]  No PostgreSQL service found. You may need to start PostgreSQL manually." -ForegroundColor Yellow
 }
 
 # ======== STORE PSQL PATH FOR LATER USE ========
@@ -218,17 +218,17 @@ try {
 } catch {}
 
 if ($dbExists) {
-  Write-Host "  ✓ Database '${dbName}' already exists" -ForegroundColor Green
+  Write-Host "  [OK] Database '${dbName}' already exists" -ForegroundColor Green
 } else {
   Write-Host "  Creating database '${dbName}'..." -ForegroundColor Yellow
   try {
     & "$pgSql" -h $dbHost -p $dbPort -U $dbUser -d postgres -c "CREATE DATABASE ${dbName};" 2>&1 | Out-Null
-    Write-Host "  ✓ Database '${dbName}' created" -ForegroundColor Green
+    Write-Host "  [OK] Database '${dbName}' created" -ForegroundColor Green
   } catch {
     if ($_.Exception.Message -match "already exists") {
-      Write-Host "  ✓ Database '${dbName}' already exists" -ForegroundColor Green
+      Write-Host "  [OK] Database '${dbName}' already exists" -ForegroundColor Green
     } else {
-      Write-Host "  ❌ Could not create database: $($_.Exception.Message)" -ForegroundColor Red
+      Write-Host "  [FAIL] Could not create database: $($_.Exception.Message)" -ForegroundColor Red
       Write-Host "     Create it manually: psql -U ${dbUser} -c 'CREATE DATABASE ${dbName};'" -ForegroundColor Gray
       $env:PGPASSWORD = $null
       exit 1
@@ -249,13 +249,13 @@ Write-Host "  --------------" -ForegroundColor Gray
 Write-Host "  Creating admin user for initial login." -ForegroundColor Gray
 $adminEmail = Read-Host "  Admin email"
 while (-not $adminEmail) {
-  Write-Host "  ⚠️  Email is required" -ForegroundColor Yellow
+  Write-Host "  [!]  Email is required" -ForegroundColor Yellow
   $adminEmail = Read-Host "  Admin email"
 }
 $adminPass = Read-Host "  Admin password" -AsSecureString
 $adminPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($adminPass))
 while (-not $adminPassPlain) {
-  Write-Host "  ⚠️  Password is required" -ForegroundColor Yellow
+  Write-Host "  [!]  Password is required" -ForegroundColor Yellow
   $adminPass = Read-Host "  Admin password" -AsSecureString
   $adminPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($adminPass))
 }
@@ -277,7 +277,7 @@ HOST=0.0.0.0
 NODE_ENV=production
 "@
 Set-Content -Path $apiEnvPath -Value $apiEnvContent -Encoding UTF8
-Write-Host "  ✓ apps/api/.env" -ForegroundColor Green
+Write-Host "  [OK] apps/api/.env" -ForegroundColor Green
 
 # Write Web .env
 $webEnvPath = Join-Path $repoRoot "apps\web\.env"
@@ -289,7 +289,7 @@ NEXT_PUBLIC_API_URL=http://localhost:${apiPort}/api
 NEXT_PUBLIC_WS_URL=http://localhost:${apiPort}
 "@
 Set-Content -Path $webEnvPath -Value $webEnvContent -Encoding UTF8
-Write-Host "  ✓ apps/web/.env" -ForegroundColor Green
+Write-Host "  [OK] apps/web/.env" -ForegroundColor Green
 
 Write-Host ""
 
@@ -300,10 +300,10 @@ Write-Host "[3/6] Installing dependencies..." -ForegroundColor Yellow
 Set-Location $repoRoot
 npm install --loglevel=error
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ npm install failed" -ForegroundColor Red
+  Write-Host "[FAIL] npm install failed" -ForegroundColor Red
   exit 1
 }
-Write-Host "  ✓ Dependencies installed" -ForegroundColor Green
+Write-Host "  [OK] Dependencies installed" -ForegroundColor Green
 Write-Host ""
 
 # ---------------------------------------------------------------
@@ -323,35 +323,35 @@ $env:DATABASE_URL = $dbUrl
 $env:NODE_ENV = "production"
 node $schemaScript
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ Schema creation failed" -ForegroundColor Red
+  Write-Host "[FAIL] Schema creation failed" -ForegroundColor Red
   Write-Host "   Make sure PostgreSQL is running and the database '${dbName}' exists." -ForegroundColor Gray
   Write-Host "   To create it: psql -U ${dbUser} -c 'CREATE DATABASE ${dbName};'" -ForegroundColor Gray
   Pop-Location
   exit 1
 }
-Write-Host "  ✓ Schema applied" -ForegroundColor Green
+Write-Host "  [OK] Schema applied" -ForegroundColor Green
 
 # Run seed data
 Write-Host "  Seeding initial data..."
 $env:DATABASE_URL = $dbUrl
 node $seedScript
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ Seed data failed" -ForegroundColor Red
+  Write-Host "[FAIL] Seed data failed" -ForegroundColor Red
   Pop-Location
   exit 1
 }
-Write-Host "  ✓ Seed data applied" -ForegroundColor Green
+Write-Host "  [OK] Seed data applied" -ForegroundColor Green
 
 # Run migrations
 Write-Host "  Running migrations..."
 $env:DATABASE_URL = $dbUrl
 node $migrationScript
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ Migrations failed" -ForegroundColor Red
+  Write-Host "[FAIL] Migrations failed" -ForegroundColor Red
   Pop-Location
   exit 1
 }
-Write-Host "  ✓ Migrations applied" -ForegroundColor Green
+Write-Host "  [OK] Migrations applied" -ForegroundColor Green
 
 # Create admin user
 Write-Host "  Creating admin user..."
@@ -360,11 +360,11 @@ $env:ADMIN_EMAIL = $adminEmail
 $env:ADMIN_PASSWORD = $adminPassPlain
 node $adminScript
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ Admin user creation failed" -ForegroundColor Red
+  Write-Host "[FAIL] Admin user creation failed" -ForegroundColor Red
   Pop-Location
   exit 1
 }
-Write-Host "  ✓ Admin user ready" -ForegroundColor Green
+Write-Host "  [OK] Admin user ready" -ForegroundColor Green
 Pop-Location
 Write-Host ""
 
@@ -376,13 +376,13 @@ Write-Host "[5/6] Building applications..." -ForegroundColor Yellow
 # Build API
 Write-Host "  Building API..."
 Push-Location (Join-Path $repoRoot "apps\api")
-npx tsc
+npm run build
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ API build failed" -ForegroundColor Red
+  Write-Host "[FAIL] API build failed" -ForegroundColor Red
   Pop-Location
   exit 1
 }
-Write-Host "  ✓ API built (dist/)" -ForegroundColor Green
+Write-Host "  [OK] API built (dist/)" -ForegroundColor Green
 Pop-Location
 
 # Build Web
@@ -390,11 +390,11 @@ Write-Host "  Building Web (Next.js)..."
 Push-Location (Join-Path $repoRoot "apps\web")
 npx next build
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "❌ Web build failed" -ForegroundColor Red
+  Write-Host "[FAIL] Web build failed" -ForegroundColor Red
   Pop-Location
   exit 1
 }
-Write-Host "  ✓ Web built (.next/)" -ForegroundColor Green
+Write-Host "  [OK] Web built (.next/)" -ForegroundColor Green
 Pop-Location
 Write-Host ""
 
@@ -482,7 +482,7 @@ Write-Host "  Servers stopped." -ForegroundColor Gray
 
 $startScriptPath = Join-Path $repoRoot "start-demo.ps1"
 Set-Content -Path $startScriptPath -Value $startScriptContent -Encoding UTF8
-Write-Host "  ✓ start-demo.ps1 created" -ForegroundColor Green
+Write-Host "  [OK] start-demo.ps1 created" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=====================================================" -ForegroundColor Green
