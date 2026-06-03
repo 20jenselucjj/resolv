@@ -7,6 +7,32 @@ function getToken() {
   return localStorage.getItem('resolv_token');
 }
 
+let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem('resolv_refresh_token');
+  if (!refreshToken) {
+    throw new Error('No refresh token');
+  }
+
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!res.ok) {
+    localStorage.removeItem('resolv_refresh_token');
+    localStorage.removeItem('resolv_token');
+    throw new Error('Refresh failed');
+  }
+
+  const data = await res.json();
+  localStorage.setItem('resolv_token', data.data.token);
+  return data.data.token;
+}
+
 const ERROR_MESSAGES: Record<number, string> = {
   400: 'Invalid request — please check your input.',
   401: 'Your session has expired. Please log in again.',
@@ -45,6 +71,36 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 1):
       if (retries > 0 && [502, 503, 504].includes(res.status)) {
         await new Promise(r => setTimeout(r, 1000));
         return request<T>(path, options, retries - 1);
+      }
+
+      // On 401, attempt token refresh if a refresh token exists
+      if (res.status === 401 && typeof window !== 'undefined' && localStorage.getItem('resolv_refresh_token')) {
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = refreshAccessToken().finally(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+          });
+        }
+
+        try {
+          const newToken = await refreshPromise;
+          // Retry the original request with the new token
+          return request<T>(path, {
+            ...options,
+            headers: {
+              ...options.headers,
+              Authorization: `Bearer ${newToken}`,
+            },
+          }, 0); // No more retries to avoid loops
+        } catch {
+          localStorage.removeItem('resolv_refresh_token');
+          localStorage.removeItem('resolv_token');
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+          throw new Error('Session expired');
+        }
       }
 
       const body = await res.json().catch(() => ({}));

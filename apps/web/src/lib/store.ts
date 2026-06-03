@@ -169,6 +169,9 @@ export const useStore = create<AppState>((set) => ({
   },
   logout: () => {
     localStorage.removeItem('resolv_token');
+    localStorage.removeItem('resolv_refresh_token');
+    localStorage.removeItem('resolv_remember_me');
+    localStorage.removeItem('resolv_remembered_email');
     set({ user: null, token: null, tickets: [], notifications: [], unreadCount: 0, categories: [] });
   },
 }));

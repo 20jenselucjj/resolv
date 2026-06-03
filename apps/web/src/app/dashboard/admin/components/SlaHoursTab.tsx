@@ -31,13 +31,6 @@ export function SlaHoursTab({
       `}</style>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '4px 0' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>SLA &amp; Hours</h2>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-            Set Service Level Agreement targets, business hours, and holiday calendars
-          </p>
-        </div>
-
         <div className="sla-hours-grid">
           <div className="card" style={{ padding: '20px', border: '1px solid var(--border)' }}>
             <SLAPoliciesTab

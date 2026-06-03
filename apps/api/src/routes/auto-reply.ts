@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
-import { interpolate } from '../services/email-template-engine';
+import { interpolate, getDefaultTemplates } from '../services/email-template-engine';
 import { sendCustomEmail } from '../services/outbound-email';
 
 // ─── Email variable helpers ─────────────────────────────────────────────────
@@ -29,6 +29,9 @@ function statusColor(s: string): string {
   const map: Record<string, string> = { open: '#2563eb', in_progress: '#7c3aed', waiting: '#f59e0b', resolved: '#059669', closed: '#6b7280' };
   return map[s] || '#6b7280';
 }
+function slugifyName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
 
 const createRuleSchema = z.object({
   name: z.string().min(1).max(255),
@@ -47,6 +50,12 @@ const createRuleSchema = z.object({
   reply_from_email: z.string().default(''),
   send_to_requester: z.boolean().default(true),
   send_to_assignee: z.boolean().default(false),
+  event: z.string().default('any'),
+  delay_minutes: z.number().int().min(0).default(0),
+  notify_watchers: z.boolean().default(false),
+  suppress_duplicates: z.boolean().default(true),
+  cooldown_minutes: z.number().int().min(0).default(60),
+  template_id: z.string().optional().default(''),
 });
 
 const updateRuleSchema = createRuleSchema.partial();
@@ -74,6 +83,7 @@ export default async function autoReplyRoutes(fastify: FastifyInstance) {
             reply_from_email VARCHAR(255) DEFAULT '',
             send_to_requester BOOLEAN DEFAULT true,
             send_to_assignee BOOLEAN DEFAULT false,
+            template_id VARCHAR(255) DEFAULT '',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
           );
@@ -95,12 +105,14 @@ export default async function autoReplyRoutes(fastify: FastifyInstance) {
     const body = createRuleSchema.parse(request.body);
 
     const result = await pool.query(
-      `INSERT INTO auto_reply_rules (name, enabled, description, conditions, reply_subject, reply_body, reply_from_email, send_to_requester, send_to_assignee)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO auto_reply_rules (name, enabled, description, conditions, reply_subject, reply_body, reply_from_email, send_to_requester, send_to_assignee, event, delay_minutes, notify_watchers, suppress_duplicates, cooldown_minutes, template_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [body.name, body.enabled, body.description, JSON.stringify(body.conditions),
        body.reply_subject, body.reply_body, body.reply_from_email,
-       body.send_to_requester, body.send_to_assignee]
+       body.send_to_requester, body.send_to_assignee, body.event, body.delay_minutes,
+       body.notify_watchers, body.suppress_duplicates, body.cooldown_minutes,
+       body.template_id]
     );
 
     return reply.status(201).send({ data: result.rows[0] });
@@ -130,6 +142,12 @@ export default async function autoReplyRoutes(fastify: FastifyInstance) {
     if (body.reply_from_email !== undefined) { updates.push(`reply_from_email = $${paramIdx++}`); values.push(body.reply_from_email); }
     if (body.send_to_requester !== undefined) { updates.push(`send_to_requester = $${paramIdx++}`); values.push(body.send_to_requester); }
     if (body.send_to_assignee !== undefined) { updates.push(`send_to_assignee = $${paramIdx++}`); values.push(body.send_to_assignee); }
+    if (body.event !== undefined) { updates.push(`event = $${paramIdx++}`); values.push(body.event); }
+    if (body.delay_minutes !== undefined) { updates.push(`delay_minutes = $${paramIdx++}`); values.push(body.delay_minutes); }
+    if (body.notify_watchers !== undefined) { updates.push(`notify_watchers = $${paramIdx++}`); values.push(body.notify_watchers); }
+    if (body.suppress_duplicates !== undefined) { updates.push(`suppress_duplicates = $${paramIdx++}`); values.push(body.suppress_duplicates); }
+    if (body.cooldown_minutes !== undefined) { updates.push(`cooldown_minutes = $${paramIdx++}`); values.push(body.cooldown_minutes); }
+    if (body.template_id !== undefined) { updates.push(`template_id = $${paramIdx++}`); values.push(body.template_id); }
 
     updates.push(`updated_at = NOW()`);
 
@@ -261,8 +279,36 @@ export async function triggerAutoReplies(
         status_color: statusColor(ticket.status),
       };
 
-      const subject = interpolate(rule.reply_subject, variables);
-      const body = interpolate(rule.reply_body, variables);
+      // If rule has a template_id, load the template and use its subject/body
+      let useSubject = rule.reply_subject;
+      let useBody = rule.reply_body;
+      if (rule.template_id) {
+        try {
+          const tplResult = await pool.query("SELECT value FROM system_settings WHERE key = 'email_templates'");
+          let foundTemplate: { subject: string; body: string } | null = null;
+          if (tplResult.rows.length > 0) {
+            try {
+              const dbTemplates = JSON.parse(tplResult.rows[0].value);
+              if (Array.isArray(dbTemplates)) {
+                foundTemplate = dbTemplates.find((t: any) => t.id === rule.template_id || t.name === rule.template_id);
+              }
+            } catch { /* ignore parse errors */ }
+          }
+          // Fall back to defaults
+          if (!foundTemplate) {
+            const defaults = getDefaultTemplates();
+            const id = rule.template_id.toLowerCase();
+            foundTemplate = defaults.find(t => t.name.toLowerCase() === id || slugifyName(t.name) === id) || null;
+          }
+          if (foundTemplate) {
+            useSubject = foundTemplate.subject;
+            useBody = foundTemplate.body;
+          }
+        } catch { /* ignore lookup errors */ }
+      }
+
+      const subject = interpolate(useSubject, variables);
+      const body = interpolate(useBody, variables);
 
       // Send to requester
       if (rule.send_to_requester && requester.email) {

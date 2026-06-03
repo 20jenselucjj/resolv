@@ -58,6 +58,18 @@ const createGroupSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().optional(),
   color: z.string().max(20).default('#6366f1'),
+  default_department: z.string().max(100).optional(),
+  default_company: z.string().max(255).optional(),
+  default_assigned_to_id: z.string().uuid().optional().nullable(),
+  auto_join_rules: z.array(z.object({
+    match: z.enum(['all', 'any']),
+    conditions: z.array(z.object({
+      field: z.string(),
+      operator: z.string(),
+      value: z.string(),
+    })),
+  })).optional(),
+  auto_join_enabled: z.boolean().optional(),
 });
 
 // Agent check-in payload schema
@@ -193,6 +205,106 @@ async function matchWindowsUser(username: string): Promise<MatchedUser | null> {
   return null;
 }
 
+// ─── Auto-Join Rule Evaluation ─────────────────────────────────────────────
+
+interface AutoJoinCondition {
+  field: string;
+  operator: string;
+  value: string;
+}
+
+interface AutoJoinRule {
+  match: 'all' | 'any';
+  conditions: AutoJoinCondition[];
+}
+
+function evaluateCondition(condition: AutoJoinCondition, assetFields: Record<string, any>): boolean {
+  const fieldVal = (assetFields[condition.field] || '').toString().toLowerCase();
+  const condVal = condition.value.toLowerCase();
+
+  switch (condition.operator) {
+    case 'equals': return fieldVal === condVal;
+    case 'not_equals': return fieldVal !== condVal;
+    case 'contains': return fieldVal.includes(condVal);
+    case 'starts_with': return fieldVal.startsWith(condVal);
+    case 'ends_with': return fieldVal.endsWith(condVal);
+    case 'in': return condVal.split(',').map(s => s.trim()).includes(fieldVal);
+    case 'not_in': return !condVal.split(',').map(s => s.trim()).includes(fieldVal);
+    default: return false;
+  }
+}
+
+async function applyAutoJoinRules(assetId: string, assetFields: Record<string, any>, client?: any): Promise<void> {
+  const query = client || pool;
+
+  const { rows: groups } = await query.query(
+    `SELECT id, name, auto_join_rules, auto_join_enabled,
+            default_department, default_company, default_assigned_to_id
+     FROM asset_groups
+     WHERE auto_join_enabled = true AND auto_join_rules IS NOT NULL
+       AND jsonb_array_length(auto_join_rules) > 0
+     ORDER BY name ASC`
+  );
+
+  for (const group of groups) {
+    const rules: AutoJoinRule[] = typeof group.auto_join_rules === 'string'
+      ? JSON.parse(group.auto_join_rules)
+      : group.auto_join_rules || [];
+
+    if (rules.length === 0) continue;
+
+    let matched = false;
+    for (const rule of rules) {
+      if (rule.match === 'all') {
+        matched = rule.conditions.every(c => evaluateCondition(c, assetFields));
+      } else {
+        matched = rule.conditions.some(c => evaluateCondition(c, assetFields));
+      }
+      if (matched) break;
+    }
+
+    if (matched) {
+      await query.query(
+        `UPDATE assets SET asset_group_id = $1, updated_at = NOW() WHERE id = $2`,
+        [group.id, assetId]
+      );
+
+      const defaultUpdates: string[] = [];
+      const defaultParams: any[] = [];
+      let idx = 1;
+
+      if (group.default_department) {
+        defaultUpdates.push(`department = COALESCE(NULLIF(department, ''), $${idx++})`);
+        defaultParams.push(group.default_department);
+      }
+      if (group.default_company) {
+        defaultUpdates.push(`company = COALESCE(NULLIF(company, ''), $${idx++})`);
+        defaultParams.push(group.default_company);
+      }
+      if (group.default_assigned_to_id) {
+        defaultUpdates.push(`assigned_to_id = COALESCE(assigned_to_id, $${idx++})`);
+        defaultParams.push(group.default_assigned_to_id);
+      }
+
+      if (defaultUpdates.length > 0) {
+        defaultParams.push(assetId);
+        await query.query(
+          `UPDATE assets SET ${defaultUpdates.join(', ')}, updated_at = NOW() WHERE id = $${idx}`,
+          defaultParams
+        );
+      }
+
+      await query.query(
+        `INSERT INTO asset_activity (asset_id, actor_id, action, description, new_value)
+         VALUES ($1, NULL, 'auto_assigned', 'Auto-assigned by group rules', $2)`,
+        [assetId, group.name]
+      ).catch(() => {});
+
+      break;
+    }
+  }
+}
+
 export default async function assetRoutes(fastify: FastifyInstance) {
   // ─── Agent Download ─────────────────────────────────────────────────────────
 
@@ -248,8 +360,12 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     const body = createGroupSchema.parse(request.body);
     const user = (request as any).user;
     const result = await pool.query(
-      `INSERT INTO asset_groups (name, description, color, created_by) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [body.name, body.description || null, body.color, user.id]
+      `INSERT INTO asset_groups (name, description, color, created_by, default_department, default_company, default_assigned_to_id, auto_join_rules, auto_join_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [body.name, body.description || null, body.color, user.id,
+       body.default_department || null, body.default_company || null, body.default_assigned_to_id || null,
+       body.auto_join_rules ? JSON.stringify(body.auto_join_rules) : null,
+       body.auto_join_enabled ?? null]
     );
     return reply.status(201).send({ data: result.rows[0] });
   });
@@ -263,6 +379,11 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     if (body.name !== undefined) { sets.push(`name=$${i++}`); vals.push(body.name); }
     if (body.description !== undefined) { sets.push(`description=$${i++}`); vals.push(body.description); }
     if (body.color !== undefined) { sets.push(`color=$${i++}`); vals.push(body.color); }
+    if (body.default_department !== undefined) { sets.push(`default_department=$${i++}`); vals.push(body.default_department); }
+    if (body.default_company !== undefined) { sets.push(`default_company=$${i++}`); vals.push(body.default_company); }
+    if (body.default_assigned_to_id !== undefined) { sets.push(`default_assigned_to_id=$${i++}`); vals.push(body.default_assigned_to_id); }
+    if (body.auto_join_rules !== undefined) { sets.push(`auto_join_rules=$${i++}`); vals.push(JSON.stringify(body.auto_join_rules)); }
+    if (body.auto_join_enabled !== undefined) { sets.push(`auto_join_enabled=$${i++}`); vals.push(body.auto_join_enabled); }
     if (sets.length === 0) return reply.status(400).send({ error: 'No fields to update' });
     vals.push(id);
     const result = await pool.query(`UPDATE asset_groups SET ${sets.join(', ')} WHERE id=$${i} RETURNING *`, vals);
@@ -375,7 +496,9 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       `INSERT INTO asset_activity (asset_id, actor_id, action, description) VALUES ($1,$2,$3,$4)`,
       [result.rows[0].id, user.id, 'asset_created', `Asset "${body.name}" created manually`]
     );
-    return reply.status(201).send({ data: result.rows[0] });
+    const createdAsset = result.rows[0];
+    await applyAutoJoinRules(createdAsset.id, body);
+    return reply.status(201).send({ data: createdAsset });
   });
 
   fastify.get('/assets/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply) => {
@@ -491,6 +614,28 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     return reply.status(204).send();
   });
 
+  // ─── Auto-Join Rules (Manual Trigger) ──────────────────────────────────────
+
+  fastify.post('/assets/:id/apply-rules', { preHandler: [fastify.authenticate, fastify.requireRole(['admin', 'agent'])] }, async (request: any, reply) => {
+    const { id } = request.params;
+    const { rows } = await pool.query('SELECT * FROM assets WHERE id = $1', [id]);
+    if (rows.length === 0) return reply.status(404).send({ error: 'Asset not found' });
+    await applyAutoJoinRules(id, rows[0]);
+    return reply.send({ data: { success: true, message: 'Auto-join rules applied' } });
+  });
+
+  fastify.post('/assets/apply-rules/all', { preHandler: [fastify.authenticate, fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { rows } = await pool.query('SELECT * FROM assets');
+    let applied = 0;
+    for (const asset of rows) {
+      const oldGroupId = asset.asset_group_id;
+      await applyAutoJoinRules(asset.id, asset);
+      const { rows: updated } = await pool.query('SELECT asset_group_id FROM assets WHERE id = $1', [asset.id]);
+      if (updated[0]?.asset_group_id !== oldGroupId) applied++;
+    }
+    return reply.send({ data: { success: true, message: `Rules applied to ${rows.length} assets, ${applied} reassigned` } });
+  });
+
   // ─── Agent Registration ───────────────────────────────────────────────────────
 
   fastify.post('/assets/agent/register', async (request, reply) => {
@@ -524,7 +669,10 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       [result.rows[0].id]
     );
 
-    return reply.status(201).send({ data: { asset_id: result.rows[0].id, agent_token: agentToken } });
+    const newAssetId = result.rows[0].id;
+    await applyAutoJoinRules(newAssetId, { hostname: body.hostname, name: body.hostname });
+
+    return reply.status(201).send({ data: { asset_id: newAssetId, agent_token: agentToken } });
   });
 
   // ─── Agent Check-In ───────────────────────────────────────────────────────────
@@ -593,6 +741,16 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       hardware?.system?.manufacturer || null, hardware?.system?.model || null, hardware?.system?.serial || null,
       assetId,
     ]);
+
+    // Evaluate auto-join rules for this asset
+    await applyAutoJoinRules(assetId, {
+      hostname: body.hostname,
+      domain: body.domain || '',
+      os_name: os ? `${os.distro || os.platform || ''}`.trim() : '',
+      manufacturer: hardware?.system?.manufacturer || '',
+      model: hardware?.system?.model || '',
+      serial_number: hardware?.system?.serial || '',
+    });
 
     // Upsert hardware
     await pool.query(`

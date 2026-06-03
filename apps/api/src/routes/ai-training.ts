@@ -41,7 +41,8 @@ async function loadAiConfig(): Promise<{ cfg: AiConfig | null; ragCfg: RagConfig
 export async function retrieveContext(
   query: string,
   cfg: AiConfig | null,
-  ragCfg: RagConfig
+  ragCfg: RagConfig,
+  persona?: 'agent' | 'portal'
 ): Promise<{ chunks: any[]; qaPairs: any[]; strategy: string }> {
   const strategy = ragCfg.retrieval_strategy || 'hybrid'
   const topK = ragCfg.top_k || 5
@@ -58,6 +59,7 @@ export async function retrieveContext(
     const tsQuery = terms.join(' & ')
 
     if (tsQuery) {
+      const scopeCond = persona ? `AND s.scope IN ('both', $3)` : ''
       const { rows: kwChunks } = await pool.query(
         `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
                 s.name as source_name, s.category, s.classification,
@@ -66,20 +68,23 @@ export async function retrieveContext(
          JOIN ai_knowledge_sources s ON c.source_id = s.id
          WHERE s.is_active = true AND s.status = 'ready'
            AND c.search_vector @@ to_tsquery('english', $1)
+           ${scopeCond}
          ORDER BY rank DESC
          LIMIT $2`,
-        [tsQuery, topK * 3]
+        persona ? [tsQuery, topK * 3, persona] : [tsQuery, topK * 3]
       )
       chunks.push(...kwChunks.map(r => ({ ...r, score: parseFloat(r.rank), method: 'keyword' })))
 
+      const qaScopeCond = persona ? `AND scope IN ('both', $3)` : ''
       const { rows: kwQA } = await pool.query(
         `SELECT id, question, answer, category, tags,
                 ts_rank(search_vector, to_tsquery('english', $1)) as rank
          FROM ai_knowledge_qa
          WHERE is_active = true AND search_vector @@ to_tsquery('english', $1)
+           ${qaScopeCond}
          ORDER BY rank DESC
          LIMIT $2`,
-        [tsQuery, Math.ceil(topK / 2)]
+        persona ? [tsQuery, Math.ceil(topK / 2), persona] : [tsQuery, Math.ceil(topK / 2)]
       )
       qaPairs.push(...kwQA.map(r => ({ ...r, score: parseFloat(r.rank), method: 'keyword' })))
     }
@@ -89,6 +94,7 @@ export async function retrieveContext(
     if (chunks.length === 0 && terms.length > 0) {
       const likeConditions = terms.map((_, i) => `c.content ILIKE $${i + 2}`).join(' AND ')
       const likeParams = terms.map(t => `%${t}%`)
+      const likeScopeCond = persona ? `AND s.scope IN ('both', $${terms.length + 2})` : ''
       const { rows: likeChunks } = await pool.query(
         `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
                 s.name as source_name, s.category, s.classification, 0 as rank
@@ -96,8 +102,9 @@ export async function retrieveContext(
          JOIN ai_knowledge_sources s ON c.source_id = s.id
          WHERE s.is_active = true AND s.status = 'ready'
            AND ${likeConditions}
+           ${likeScopeCond}
          LIMIT $1`,
-        [topK, ...likeParams]
+        persona ? [topK, ...likeParams, persona] : [topK, ...likeParams]
       )
       chunks.push(...likeChunks.map(r => ({ ...r, score: 0.5, method: 'keyword-fallback' })))
     }
@@ -133,15 +140,17 @@ export async function retrieveContext(
       } else {
         // Pure semantic or hybrid without keyword matches — use a broader sample
         // Fetch up to topK*4 chunks (more scalable than the previous 2000 limit)
+        const semScopeCond = persona ? `AND s.scope IN ('both', $2)` : ''
         const { rows } = await pool.query(
           `SELECT c.id, c.content, c.source_id, c.chunk_index, c.embedding,
                   s.name as source_name, s.category, s.classification
            FROM ai_knowledge_chunks c
            JOIN ai_knowledge_sources s ON c.source_id = s.id
            WHERE s.is_active = true AND s.status = 'ready' AND c.embedding IS NOT NULL
+             ${semScopeCond}
            ORDER BY c.id
            LIMIT $1`,
-          [topK * 4]
+          persona ? [topK * 4, persona] : [topK * 4]
         )
         semanticCandidates = rows
       }
@@ -201,10 +210,11 @@ export async function retrieveContext(
         qaCandidates = rows
       } else {
         // Broader search — limited sample
+        const qaSemScopeCond = persona ? `AND scope IN ('both', $2)` : ''
         const { rows } = await pool.query(
           `SELECT id, question, answer, category, tags, embedding
-           FROM ai_knowledge_qa WHERE is_active = true AND embedding IS NOT NULL LIMIT $1`,
-          [Math.ceil(topK)]
+           FROM ai_knowledge_qa WHERE is_active = true AND embedding IS NOT NULL ${qaSemScopeCond} LIMIT $1`,
+          persona ? [Math.ceil(topK), persona] : [Math.ceil(topK)]
         )
         qaCandidates = rows
       }
@@ -367,7 +377,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
   app.post('/ai/knowledge/sources', { preHandler: [app.authenticate, app.requireRole(['admin'])] }, async (req, reply) => {
     const user = (req as any).user
     const body = req.body as any
-    const { name, source_type, raw_content, url, tags, category, classification, content_type, original_filename } = body
+    const { name, source_type, raw_content, url, tags, category, classification, content_type, original_filename, scope } = body
 
     if (!name?.trim()) return reply.status(400).send({ error: 'Name is required' })
     if (!raw_content?.trim() && source_type !== 'url') return reply.status(400).send({ error: 'Content is required' })
@@ -392,10 +402,11 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO ai_knowledge_sources (name, source_type, content_type, original_filename, url, raw_content, tags, category, classification, uploaded_by, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending') RETURNING *`,
+      `INSERT INTO ai_knowledge_sources (name, source_type, content_type, original_filename, url, raw_content, tags, category, classification, scope, uploaded_by, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending') RETURNING *`,
       [name.trim(), source_type || 'manual', content_type || 'text/plain', original_filename || null,
-       url || null, finalContent, tags || [], category || null, classification || 'unclassified', user.id]
+       url || null, finalContent, tags || [], category || null, classification || 'unclassified',
+       scope || 'both', user.id]
     )
 
     const source = rows[0]
@@ -492,11 +503,12 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const category = fields.category?.value || null
     const tags = fields.tags?.value ? fields.tags.value.split(',').map((t: string) => t.trim()).filter(Boolean) : []
     const classification = fields.classification?.value || 'unclassified'
+    const scope = fields.scope?.value || 'both'
 
     const { rows } = await pool.query(
-      `INSERT INTO ai_knowledge_sources (name, source_type, content_type, original_filename, raw_content, category, tags, classification, uploaded_by, status)
-       VALUES ($1,'file',$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING *`,
-      [name.trim(), contentType, data.filename, extractedText, category, tags, classification, user.id]
+      `INSERT INTO ai_knowledge_sources (name, source_type, content_type, original_filename, raw_content, category, tags, classification, scope, uploaded_by, status)
+       VALUES ($1,'file',$2,$3,$4,$5,$6,$7,$8,$9,'pending') RETURNING *`,
+      [name.trim(), contentType, data.filename, extractedText, category, tags, classification, scope, user.id]
     )
 
     const source = rows[0]
@@ -536,8 +548,9 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
       `UPDATE ai_knowledge_sources SET name=COALESCE($1,name), tags=COALESCE($2,tags),
        category=COALESCE($3,category), classification=COALESCE($4,classification),
        raw_content=COALESCE($5,raw_content),
-       is_active=COALESCE($6,is_active), updated_at=NOW() WHERE id=$7 RETURNING *`,
-      [body.name, body.tags, body.category, body.classification, body.raw_content, body.is_active, id]
+       scope=COALESCE($6,scope),
+       is_active=COALESCE($7,is_active), updated_at=NOW() WHERE id=$8 RETURNING *`,
+      [body.name, body.tags, body.category, body.classification, body.raw_content, body.scope, body.is_active, id]
     )
     if (rows.length === 0) return reply.status(404).send({ error: 'Source not found' })
 
@@ -615,7 +628,7 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
   app.post('/ai/knowledge/qa', { preHandler: [app.authenticate, app.requireRole(['admin'])] }, async (req, reply) => {
     const user = (req as any).user
     const body = req.body as any
-    const { question, answer, category, tags } = body
+    const { question, answer, category, tags, scope } = body
 
     if (!question?.trim() || !answer?.trim()) {
       return reply.status(400).send({ error: 'Question and answer are required' })
@@ -625,12 +638,12 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
     const embedding = cfg?.api_key ? await getEmbedding(`${question} ${answer}`, cfg) : null
 
     const { rows } = await pool.query(
-      `INSERT INTO ai_knowledge_qa (question, answer, category, tags, embedding, embedding_model, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      `INSERT INTO ai_knowledge_qa (question, answer, category, tags, embedding, embedding_model, created_by, scope)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [question.trim(), answer.trim(), category || null, tags || [],
        embedding ? JSON.stringify(embedding) : null,
        embedding ? (cfg?.embedding_model || 'text-embedding-3-small') : null,
-       user.id]
+       user.id, scope || 'both']
     )
 
     return reply.status(201).send({ data: rows[0] })
@@ -659,10 +672,12 @@ export async function aiTrainingRoutes(app: FastifyInstance) {
          category=COALESCE($3,category), tags=COALESCE($4,tags),
          is_active=COALESCE($5,is_active),
          embedding=COALESCE($6,embedding),
+         scope=COALESCE($7,scope),
          updated_at=NOW()
-       WHERE id=$7 RETURNING *`,
+       WHERE id=$8 RETURNING *`,
       [body.question, body.answer, body.category, body.tags, body.is_active,
        embedding !== undefined ? (embedding ? JSON.stringify(embedding) : null) : undefined,
+       body.scope,
        id]
     )
     if (rows.length === 0) return reply.status(404).send({ error: 'Q&A pair not found' })

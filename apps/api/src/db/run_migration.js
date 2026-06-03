@@ -25,6 +25,9 @@ const aiConfigSql = fs.readFileSync(path.join(__dirname, 'migrate_ai_config.sql'
 const aiGuidelinesSql = fs.readFileSync(path.join(__dirname, 'migrate_ai_guidelines.sql'), 'utf8');
 const portalToolsSql = fs.readFileSync(path.join(__dirname, 'migrate_portal_tools.sql'), 'utf8');
 const passwordResetSql = fs.readFileSync(path.join(__dirname, 'migrate_password_reset.sql'), 'utf8');
+const notificationsV2Sql = fs.readFileSync(path.join(__dirname, 'migrate_notifications_v2.sql'), 'utf8');
+const knowledgeScopeSql = fs.readFileSync(path.join(__dirname, 'migrate_knowledge_scope.sql'), 'utf8');
+const assetGroupDefaultsSql = fs.readFileSync(path.join(__dirname, 'migrate_asset_group_defaults.sql'), 'utf8');
 
 async function run() {
   await pool.query(sql);
@@ -43,6 +46,12 @@ async function run() {
   console.log('Portal tools migration applied');
   await pool.query(passwordResetSql);
   console.log('Password reset migration applied');
+  await pool.query(notificationsV2Sql);
+  console.log('Notifications v2 migration applied');
+  await pool.query(knowledgeScopeSql);
+  console.log('Knowledge scope migration applied');
+  await pool.query(assetGroupDefaultsSql);
+  console.log('Asset group defaults migration applied');
 }
 
 run()

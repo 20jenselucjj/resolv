@@ -31,7 +31,7 @@ import type {
 } from './components/types';
 import type { AutomationRule } from './components/types';
 
-const StackIcon = Layers;
+const EmailIcon = Mail;
 
 export default function AdminPage() {
   const { user } = useStore();
@@ -73,15 +73,15 @@ export default function AdminPage() {
   const [sidebarSearch, setSidebarSearch] = useState('');
 
   // System Health Status
-  const [healthStatus, setHealthStatus] = useState({ api: true, db: true, queue: true });
+  const [healthStatus, setHealthStatus] = useState({ api: true, db: true, email: true });
 
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await api.get<{ data: { api: boolean; db: boolean; queue: boolean } }>('/health');
-        setHealthStatus(res.data || { api: true, db: true, queue: true });
+        const res = await api.get<{ data: { api: boolean; db: boolean; email: boolean } }>('/health');
+        setHealthStatus(res.data || { api: true, db: true, email: true });
       } catch {
-        setHealthStatus({ api: false, db: false, queue: false });
+        setHealthStatus({ api: false, db: false, email: false });
       }
     };
     checkHealth();
@@ -430,9 +430,9 @@ export default function AdminPage() {
             </div>
             <div style={{ width: '1px', height: '16px', background: 'var(--border)' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: healthStatus.queue ? 'var(--success)' : 'var(--danger)' }} />
-              <StackIcon size={14} color="var(--text-muted)" />
-              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text)' }}>Queue</span>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: healthStatus.email ? 'var(--success)' : 'var(--danger)' }} />
+              <EmailIcon size={14} color="var(--text-muted)" />
+              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text)' }}>Email</span>
             </div>
           </div>
         </div>

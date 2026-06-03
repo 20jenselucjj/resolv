@@ -23,7 +23,11 @@ export function AgentSettingsTab({ showAlert }: {
   const [loadingSecret, setLoadingSecret] = useState(true);
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [deployTab, setDeployTab] = useState<'manual' | 'gpo' | 'silent'>('manual');
+  const [deployTab, setDeployTab] = useState<'manual' | 'gpo' | 'silent'>(() => {
+    try { return (localStorage.getItem('resolv_agent_deploy_tab') as 'manual' | 'gpo' | 'silent') || 'manual' } catch { return 'manual' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_agent_deploy_tab', deployTab) }, [deployTab]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
 

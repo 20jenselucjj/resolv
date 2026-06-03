@@ -41,7 +41,7 @@ export function TopBar({
       background: 'var(--bg-secondary)',
       flexShrink: 0,
     }}>
-      <button onClick={() => router.back()} className="btn btn-ghost btn-sm" style={{ gap: 4 }}>
+      <button onClick={() => router.push('/dashboard/tickets')} className="btn btn-ghost btn-sm" style={{ gap: 4 }}>
         <ArrowLeft size={13} /> Tickets
       </button>
       <span style={{ color: 'var(--border)', fontSize: 16 }}>/</span>

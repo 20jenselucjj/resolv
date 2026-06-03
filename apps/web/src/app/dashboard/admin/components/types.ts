@@ -165,9 +165,9 @@ export interface AiGuidelinesSection {
   autonomousExecution?: string;
   conversationalTone: string;
   ticketCreationWorkflow: string;
-  priorityGuidelines: string;
-  ticketTypeGuidelines: string;
-  categoryGuidelines: string;
+  priorityGuidelines?: string;
+  ticketTypeGuidelines?: string;
+  categoryGuidelines?: string;
   ticketEditingWorkflow?: string;
   commentWorkflow: string;
   enumRule?: string;

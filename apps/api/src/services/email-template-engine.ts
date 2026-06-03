@@ -144,6 +144,11 @@ function getDefaultTemplates(): EmailTemplate[] {
             <td align="center" style="background-color:#1a73e8;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#d4e1ff;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
+                <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#128196; New Ticket Received
                   </td>
@@ -297,6 +302,11 @@ function getDefaultTemplates(): EmailTemplate[] {
             <td align="center" style="background-color:#1a73e8;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#d4e1ff;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
+                <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#128203; Ticket Assigned
                   </td>
@@ -428,6 +438,11 @@ function getDefaultTemplates(): EmailTemplate[] {
           <tr>
             <td align="center" style="background-color:#0d904f;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#c8f0d4;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
                 <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#9989; Ticket Resolved
@@ -578,6 +593,11 @@ function getDefaultTemplates(): EmailTemplate[] {
             <td align="center" style="background-color:#1a73e8;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#d4e1ff;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
+                <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#128172; New Reply on Ticket #[TICKET_ID]
                   </td>
@@ -688,7 +708,7 @@ function getDefaultTemplates(): EmailTemplate[] {
     </tr>
   </table>
 </body>
-</html>\`,
+</html>`,
     },
     // --- Template 5: SLA Breach Warning ---
     {
@@ -711,6 +731,11 @@ function getDefaultTemplates(): EmailTemplate[] {
           <tr>
             <td align="center" style="background-color:#dc2626;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#fecaca;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
                 <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#9888; SLA Breach Warning
@@ -825,7 +850,7 @@ function getDefaultTemplates(): EmailTemplate[] {
     </tr>
   </table>
 </body>
-</html>\`,
+</html>`,
     },
     // --- Template 6: Due Date Reminder ---
     {
@@ -848,6 +873,11 @@ function getDefaultTemplates(): EmailTemplate[] {
           <tr>
             <td align="center" style="background-color:#f59e0b;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#fef3c7;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
                 <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#9200; Due Date Approaching
@@ -954,7 +984,7 @@ function getDefaultTemplates(): EmailTemplate[] {
     </tr>
   </table>
 </body>
-</html>\`,
+</html>`,
     },
     // --- Template 7: Escalation Notice ---
     {
@@ -977,6 +1007,11 @@ function getDefaultTemplates(): EmailTemplate[] {
           <tr>
             <td align="center" style="background-color:#dc2626;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#fecaca;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
                 <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#128314; Ticket Escalated
@@ -1091,7 +1126,7 @@ function getDefaultTemplates(): EmailTemplate[] {
     </tr>
   </table>
 </body>
-</html>\`,
+</html>`,
     },
     // --- Template 8: Satisfaction Survey ---
     {
@@ -1114,6 +1149,11 @@ function getDefaultTemplates(): EmailTemplate[] {
           <tr>
             <td align="center" style="background-color:#7c3aed;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#ddd6fe;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
                 <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#11088; We Value Your Feedback
@@ -1218,7 +1258,7 @@ function getDefaultTemplates(): EmailTemplate[] {
     </tr>
   </table>
 </body>
-</html>\`,
+</html>`,
     },
     // --- Template 9: Ticket Reassigned ---
     {
@@ -1241,6 +1281,11 @@ function getDefaultTemplates(): EmailTemplate[] {
           <tr>
             <td align="center" style="background-color:#7c3aed;padding:28px 20px;border-radius:6px 6px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#ddd6fe;letter-spacing:0.12em;padding-bottom:8px;text-transform:uppercase;">
+                    RESOLV
+                  </td>
+                </tr>
                 <tr>
                   <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:bold;color:#ffffff;">
                     &#128260; Ticket Reassigned
@@ -1343,7 +1388,7 @@ function getDefaultTemplates(): EmailTemplate[] {
     </tr>
   </table>
 </body>
-</html>\`,
+</html>`,
     },
   ];
 }
@@ -1382,4 +1427,4 @@ export function interpolateBody(template: string, variables: TemplateVariables):
   return interpolate(template, variables);
 }
 
-export { EmailTemplate, TemplateVariables };
+export { EmailTemplate, TemplateVariables, getDefaultTemplates };

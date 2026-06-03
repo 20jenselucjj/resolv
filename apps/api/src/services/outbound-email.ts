@@ -181,6 +181,19 @@ export async function getOutboundAccessToken(): Promise<string | null> {
 // ─── Gmail API Sending ──────────────────────────────────────────────────────
 
 /**
+ * MIME-encode a subject line if it contains non-ASCII characters.
+ * Uses =?UTF-8?B?<base64>?= encoding per RFC 2047.
+ */
+function mimeEncodeSubject(subject: string): string {
+  // Check if subject has any non-ASCII characters
+  if (/^[\x00-\x7F]*$/.test(subject)) {
+    return subject; // ASCII only — no encoding needed
+  }
+  const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+  return `=?UTF-8?B?${encoded}?=`;
+}
+
+/**
  * Build an RFC 2822 MIME message and base64url-encode it for the Gmail API.
  */
 function buildRawMessage(from: string, fromName: string, to: string, toName: string, subject: string, body: string, attachments?: EmailAttachment[]): string {
@@ -194,7 +207,7 @@ function buildRawMessage(from: string, fromName: string, to: string, toName: str
     const headers = [
       `From: ${fromHeader}`,
       `To: ${toHeader}`,
-      `Subject: ${subject}`,
+      `Subject: ${mimeEncodeSubject(subject)}`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset="UTF-8"',
       'Content-Transfer-Encoding: 7bit',
@@ -234,7 +247,7 @@ function buildRawMessage(from: string, fromName: string, to: string, toName: str
     const headers = [
       `From: ${fromHeader}`,
       `To: ${toHeader}`,
-      `Subject: ${subject}`,
+      `Subject: ${mimeEncodeSubject(subject)}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       '',

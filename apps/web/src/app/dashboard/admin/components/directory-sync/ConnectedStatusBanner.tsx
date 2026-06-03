@@ -28,11 +28,44 @@ export function ConnectedStatusBanner({
   const isTokenExpired = tokenExpiry?.isExpired === true;
   const hasIssue = isTokenExpired || syncStatus?.status === 'error';
   const [detailsOpen, setDetailsOpen] = useState(hasIssue);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Auto-open details if an issue arises after mount
   useEffect(() => {
     if (hasIssue) setDetailsOpen(true);
   }, [hasIssue]);
+
+  // Auto-refresh when token is expired or expiring soon
+  const handleAutoRefresh = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/oauth/refresh-token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // Token refreshed successfully — reload to get fresh state
+        window.location.reload();
+      } else {
+        setIsRefreshing(false);
+      }
+    } catch (error) {
+      console.error('Failed to auto-refresh token:', error);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tokenExpiry?.isExpired || tokenExpiry?.isExpiringSoon) {
+      handleAutoRefresh();
+    }
+  }, [tokenExpiry?.isExpired, tokenExpiry?.isExpiringSoon]);
 
   const hasDetails = !!(config.oauthEmail || config.oauthDomain || (config.tokenExpiresAt && tokenExpiry));
 
@@ -75,7 +108,7 @@ export function ConnectedStatusBanner({
                 color: hasIssue ? 'var(--warning)' : 'var(--success)',
                 border: `1px solid ${hasIssue ? 'var(--warning-border)' : 'var(--success-border)'}`,
               }}>
-                {hasIssue ? (isTokenExpired ? 'Expired' : 'Issue') : 'Connected'}
+                {hasIssue ? (isTokenExpired ? (isRefreshing ? 'Refreshing...' : 'Expired') : 'Issue') : 'Connected'}
               </span>
             </div>
 
@@ -97,7 +130,7 @@ export function ConnectedStatusBanner({
                 display: 'flex', alignItems: 'center', gap: 4,
               }}>
                 <AlertCircle size={12} style={{ flexShrink: 0 }} />
-                <span>Token expired. Re-authenticate.</span>
+                <span>{isRefreshing ? 'Refreshing token...' : 'Token expired. Re-authenticate.'}</span>
               </div>
             )}
           </div>
@@ -208,7 +241,9 @@ export function ConnectedStatusBanner({
               }}>
                 <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                 <span>
-                  OAuth token has expired. Re-authenticate to restore sync and email functionality.
+                  {isRefreshing
+                    ? 'OAuth token was expired. Attempting to refresh automatically...'
+                    : 'OAuth token has expired. Re-authenticate to restore sync and email functionality.'}
                 </span>
               </div>
             )}

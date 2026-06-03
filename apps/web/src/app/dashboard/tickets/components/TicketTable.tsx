@@ -5,6 +5,7 @@ import {
   Ghost, X, Plus, Calendar, Clock,
 } from 'lucide-react';
 import type { Ticket, User } from '@/lib/store';
+import { formatDate } from '@/lib/date-utils';
 import { InlineSelect } from '@/components/InlineSelect';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import {
@@ -383,7 +384,7 @@ export function TicketTable({
                       {t.due_date ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: getDueDateColor(t.due_date), fontWeight: 600 }}>
                           <Calendar size={12} />
-                          {new Date(t.due_date).toLocaleDateString()}
+                          {formatDate(t.due_date)}
                         </div>
                       ) : (
                         <span style={{ color: 'var(--text-muted)' }}>-</span>

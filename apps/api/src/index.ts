@@ -22,7 +22,11 @@ import directorySyncRoutes from './routes/directory-sync';
 import assetRoutes from './routes/assets';
 import inboundEmailRoutes from './routes/inbound-email';
 import autoReplyRoutes from './routes/auto-reply';
+import notificationConfigRoutes from './routes/notification-config';
+import watcherRoutes from './routes/watchers';
+import satisfactionRoutes from './routes/satisfaction';
 import { startInboundListener } from './services/inbound-email';
+import { startScheduledNotifications } from './services/scheduled-notifications';
 import { pool } from './db/pool';
 import { JwtPayload } from './plugins/auth';
 
@@ -138,15 +142,32 @@ async function start() {
   await fastify.register(assetRoutes, { prefix: '/api' });
   await fastify.register(inboundEmailRoutes, { prefix: '/api' });
   await fastify.register(autoReplyRoutes, { prefix: '/api' });
+  await fastify.register(notificationConfigRoutes, { prefix: '/api' });
+  await fastify.register(watcherRoutes, { prefix: '/api' });
+  await fastify.register(satisfactionRoutes, { prefix: '/api' });
 
   // Health check (under /api prefix so the frontend api helper can reach it)
   fastify.get('/api/health', async (request, reply) => {
     let dbHealthy = false;
+    let emailHealthy = false;
     try {
       await pool.query('SELECT 1');
       dbHealthy = true;
     } catch { /* db down */ }
-    return reply.send({ data: { api: true, db: dbHealthy, queue: true } });
+
+    // Check if email is configured (OAuth tokens or Directory Sync tokens)
+    try {
+      const result = await pool.query(
+        "SELECT value FROM system_settings WHERE key IN ('smtp_oauth_tokens', 'directory_sync_tokens') LIMIT 1"
+      );
+      if (result.rows.length > 0) {
+        const tokens = JSON.parse(result.rows[0].value);
+        // Check if we have valid tokens with an access_token
+        emailHealthy = !!(tokens.access_token && tokens.refresh_token);
+      }
+    } catch { /* ignore */ }
+
+    return reply.send({ data: { api: true, db: dbHealthy, email: emailHealthy } });
   });
 
   const port = parseInt(process.env.PORT || '3001');
@@ -221,6 +242,11 @@ async function start() {
   // Start email inbound listener (Gmail API via OAuth shared with directory sync)
   startInboundListener().catch(err => {
     console.error('[index] Failed to start inbound email listener:', err.message);
+  });
+
+  // Start scheduled notification runner (due date reminders, SLA warnings, escalations, surveys)
+  startScheduledNotifications().catch(err => {
+    console.error('[index] Failed to start scheduled notifications:', err.message);
   });
 
   fastify.log.info(`Resolv API running on http://${host}:${port}`);

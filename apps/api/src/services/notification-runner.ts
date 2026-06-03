@@ -4,7 +4,7 @@
 
 import { pool } from '../db/pool';
 import { sendTemplateEmail, sendCustomEmail } from './outbound-email';
-import { loadTemplates, findTemplate, interpolateSubject, interpolateBody } from './email-template-engine';
+import { loadTemplates, findTemplate, interpolateSubject, interpolateBody, getDefaultTemplates } from './email-template-engine';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -277,14 +277,14 @@ async function determineRecipients(event: NotificationEvent): Promise<Recipient[
   return recipients;
 }
 
-// ─── Send standard event email ──────────────────────────────────────────────
+// ─── Event-template mapping ──────────────────────────────────────────────────
 
 function getTemplateNameForEvent(type: NotificationEventType): string {
   const map: Record<string, string> = {
     ticket_created: 'Ticket Created',
     ticket_assigned: 'Ticket Assigned',
     ticket_reassigned: 'Ticket Reassigned',
-    status_changed: 'Ticket Created', // reuse created template for generic updates
+    status_changed: 'Ticket Created',
     ticket_updated: 'Ticket Created',
     comment_added: 'Comment Added',
     ticket_resolved: 'Ticket Resolved',
@@ -292,6 +292,8 @@ function getTemplateNameForEvent(type: NotificationEventType): string {
   };
   return map[type] || 'Ticket Created';
 }
+
+// ─── Send standard event email ──────────────────────────────────────────────
 
 async function sendStandardEventEmail(
   event: NotificationEvent,
@@ -364,9 +366,42 @@ async function fireMatchingRules(
         if (recent.rows.length > 0) continue;
       }
 
+      // If rule has a template_id, load the template and use its subject/body
+      let useSubject = rule.reply_subject;
+      let useBody = rule.reply_body;
+      if (rule.template_id) {
+        try {
+          const tplResult = await pool.query("SELECT value FROM system_settings WHERE key = 'email_templates'");
+          let foundTemplate: { subject: string; body: string } | null = null;
+          if (tplResult.rows.length > 0) {
+            try {
+              const dbTemplates = JSON.parse(tplResult.rows[0].value);
+              if (Array.isArray(dbTemplates)) {
+                foundTemplate = dbTemplates.find((t: any) => t.id === rule.template_id || t.name === rule.template_id);
+              }
+            } catch { /* ignore parse errors */ }
+          }
+          // Fall back to defaults
+          if (!foundTemplate) {
+            const defaults = getDefaultTemplates();
+            const id = (rule.template_id || '').toLowerCase();
+            foundTemplate = defaults.find(t => t.name.toLowerCase() === id) || null;
+            // Also try matching by slugified name
+            if (!foundTemplate) {
+              const slugId = id.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+              foundTemplate = defaults.find(t => t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === slugId) || null;
+            }
+          }
+          if (foundTemplate) {
+            useSubject = foundTemplate.subject;
+            useBody = foundTemplate.body;
+          }
+        } catch { /* ignore lookup errors */ }
+      }
+
       // Build interpolated subject/body
-      const subject = interpolateSubject(rule.reply_subject, emailVars);
-      const body = interpolateBody(rule.reply_body, emailVars);
+      const subject = interpolateSubject(useSubject, emailVars);
+      const body = interpolateBody(useBody, emailVars);
 
       // Send to appropriate recipients
       if (rule.send_to_requester) {

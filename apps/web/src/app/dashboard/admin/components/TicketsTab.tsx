@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CategoriesTab } from './CategoriesTab';
 import { WorkflowTab } from './WorkflowTab';
 import { TicketStatusesTab } from './TicketStatusesTab';
@@ -20,7 +20,11 @@ export function TicketsTab({
   categories: Category[];
   onRefreshCategories: () => void;
 }) {
-  const [subTab, setSubTab] = useState<SubTab>('All');
+  const [subTab, setSubTab] = useState<SubTab>(() => {
+    try { return (localStorage.getItem('resolv_tickets_tab') as SubTab) || 'All' } catch { return 'All' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_tickets_tab', subTab) }, [subTab]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

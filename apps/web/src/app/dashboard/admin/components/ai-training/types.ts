@@ -13,6 +13,7 @@ export interface KnowledgeSource {
   chunk_count: number;
   is_active: boolean;
   created_at: string;
+  scope?: string;
 }
 
 export interface Chunk {
@@ -32,6 +33,7 @@ export interface QAPair {
   tags: string[];
   is_active: boolean;
   created_at: string;
+  scope?: string;
 }
 
 export interface RAGConfig {

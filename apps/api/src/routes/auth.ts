@@ -9,6 +9,19 @@ import { JwtPayload } from '../plugins/auth';
 import { oauthStates } from './oauth';
 import { getLoginMode, getEmergencyKey, verifyEmergencyKey } from './directory-sync/helpers';
 
+// Create refresh_tokens table if not exists
+pool.query(`
+  CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+  CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+`).catch(() => {});
+
 // Simple in-memory rate limiter for login attempts
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 5;
@@ -50,6 +63,7 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
   emergency_key: z.string().optional(),
+  rememberMe: z.boolean().optional(),
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -129,15 +143,86 @@ export default async function authRoutes(fastify: FastifyInstance) {
       name: user.name,
     });
 
+    let refreshToken: string | undefined;
+    if (body.rememberMe) {
+      // Generate refresh token (valid for 30 days)
+      refreshToken = crypto.randomBytes(40).toString('hex');
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      await pool.query(
+        'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+        [user.id, refreshToken, expiresAt]
+      );
+    }
+
     clearAttempts(ip);
 
     return reply.send({
       data: {
         user: { id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatar_url },
         token,
+        refreshToken,
         passwordResetRequired: user.password_reset_required,
       },
     });
+  });
+
+  const refreshSchema = z.object({
+    refreshToken: z.string(),
+  });
+
+  fastify.post('/auth/refresh', async (request, reply) => {
+    const body = refreshSchema.parse(request.body);
+
+    // Look up the refresh token
+    const result = await pool.query(
+      'SELECT rt.*, u.email, u.name, u.role, u.is_active FROM refresh_tokens rt JOIN users u ON rt.user_id = u.id WHERE rt.token = $1',
+      [body.refreshToken]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.status(401).send({ error: 'Invalid refresh token' });
+    }
+
+    const tokenData = result.rows[0];
+
+    // Check if expired
+    if (new Date(tokenData.expires_at) < new Date()) {
+      await pool.query('DELETE FROM refresh_tokens WHERE token = $1', [body.refreshToken]);
+      return reply.status(401).send({ error: 'Refresh token expired' });
+    }
+
+    // Check if user is still active
+    if (!tokenData.is_active) {
+      await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [tokenData.user_id]);
+      return reply.status(401).send({ error: 'Account is deactivated' });
+    }
+
+    // Issue new access token (short-lived: 24 hours)
+    const newToken = fastify.jwt.sign({
+      id: tokenData.user_id,
+      email: tokenData.email,
+      role: tokenData.role,
+      name: tokenData.name,
+    });
+
+    return reply.send({
+      data: {
+        token: newToken,
+        user: {
+          id: tokenData.user_id,
+          email: tokenData.email,
+          name: tokenData.name,
+          role: tokenData.role,
+        },
+      },
+    });
+  });
+
+  fastify.post('/auth/logout', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const userId = (request.user as JwtPayload).id;
+    await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+    return reply.send({ success: true });
   });
 
   fastify.get('/auth/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {

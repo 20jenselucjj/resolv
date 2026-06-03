@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3, Activity, Zap, Flag, FileText, Users, TrendingUp,
   AlertTriangle, Search, ChevronDown, ChevronUp, Download, Clock, PieChart, Calendar
@@ -75,7 +75,11 @@ function buildSmoothPath(points: { x: number; y: number }[]): string {
 export function AnalyticsTab(props: AnalyticsTabProps) {
   const { analytics, loading, handleFlagQuery } = props;
 
-  const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const [timeRange, setTimeRange] = useState<TimeRange>(() => {
+    try { return (localStorage.getItem('resolv_analytics_time_range') as TimeRange) || '30d' } catch { return '30d' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_analytics_time_range', timeRange) }, [timeRange]);
   const [querySearch, setQuerySearch] = useState('');
   const [querySort, setQuerySort] = useState<'newest' | 'highest' | 'lowest' | 'flagged'>('newest');
   const [expandedQuery, setExpandedQuery] = useState<string | null>(null);

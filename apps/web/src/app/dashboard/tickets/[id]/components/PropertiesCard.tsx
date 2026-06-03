@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Ticket, User } from '@/lib/store';
+import { formatDateTime } from '@/lib/date-utils';
 import { SelectSearch } from '@/components/SelectSearch';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import { DateTimePicker } from '@/components/DateTimePicker';
@@ -14,11 +15,12 @@ interface PropertiesCardProps {
   allUsers: User[];
   isAdminOrAgent: boolean;
   updateField: (field: string, value: string | number | boolean | null) => Promise<void>;
+  handleStatusChange: (status: string) => void;
   handleAssignToUser: (userId: string | null) => Promise<void>;
   handleReporterChange: (userId: string | null) => Promise<void>;
 }
 
-export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, updateField, handleAssignToUser, handleReporterChange }: PropertiesCardProps) {
+export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, updateField, handleStatusChange, handleAssignToUser, handleReporterChange }: PropertiesCardProps) {
   const currentStatus = statusBadgeClass[ticket.status] ? undefined : undefined;
   const currentPriority = PRIORITY_OPTIONS.find((p) => p.value === ticket.priority);
   const currentType = TICKET_TYPE_OPTIONS.find((t) => t.value === ticket.ticket_type) || TICKET_TYPE_OPTIONS[0];
@@ -28,7 +30,17 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
       <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0' }}>Properties</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 16px' }}>
         <PropField label="Status">
-          <span className={statusBadgeClass[ticket.status] || 'badge'}>{STATUS_OPTIONS.find((s) => s.value === ticket.status)?.label || ticket.status}</span>
+          {isAdminOrAgent ? (
+            <SelectSearch
+              options={STATUS_OPTIONS}
+              value={ticket.status}
+              onChange={val => val && handleStatusChange(val)}
+              placeholder="Change"
+              hideClear
+            />
+          ) : (
+            <span className={statusBadgeClass[ticket.status] || 'badge'}>{STATUS_OPTIONS.find((s) => s.value === ticket.status)?.label || ticket.status}</span>
+          )}
         </PropField>
 
         <PropField label="Priority">
@@ -108,7 +120,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
             </div>
           ) : (
             ticket.due_date ? (
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>{new Date(ticket.due_date).toLocaleString()}</span>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>{formatDateTime(ticket.due_date)}</span>
             ) : <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Not set</span>
           )}
         </PropField>
@@ -135,7 +147,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
         </PropField>
 
         <PropField label="Created Date">
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{new Date(ticket.created_at).toLocaleString()}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDateTime(ticket.created_at)}</span>
         </PropField>
       </div>
     </div>

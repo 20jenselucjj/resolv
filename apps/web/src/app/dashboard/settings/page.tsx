@@ -5,14 +5,14 @@ import { useStore, User } from '@/lib/store';
 import { api } from '@/lib/api';
 import { SelectSearch } from '@/components/SelectSearch';
 import { 
-  Moon, Sun, AlignJustify, AlignLeft,
+  Moon, Sun, AlignLeft,
   User as UserIcon, Shield, Lock, Smartphone, Building, 
   CheckCircle, AlertCircle, Loader2, Camera, Bell, 
   Globe, Laptop, Key
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { theme, toggleTheme, density, setDensity, user, setUser, logout } = useStore();
+  const { theme, toggleTheme, user, setUser, logout } = useStore();
   const router = useRouter();
   
   // Profile state
@@ -39,8 +39,14 @@ export default function SettingsPage() {
     resolved: true
   });
   
-  const [language, setLanguage] = useState('en');
-  const [timezone, setTimezone] = useState('UTC');
+  const [language, setLanguage] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('resolv_language') || 'en';
+    return 'en';
+  });
+  const [timezone, setTimezone] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('resolv_timezone') || 'UTC';
+    return 'UTC';
+  });
   const [defaultView, setDefaultView] = useState(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('resolv_default_view') || 'all';
     return 'all';
@@ -172,10 +178,8 @@ export default function SettingsPage() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file || !user) return;
-                        // For now, create a local object URL as preview
+                        // Preview locally — upload support coming soon
                         const url = URL.createObjectURL(file);
-                        setProfileStatus({ type: 'success', msg: 'Photo updated (preview only — upload endpoint not yet configured)' });
-                        setTimeout(() => setProfileStatus(null), 4000);
                       }}
                     />
                   </div>
@@ -304,21 +308,16 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, marginBottom: 0 }}>
-                  Session management requires server-side session tracking. Since this application uses stateless JWT authentication, only the current session can be displayed.
+                  This application uses stateless JWT tokens — signing out on all devices requires logging out on each device individually.
                 </p>
                 <button 
                   onClick={() => {
-                    // Since we use stateless JWTs, we can only log out the current session
-                    // Show a message explaining this
-                    setSecurityStatus({ type: 'success', msg: 'You have been signed out of all sessions. Please log in again.' });
-                    setTimeout(() => {
-                      logout();
-                      router.push('/login');
-                    }, 1500);
+                    logout();
+                    router.push('/login');
                   }}
-                  style={{ ...btnStyle, marginTop: 16, width: '100%', background: 'var(--bg-secondary)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                  style={{ ...btnStyle, marginTop: 16, width: '100%', background: 'var(--danger)', color: '#fff', border: 'none' }}
                 >
-                  Sign out all other sessions
+                  Sign Out
                 </button>
               </div>
             </Section>
@@ -335,30 +334,61 @@ export default function SettingsPage() {
                       options={[
                         { value: 'en', label: 'English (US)' },
                         { value: 'es', label: 'Español' },
-                        { value: 'fr', label: 'Français' }
+                        { value: 'fr', label: 'Français' },
+                        { value: 'de', label: 'Deutsch' },
+                        { value: 'pt', label: 'Português' },
                       ]}
                       value={language}
-                      onChange={val => setLanguage(val || 'en')}
+                      onChange={val => {
+                        const lang = val || 'en';
+                        setLanguage(lang);
+                        localStorage.setItem('resolv_language', lang);
+                      }}
                     />
                   </div>
                 </SettingRow>
                 
                 <SettingRow label="Timezone" description="Set your local timezone">
-                  <div style={{ width: 180 }}>
+                  <div style={{ width: 220 }}>
                     <SelectSearch
                       options={[
-                        { value: 'UTC', label: 'UTC' },
+
                         { value: 'America/New_York', label: 'Eastern Time (ET)' },
+                        { value: 'America/Chicago', label: 'Central Time (CT)' },
+                        { value: 'America/Denver', label: 'Mountain Time (MT)' },
+                        { value: 'America/Phoenix', label: 'Arizona (MST no DST)' },
                         { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-                        { value: 'Europe/London', label: 'London (GMT)' }
+                        { value: 'America/Anchorage', label: 'Alaska (AKT)' },
+                        { value: 'Pacific/Honolulu', label: 'Hawaii (HT)' },
+                        { value: 'America/Puerto_Rico', label: 'Atlantic Time (AST)' },
+
+                        { value: 'Canada/Atlantic', label: 'Atlantic Time (Canada)' },
+                        { value: 'America/St_Johns', label: 'Newfoundland (NT)' },
+
+                        { value: 'UTC', label: 'UTC' },
+                        { value: 'Europe/London', label: 'London (GMT/BST)' },
+                        { value: 'Europe/Paris', label: 'Central Europe (CET)' },
+                        { value: 'Europe/Helsinki', label: 'Eastern Europe (EET)' },
+                        { value: 'Europe/Moscow', label: 'Moscow (MSK)' },
+                        { value: 'Asia/Dubai', label: 'Dubai (GST)' },
+                        { value: 'Asia/Kolkata', label: 'India (IST)' },
+                        { value: 'Asia/Bangkok', label: 'Bangkok (ICT)' },
+                        { value: 'Asia/Singapore', label: 'Singapore (SGT)' },
+                        { value: 'Asia/Tokyo', label: 'Tokyo (JST)' },
+                        { value: 'Australia/Sydney', label: 'Sydney (AEDT)' },
+                        { value: 'Pacific/Auckland', label: 'New Zealand (NZDT)' },
                       ]}
                       value={timezone}
-                      onChange={val => setTimezone(val || 'UTC')}
+                      onChange={val => {
+                        const tz = val || 'UTC';
+                        setTimezone(tz);
+                        localStorage.setItem('resolv_timezone', tz);
+                      }}
                     />
                   </div>
                 </SettingRow>
 
-                <SettingRow label="Theme" description="Switch between light and dark modes">
+                <SettingRow label="Theme" description="Switch between light and dark modes" last>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {([
                       { value: 'light', label: 'Light', icon: <Sun size={13} /> },
@@ -370,25 +400,6 @@ export default function SettingsPage() {
                         background: theme === value ? 'var(--accent-subtle)' : 'var(--bg-tertiary)',
                         color: theme === value ? 'var(--accent)' : 'var(--text-secondary)',
                         cursor: 'pointer', fontWeight: theme === value ? 600 : 400, fontSize: 13, transition: 'all 0.2s',
-                      }}>
-                        {icon} {label}
-                      </button>
-                    ))}
-                  </div>
-                </SettingRow>
-
-                <SettingRow label="Density" description="Control the spacing of the interface" last>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {([
-                      { value: 'compact',  label: 'Compact',  icon: <AlignJustify size={13} /> },
-                      { value: 'spacious', label: 'Spacious', icon: <AlignLeft size={13} /> },
-                    ] as const).map(({ value, label, icon }) => (
-                      <button key={value} onClick={() => setDensity(value)} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 'var(--radius-md)',
-                        border: `1px solid ${density === value ? 'var(--accent)' : 'var(--border)'}`,
-                        background: density === value ? 'var(--accent-subtle)' : 'var(--bg-tertiary)',
-                        color: density === value ? 'var(--accent)' : 'var(--text-secondary)',
-                        cursor: 'pointer', fontWeight: density === value ? 600 : 400, fontSize: 13, transition: 'all 0.2s',
                       }}>
                         {icon} {label}
                       </button>

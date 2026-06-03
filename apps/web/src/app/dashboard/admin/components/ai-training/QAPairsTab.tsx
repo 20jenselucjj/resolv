@@ -8,7 +8,11 @@ interface QAFormData {
   answer: string;
   category: string;
   tags: string;
+  scope: string;
 }
+
+// Re-export for use in parent
+export type { QAFormData };
 
 interface QAPairsTabProps {
   showAlert: (m: string, t?: 'success' | 'error') => void;
@@ -103,7 +107,7 @@ export function QAPairsTab(props: QAPairsTabProps) {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600 }}>Category</label>
               <input
@@ -121,6 +125,19 @@ export function QAPairsTab(props: QAPairsTabProps) {
                 onChange={e => setQAForm({ ...qaForm, tags: e.target.value })}
                 placeholder="e.g. essential, payroll"
               />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600 }}>AI Availability</label>
+              <select
+                className="input"
+                value={qaForm.scope}
+                onChange={e => setQAForm({ ...qaForm, scope: e.target.value })}
+                style={{ appearance: 'none', WebkitAppearance: 'none' }}
+              >
+                <option value="both">🔄 Both Agent &amp; Portal AI</option>
+                <option value="agent">🤖 Agent AI Only</option>
+                <option value="portal">🌐 Portal AI Only</option>
+              </select>
             </div>
           </div>
 
@@ -200,7 +217,7 @@ export function QAPairsTab(props: QAPairsTabProps) {
                         />
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>Category</label>
                           <input
@@ -216,6 +233,19 @@ export function QAPairsTab(props: QAPairsTabProps) {
                             value={qaEditForm.tags}
                             onChange={e => setQAEditForm({ ...qaEditForm, tags: e.target.value })}
                           />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>AI Availability</label>
+                          <select
+                            className="input"
+                            value={qaEditForm.scope}
+                            onChange={e => setQAEditForm({ ...qaEditForm, scope: e.target.value })}
+                            style={{ appearance: 'none', WebkitAppearance: 'none' }}
+                          >
+                            <option value="both">🔄 Both Agent &amp; Portal AI</option>
+                            <option value="agent">🤖 Agent AI Only</option>
+                            <option value="portal">🌐 Portal AI Only</option>
+                          </select>
                         </div>
                       </div>
 
@@ -252,6 +282,16 @@ export function QAPairsTab(props: QAPairsTabProps) {
                             }}>
                               {qa.category || 'General'}
                             </span>
+                            {qa.scope && (
+                              <span style={{
+                                background: qa.scope === 'portal' ? 'rgba(16,185,129,0.1)' : qa.scope === 'agent' ? 'rgba(37,99,235,0.1)' : 'var(--bg-tertiary)',
+                                color: qa.scope === 'portal' ? '#10b981' : qa.scope === 'agent' ? '#2563eb' : 'var(--text-secondary)',
+                                border: `1px solid ${qa.scope === 'portal' ? 'rgba(16,185,129,0.3)' : qa.scope === 'agent' ? 'rgba(37,99,235,0.3)' : 'var(--border)'}`,
+                                fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px'
+                              }}>
+                                {qa.scope === 'portal' ? '🌐 Portal' : qa.scope === 'agent' ? '🤖 Agent' : '🔄 Both'}
+                              </span>
+                            )}
                             {(qa.tags || []).map(t => (
                               <span key={t} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', fontSize: '10px', color: 'var(--text-secondary)', padding: '1px 4px', borderRadius: '3px' }}>
                                 #{t}

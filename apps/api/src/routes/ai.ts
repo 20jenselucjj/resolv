@@ -549,7 +549,7 @@ export async function aiRoutes(app: FastifyInstance) {
       portal_enabled: false, portal_model: 'gpt-4o-mini', portal_temperature: 0.7, portal_max_tokens: 1024,
       portal_system_prompt: 'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
       portal_allowed_roles: ['user'],
-      tools: { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true },
+      tools: { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true },
       behavior: { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 },
       rules: [],
       guidelines: null
@@ -563,9 +563,9 @@ export async function aiRoutes(app: FastifyInstance) {
     const body = req.body as any
     const { rows: existing } = await pool.query('SELECT id, api_key FROM ai_config LIMIT 1')
     const apiKey = body.api_key ?? ''
-    const defaultTools = { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true }
+    const defaultTools = { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true }
     const defaultBehavior = { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 }
-    const defaultPortalTools = { getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true }
+    const defaultPortalTools = { getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true, addComments: true, searchUsers: true }
     if (existing.length === 0) {
       const { rows } = await pool.query(
         `INSERT INTO ai_config (provider, base_url, api_key, model, temperature, max_tokens, system_prompt, enabled, allowed_roles, max_messages_per_day, portal_enabled, portal_model, portal_temperature, portal_max_tokens, portal_system_prompt, portal_allowed_roles, tools, behavior, rules, guidelines, portal_tools, portal_behavior)
@@ -698,8 +698,11 @@ export async function aiRoutes(app: FastifyInstance) {
       search_tickets: 'searchTickets',
       get_ticket: 'getTicketDetails',
       create_ticket: 'createTickets',
+      update_ticket: 'updateTickets',
+      add_comment: 'addComments',
       get_my_tickets: 'getMyTickets',
       search_knowledge: 'searchKnowledge',
+      search_users: 'searchUsers',
       get_stats: 'getStats',
     }
     // Determine which AI config to use based on user role
@@ -857,7 +860,7 @@ export async function aiRoutes(app: FastifyInstance) {
       const ragCfg = ragCfgRows[0]
 
       if (ragCfg?.enabled && ragCfg?.inject_context) {
-        const { chunks, qaPairs, strategy } = await retrieveContext(message, cfg, ragCfg)
+        const { chunks, qaPairs, strategy } = await retrieveContext(message, cfg, ragCfg, isPortalUser ? 'portal' : undefined)
         ragStrategy = strategy
         ragChunkIds = chunks.map(c => c.id)
         ragQaIds = qaPairs.map(q => q.id)
@@ -1234,11 +1237,13 @@ ${ragContext}
             // Also search AI training chunks (RAG knowledge base)
             let ragChunks: any[] = []
             if (terms.length > 0 && likeConds) {
+              const searchScopeCond = isPortalUser ? `AND s.scope IN ('both', 'portal')` : ''
               const { rows } = await pool.query(
                 `SELECT c.content, s.name as source_name, s.category
                  FROM ai_knowledge_chunks c
                  JOIN ai_knowledge_sources s ON c.source_id = s.id
                  WHERE s.is_active = true AND s.status = 'ready' AND ${likeConds}
+                 ${searchScopeCond}
                  LIMIT 5`,
                  terms.map((t: string) => `%${t}%`)
               )
@@ -1491,7 +1496,7 @@ ${ragContext}
         [sessionId, user.id, message,
          ragChunkIds.length > 0 ? ragChunkIds : null,
          ragQaIds.length > 0 ? ragQaIds : null,
-         ragStrategy, ragConfidence || null,
+         ragStrategy, ragConfidence ?? null,
          ragContext.length > 0]
       ).catch(console.error)
     }

@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AIConfigTab } from './AIConfigTab';
 import { AITrainingTab } from '../AITrainingTab';
 import { Brain, BookOpen } from 'lucide-react';
 
 export function AiTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
-  const [activeSection, setActiveSection] = useState<'config' | 'training'>('config');
+  const [activeSection, setActiveSection] = useState<'config' | 'training'>(() => {
+    try { return (localStorage.getItem('resolv_ai_tab') as 'config' | 'training') || 'config' } catch { return 'config' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_ai_tab', activeSection) }, [activeSection]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

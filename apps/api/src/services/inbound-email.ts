@@ -532,8 +532,15 @@ async function addCommentFromEmail(ticketNumber: number, fromEmail: string, from
     // Auto-reopen closed/resolved tickets when the reporter replies via email
     const isClosed = ticket.status === 'closed' || ticket.status === 'resolved';
     if (isClosed && (await isAutoReopenEnabled())) {
+      // Preserve close_notes as an internal note before clearing
+      if (ticket.close_notes) {
+        await client.query(
+          "INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal) VALUES ($1, $2, $3, true)",
+          [ticket.id, authorId, ticket.close_notes]
+        );
+      }
       await client.query(
-        "UPDATE tickets SET status = 'open', closed_at = NULL, resolved_at = NULL, updated_at = NOW() WHERE id = $1",
+        "UPDATE tickets SET status = 'open', close_notes = NULL, closed_at = NULL, resolved_at = NULL, updated_at = NOW() WHERE id = $1",
         [ticket.id]
       );
       await client.query(

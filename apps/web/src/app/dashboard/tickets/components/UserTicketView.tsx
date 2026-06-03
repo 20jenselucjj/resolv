@@ -4,6 +4,7 @@ import { Plus, FileText } from 'lucide-react';
 import { NewTicketPanel } from '@/components/NewTicketPanel';
 import { TYPE_CONFIG, statusConfig } from './constants';
 import { getDueDateColor } from './helpers';
+import { formatDate } from '@/lib/date-utils';
 import type { Ticket, User } from '@/lib/store';
 
 export function UserTicketView({
@@ -128,7 +129,7 @@ export function UserTicketView({
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 12, color: getDueDateColor(t.due_date || undefined) }}>
-                      {t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}
+                      {t.due_date ? formatDate(t.due_date) : '\u2014'}
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
                       {(() => {
@@ -140,7 +141,7 @@ export function UserTicketView({
                         if (mins < 60) return `${mins}m ago`;
                         const hours = Math.floor(mins / 60);
                         if (hours < 24) return `${hours}h ago`;
-                        return d.toLocaleDateString();
+                        return formatDate(t.updated_at);
                       })()}
                     </td>
                   </tr>

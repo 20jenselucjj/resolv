@@ -20,9 +20,9 @@ const GUIDELINE_SECTIONS: GuidelineSectionDef[] = [
   { key: 'autonomousExecution', label: 'Autonomous Execution Rules', description: 'Tool authority, announcing actions, chain-of-thought policy', forRole: 'agent' },
   { key: 'conversationalTone', label: 'Conversational Tone', description: 'How the AI should communicate with users', forRole: 'both' },
   { key: 'ticketCreationWorkflow', label: 'Ticket Creation Workflow', description: 'Step-by-step flow with troubleshooting', forRole: 'both' },
-  { key: 'priorityGuidelines', label: 'Priority Guidelines', description: 'How to determine ticket priority levels', forRole: 'both' },
-  { key: 'ticketTypeGuidelines', label: 'Ticket Type Guidelines', description: 'How to determine ticket types', forRole: 'both' },
-  { key: 'categoryGuidelines', label: 'Category Guidelines', description: 'Category mapping for common IT issues', forRole: 'both' },
+  { key: 'priorityGuidelines', label: 'Priority Guidelines', description: 'How to determine ticket priority levels', forRole: 'agent' },
+  { key: 'ticketTypeGuidelines', label: 'Ticket Type Guidelines', description: 'How to determine ticket types', forRole: 'agent' },
+  { key: 'categoryGuidelines', label: 'Category Guidelines', description: 'Category mapping for common IT issues', forRole: 'agent' },
   { key: 'ticketEditingWorkflow', label: 'Ticket Editing Workflow', description: 'How to handle ticket update requests', forRole: 'agent' },
   { key: 'commentWorkflow', label: 'Comment Workflow', description: 'How to handle adding comments to tickets', forRole: 'both' },
   { key: 'enumRule', label: 'Enum Values Rule', description: 'Casing requirements for enum fields', forRole: 'agent' },
@@ -76,39 +76,99 @@ function BehaviorCard({ behavior, onChange, color }: { behavior: Record<string, 
   );
 }
 
-// ─── Reusable tools toggle grid ──────────────────────────────────────────
-function ToolsGrid({ tools, onChange, color, showAll }: { tools: Record<string, boolean>; onChange: (t: any) => void; color?: string; showAll?: boolean }) {
+// ─── Reusable tools toggle grid (grouped) ────────────────────────────────
+function GroupedToolsGrid({ tools, onChange, color, showAll }: { tools: Record<string, boolean>; onChange: (t: any) => void; color?: string; showAll?: boolean }) {
   const ac = color || 'var(--accent)';
-  const items = showAll ? [
-    { key: 'searchTickets' as const, label: 'Search Tickets', desc: 'Find and filter tickets', icon: Search },
-    { key: 'createTickets' as const, label: 'Create Tickets', desc: 'Create new support tickets', icon: Plus },
-    { key: 'getTicketDetails' as const, label: 'Get Ticket Details', desc: 'View full ticket information', icon: FileText },
-    { key: 'getMyTickets' as const, label: 'Get My Tickets', desc: "View user's assigned tickets", icon: User },
-    { key: 'searchKnowledge' as const, label: 'Search Knowledge Base', desc: 'Query KB articles', icon: Book },
-    { key: 'getStats' as const, label: 'Get Statistics', desc: 'View ticket statistics', icon: BarChart3 },
+
+  const groups = showAll ? [
+    {
+      label: 'Ticket Management', icon: '\u{1F527}',
+      items: [
+        { key: 'searchTickets', label: 'Search Tickets', desc: 'Find and filter tickets by keyword, status, priority' },
+        { key: 'getTicketDetails', label: 'Get Ticket Details', desc: 'View full ticket info, comments, and activity' },
+        { key: 'createTickets', label: 'Create Tickets', desc: 'Create new support tickets' },
+        { key: 'updateTickets', label: 'Update Tickets', desc: 'Modify status, priority, assignment, and fields' },
+        { key: 'addComments', label: 'Add Comments', desc: 'Add public replies or internal notes' },
+      ]
+    },
+    {
+      label: 'Knowledge', icon: '\u{1F4DA}',
+      items: [
+        { key: 'searchKnowledge', label: 'Search Knowledge Base', desc: 'Query articles and RAG documents' },
+      ]
+    },
+    {
+      label: 'Users', icon: '\u{1F464}',
+      items: [
+        { key: 'searchUsers', label: 'Search Users', desc: 'Look up users by name or email' },
+      ]
+    },
+    {
+      label: 'Analytics', icon: '\u{1F4CA}',
+      items: [
+        { key: 'getStats', label: 'Get Statistics', desc: 'View ticket counts and metrics' },
+      ]
+    },
+    {
+      label: 'My Tickets', icon: '\u{1F3AB}',
+      items: [
+        { key: 'getMyTickets', label: 'My Tickets', desc: 'View tickets you submitted' },
+      ]
+    },
   ] : [
-    { key: 'getTicketDetails' as const, label: 'Get Ticket Details', desc: 'View full ticket information', icon: FileText },
-    { key: 'createTickets' as const, label: 'Create Tickets', desc: 'Create new support tickets', icon: Plus },
-    { key: 'getMyTickets' as const, label: 'Get My Tickets', desc: "View user's assigned tickets", icon: User },
-    { key: 'searchKnowledge' as const, label: 'Search Knowledge Base', desc: 'Query KB articles', icon: Book },
+    {
+      label: 'Ticket Management', icon: '\u{1F527}',
+      items: [
+        { key: 'getTicketDetails', label: 'Get Ticket Details', desc: 'View full ticket info' },
+        { key: 'createTickets', label: 'Create Tickets', desc: 'Create new support tickets' },
+        { key: 'addComments', label: 'Add Comments', desc: 'Add replies to your tickets' },
+      ]
+    },
+    {
+      label: 'Knowledge', icon: '\u{1F4DA}',
+      items: [
+        { key: 'searchKnowledge', label: 'Search Knowledge Base', desc: 'Find answers from KB' },
+      ]
+    },
+    {
+      label: 'Users', icon: '\u{1F464}',
+      items: [
+        { key: 'searchUsers', label: 'Search Users', desc: 'Look up users by name' },
+      ]
+    },
+    {
+      label: 'My Tickets', icon: '\u{1F3AB}',
+      items: [
+        { key: 'getMyTickets', label: 'My Tickets', desc: 'View your tickets' },
+      ]
+    },
   ];
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-      {items.map(({ key, label, desc, icon: Icon }) => {
-        const isOn = tools[key] !== false;
-        return (
-          <div key={key} style={{ padding: '12px', background: isOn ? 'var(--bg-secondary)' : 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: `1px solid ${isOn ? 'var(--border)' : 'var(--border-subtle)'}`, display: 'flex', alignItems: 'flex-start', gap: '10px', opacity: isOn ? 1 : 0.55 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 'var(--radius-sm)', background: isOn ? `${ac}15` : 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon size={15} color={isOn ? ac : 'var(--text-muted)'} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '1px' }}>{label}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{desc}</div>
-            </div>
-            <input type="checkbox" checked={isOn} onChange={e => onChange({ ...tools, [key]: e.target.checked })} style={{ width: '16px', height: '16px', accentColor: ac, marginTop: '2px' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {groups.map(group => (
+        <div key={group.label} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{group.icon}</span>
+            <span>{group.label}</span>
           </div>
-        );
-      })}
+          <div style={{ padding: '8px' }}>
+            {group.items.map(({ key, label, desc }) => {
+              const isOn = tools[key] !== false;
+              return (
+                <div key={key} style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: 'var(--radius-sm)' }}>
+                  <input type="checkbox" checked={isOn} onChange={e => onChange({ ...tools, [key]: e.target.checked })}
+                    style={{ width: '16px', height: '16px', accentColor: ac, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: isOn ? 'var(--text)' : 'var(--text-muted)' }}>{label}</div>
+                    <div style={{ fontSize: '11px', color: isOn ? 'var(--text-muted)' : 'var(--text-muted)' }}>{desc}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -125,22 +185,29 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [activeSection, setActiveSection] = useState<'general' | 'agent' | 'portal' | 'guidelines'>('general');
+  const [activeSection, setActiveSection] = useState<'general' | 'agent' | 'portal' | 'guidelines'>(() => {
+    try { return (localStorage.getItem('resolv_ai_config_section') as 'general' | 'agent' | 'portal' | 'guidelines') || 'general' } catch { return 'general' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_ai_config_section', activeSection) }, [activeSection]);
 
   // Agent tools & behavior
-  const [tools, setTools] = useState({ searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true });
+  const [tools, setTools] = useState({ searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true });
   const [behavior, setBehavior] = useState({ responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 });
 
   // Portal tools & behavior (separate!)
-  const [portalTools, setPortalTools] = useState({ getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true });
+  const [portalTools, setPortalTools] = useState({ getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true, addComments: true, searchUsers: true });
   const [portalBehavior, setPortalBehavior] = useState({ responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 });
-
   // Guidelines
   const [guidelines, setGuidelines] = useState<{ agent: AiGuidelinesSection; portal: AiGuidelinesSection }>({
     agent: { ticketLookup: '', autonomousExecution: '', conversationalTone: '', ticketCreationWorkflow: '', priorityGuidelines: '', ticketTypeGuidelines: '', categoryGuidelines: '', ticketEditingWorkflow: '', commentWorkflow: '', enumRule: '', hallucinationGuard: '' },
-    portal: { ticketLookup: '', conversationalTone: '', ticketCreationWorkflow: '', priorityGuidelines: '', ticketTypeGuidelines: '', categoryGuidelines: '', commentWorkflow: '' },
+    portal: { ticketLookup: '', conversationalTone: '', ticketCreationWorkflow: '', commentWorkflow: '' },
   });
-  const [guidelinesSubTab, setGuidelinesSubTab] = useState<'agent' | 'portal'>('agent');
+  const [guidelinesSubTab, setGuidelinesSubTab] = useState<'agent' | 'portal'>(() => {
+    try { return (localStorage.getItem('resolv_ai_guidelines_subtab') as 'agent' | 'portal') || 'agent' } catch { return 'agent' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_ai_guidelines_subtab', guidelinesSubTab) }, [guidelinesSubTab]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(
     GUIDELINE_SECTIONS.filter(s => s.forRole === 'agent' || s.forRole === 'both').map(s => `agent.${s.key}`)
   ));
@@ -318,7 +385,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
 
             <div style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
               <SubHeader icon={<Plug size={14} color="var(--accent)" />} label="Enabled Tools" badge="Agent" />
-              <ToolsGrid tools={tools} onChange={setTools} showAll />
+              <GroupedToolsGrid tools={tools} onChange={setTools} showAll />
             </div>
           </div>
         )}
@@ -386,9 +453,10 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
 
                 <div style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                   <SubHeader icon={<Plug size={14} color="#10b981" />} label="Enabled Tools" badge="Portal" color="#10b981" />
-                  <ToolsGrid tools={portalTools} onChange={setPortalTools} color="#10b981" />
+                  <GroupedToolsGrid tools={portalTools} onChange={setPortalTools} color="#10b981" />
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>Portal AI has a subset of tools appropriate for self-service users. Search Tickets and Get Statistics are agent-only.</p>
                 </div>
+
               </>
             )}
 

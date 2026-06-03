@@ -162,7 +162,11 @@ export function RolesTab({ showAlert }: { showAlert: (m: string, t?: 'success' |
   const [roles, setRoles] = useState(DEFAULT_ROLES);
   const [loadingRoles, setLoadingRoles] = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  const [selectedRole, setSelectedRole] = useState('admin');
+  const [selectedRole, setSelectedRole] = useState(() => {
+    try { return localStorage.getItem('resolv_roles_selected') || 'admin' } catch { return 'admin' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_roles_selected', selectedRole) }, [selectedRole]);
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {

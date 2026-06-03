@@ -113,6 +113,17 @@ export interface AssetHardware {
   updated_at: string;
 }
 
+export interface AutoJoinCondition {
+  field: string;
+  operator: string;
+  value: string;
+}
+
+export interface AutoJoinRule {
+  match: 'all' | 'any';
+  conditions: AutoJoinCondition[];
+}
+
 export interface AssetGroup {
   id: string;
   name: string;
@@ -120,6 +131,11 @@ export interface AssetGroup {
   color: string;
   asset_count: number;
   created_at: string;
+  default_department?: string;
+  default_company?: string;
+  default_assigned_to_id?: string;
+  auto_join_rules?: AutoJoinRule[];
+  auto_join_enabled?: boolean;
 }
 
 export interface ApiResponse<T> {

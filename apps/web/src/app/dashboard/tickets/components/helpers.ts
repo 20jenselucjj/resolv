@@ -1,4 +1,5 @@
 'use client';
+import { formatDate } from '@/lib/date-utils';
 
 export function getDueDateColor(dateStr?: string) {
   if (!dateStr) return 'var(--text-muted)';
@@ -21,5 +22,5 @@ export function timeAgo(dateStr: string) {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return formatDate(dateStr);
 }

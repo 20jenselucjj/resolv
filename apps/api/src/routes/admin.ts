@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { pool } from '../db/pool';
+import { getDefaultTemplates } from '../services/email-template-engine';
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   // GET /admin/stats - admin only
@@ -373,14 +374,63 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     );
   }
 
+  function slugifyName(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  // GET /admin/email-templates/defaults
+  fastify.get('/admin/email-templates/defaults', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const defaults = getDefaultTemplates();
+    const result = defaults.map(t => ({
+      id: slugifyName(t.name),
+      name: t.name,
+      subject: t.subject,
+      body: t.body,
+      is_default: true,
+    }));
+    return reply.send({ data: result });
+  });
+
   // GET /admin/email-templates
   fastify.get('/admin/email-templates', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const templates = await loadEmailTemplates();
-    return reply.send({ data: templates });
+    const defaults = getDefaultTemplates();
+    const dbTemplates = await loadEmailTemplates();
+    const dbByName = new Map<string, any>();
+    for (const t of dbTemplates) {
+      dbByName.set((t.name || '').toLowerCase(), t);
+    }
+
+    const merged: any[] = [];
+
+    // For each default, use DB version if it exists (user override), else use default
+    for (const d of defaults) {
+      const key = d.name.toLowerCase();
+      const db = dbByName.get(key);
+      if (db) {
+        merged.push({ ...db, is_default: true });
+        dbByName.delete(key);
+      } else {
+        merged.push({
+          id: slugifyName(d.name),
+          name: d.name,
+          subject: d.subject,
+          body: d.body,
+          is_default: true,
+        });
+      }
+    }
+
+    // Append remaining DB templates that don't match a default (custom templates)
+    for (const t of dbByName.values()) {
+      merged.push({ ...t, is_default: false });
+    }
+
+    return reply.send({ data: merged });
   });
 
   // POST /admin/email-templates
   const emailTemplateSchema = z.object({
+    id: z.string().optional(),
     name: z.string().min(1).max(200),
     subject: z.string().min(1).max(500),
     body: z.string().default(''),
@@ -389,8 +439,23 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/email-templates', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     const body = emailTemplateSchema.parse(request.body);
     const templates = await loadEmailTemplates();
+
+    // If a template with the same name already exists, update it
+    const existingIndex = templates.findIndex((t: any) => t.name === body.name);
+    if (existingIndex !== -1) {
+      templates[existingIndex] = {
+        ...templates[existingIndex],
+        name: body.name,
+        subject: body.subject,
+        body: body.body,
+        id: body.id || templates[existingIndex].id,
+      };
+      await saveEmailTemplates(templates);
+      return reply.send({ data: templates[existingIndex] });
+    }
+
     const newTemplate = {
-      id: crypto.randomUUID(),
+      id: body.id || crypto.randomUUID(),
       name: body.name,
       subject: body.subject,
       body: body.body,
@@ -784,4 +849,167 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.send({ data: body });
   });
 
+  // ─── AI Template Generation ───────────────────────────────────────────
+
+  // POST /admin/ai/generate-template - AI-powered template/rule generation
+  fastify.post('/admin/ai/generate-template', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const body = z.object({
+      type: z.enum(['email_template', 'auto_reply_rule']),
+      prompt: z.string().min(1),
+      existingTemplate: z.object({
+        name: z.string().optional(),
+        subject: z.string().optional(),
+        body: z.string().optional(),
+        conditions: z.any().optional(),
+        event: z.string().optional(),
+      }).optional(),
+    }).parse(request.body);
+
+    // Load AI config
+    const { rows } = await pool.query('SELECT * FROM ai_config LIMIT 1');
+    const cfg = rows[0];
+    if (!cfg?.enabled || !cfg?.api_key) {
+      return reply.status(400).send({ error: 'AI is not configured. Please configure AI in Admin > AI Settings.' });
+    }
+
+    // Build system prompt based on type
+    const systemPrompt = body.type === 'email_template'
+      ? `You are an expert email template designer for IT service management systems. Generate professional HTML email templates.
+
+Available variables (use [VARIABLE_NAME] syntax):
+- TICKET_ID, TICKET_TITLE, TICKET_URL
+- USER_NAME, AGENT_NAME, REQUESTOR_NAME, ASSIGNED_TO_NAME
+- PRIORITY, PRIORITY_COLOR, STATUS, STATUS_COLOR
+- CREATED_AT, DUE_DATE, CATEGORY, TICKET_TYPE
+- DESCRIPTION, COMMENT_BODY, CLOSE_NOTES, RESOLVED_AT, PREVIOUS_ASSIGNEE
+
+Requirements:
+- Return valid HTML email body (no <html>, <head>, <body> tags - just the content)
+- Use inline styles for email client compatibility
+- Use a clean, professional design with proper spacing
+- Include the RESOLV branding at the top
+- Use responsive table-based layout
+- Colors should match the priority/status when using PRIORITY_COLOR/STATUS_COLOR variables
+- Keep the design simple but professional
+
+Return ONLY the HTML content, no explanations.`
+      : `You are an expert at designing IT service management automation rules. Generate auto-reply rules with conditions and email content.
+
+Available variables for email content (use [VARIABLE_NAME] syntax):
+- TICKET_ID, TICKET_TITLE, TICKET_URL
+- USER_NAME, AGENT_NAME, REQUESTOR_NAME, ASSIGNED_TO_NAME
+- PRIORITY, STATUS, CREATED_AT, DUE_DATE, CATEGORY, TICKET_TYPE
+- DESCRIPTION, COMMENT_BODY
+
+Available conditions:
+- ticket_types: array of ['incident', 'service_request', 'problem', 'change']
+- priorities: array of ['low', 'medium', 'high', 'critical']
+- statuses: array of ['open', 'in_progress', 'waiting', 'resolved', 'closed']
+- category_id: string (category UUID)
+- keyword: string (matches in title/description)
+
+Available events: 'any', 'ticket_created', 'ticket_assigned', 'ticket_reassigned', 'status_changed', 'comment_added', 'ticket_resolved', 'ticket_closed'
+
+Return a JSON object with:
+{
+  "name": "Rule name",
+  "description": "Brief description",
+  "event": "event_type",
+  "conditions": {
+    "ticket_types": [],
+    "priorities": [],
+    "statuses": [],
+    "keyword": ""
+  },
+  "reply_subject": "Subject line with [VARIABLES]",
+  "reply_body": "Plain text or simple HTML body"
+}
+
+Return ONLY valid JSON, no explanations or markdown.`;
+
+    const userMessage = body.existingTemplate
+      ? `Modify this existing template:\n\n${JSON.stringify(body.existingTemplate)}\n\nChanges requested: ${body.prompt}`
+      : body.prompt;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ];
+
+    const apiBase = (cfg.base_url || '').replace(/\/+$/, '');
+    const aiResponse = await fetch(`${apiBase}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${cfg.api_key}`,
+      },
+      body: JSON.stringify({
+        model: cfg.model || 'gpt-4o-mini',
+        messages,
+        temperature: 0.7,
+        max_tokens: 4000,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errBody = await aiResponse.text().catch(() => '');
+      const detail = errBody || `AI provider returned ${aiResponse.status} ${aiResponse.statusText}`;
+      return reply.status(502).send({ error: `AI API error: ${detail}` });
+    }
+
+    const aiData = await aiResponse.json() as any;
+    const aiContent = aiData.choices?.[0]?.message?.content || '';
+
+    if (!aiContent) {
+      return reply.status(502).send({ error: 'AI returned empty response' });
+    }
+
+    if (body.type === 'email_template') {
+      return reply.send({
+        data: {
+          name: '',
+          subject: '',
+          body: aiContent,
+        },
+      });
+    }
+
+    // Auto-reply rule: parse JSON from AI response
+    try {
+      const parsed = JSON.parse(aiContent);
+      return reply.send({
+        data: {
+          name: parsed.name || '',
+          subject: '',
+          body: '',
+          conditions: parsed.conditions || {},
+          event: parsed.event || '',
+          reply_subject: parsed.reply_subject || '',
+          reply_body: parsed.reply_body || '',
+        },
+      });
+    } catch {
+      // Try to extract JSON from the response if direct parse fails
+      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return reply.send({
+            data: {
+              name: parsed.name || '',
+              subject: '',
+              body: '',
+              conditions: parsed.conditions || {},
+              event: parsed.event || '',
+              reply_subject: parsed.reply_subject || '',
+              reply_body: parsed.reply_body || '',
+            },
+          });
+        } catch {
+          return reply.status(502).send({ error: 'AI returned invalid JSON for auto-reply rule. Please try again or refine your prompt.' });
+        }
+      }
+      return reply.status(502).send({ error: 'AI returned invalid JSON for auto-reply rule. Please try again or refine your prompt.' });
+    }
+  });
 }

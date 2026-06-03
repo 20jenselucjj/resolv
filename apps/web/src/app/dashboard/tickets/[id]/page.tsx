@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore, Ticket, Category, Comment, User } from '@/lib/store';
+import { formatDate, formatDateTime } from '@/lib/date-utils';
 import { connectSocket } from '@/lib/socket';
 import {
   ArrowLeft, Send, Lock,
@@ -333,7 +334,7 @@ export default function TicketDetailPage() {
       <div style={{ padding: '60px', textAlign: 'center' }}>
         <AlertTriangle size={32} color="var(--danger)" style={{ margin: '0 auto 12px', display: 'block' }} />
         <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>Ticket not found</div>
-        <button onClick={() => router.back()} className="btn btn-secondary" style={{ marginTop: 16 }}>
+        <button onClick={() => router.push('/dashboard/tickets')} className="btn btn-secondary" style={{ marginTop: 16 }}>
           <ArrowLeft size={14} /> Go back
         </button>
       </div>
@@ -430,6 +431,7 @@ export default function TicketDetailPage() {
             allUsers={allUsers}
             isAdminOrAgent={isAdminOrAgent}
             updateField={updateField}
+            handleStatusChange={handleStatusChange}
             handleAssignToUser={handleAssignToUser}
             handleReporterChange={handleReporterChange}
           />
@@ -542,7 +544,7 @@ export default function TicketDetailPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.original_name || a.filename}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {formatSize(a.size)} &bull; {a.uploader_name} &bull; {new Date(a.created_at).toLocaleDateString()}
+                        {formatSize(a.size)} &bull; {a.uploader_name} &bull; {formatDate(a.created_at)}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -626,7 +628,7 @@ export default function TicketDetailPage() {
                             )}
                           </div>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {new Date(ticket.closed_at || ticket.updated_at).toLocaleString()}
+                            {formatDateTime(ticket.closed_at || ticket.updated_at)}
                           </span>
                         </div>
                         <div style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text)' }}>
@@ -652,7 +654,7 @@ export default function TicketDetailPage() {
                         </div>
                         <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.body}</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(c.created_at).toLocaleString()}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDateTime(c.created_at)}</span>
                         </div>
                       </div>
                     );
@@ -690,7 +692,7 @@ export default function TicketDetailPage() {
                               {c.is_edited && (
                                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>(edited)</span>
                               )}
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{new Date(c.created_at).toLocaleString()}</span>
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDateTime(c.created_at)}</span>
                               {canEdit && !isEditing && (
                                 <button 
                                   onClick={() => { setEditingComment(c.id); setEditCommentBody(c.body); }}
@@ -765,7 +767,7 @@ export default function TicketDetailPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.original_name || a.filename}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {formatSize(a.size)} &bull; {a.uploader_name} &bull; {new Date(a.created_at).toLocaleDateString()}
+                          {formatSize(a.size)} &bull; {a.uploader_name} &bull; {formatDate(a.created_at)}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -832,7 +834,7 @@ export default function TicketDetailPage() {
                           {actionText}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {new Date(act.created_at).toLocaleString()}
+                          {formatDateTime(act.created_at)}
                         </div>
                       </div>
                     </div>

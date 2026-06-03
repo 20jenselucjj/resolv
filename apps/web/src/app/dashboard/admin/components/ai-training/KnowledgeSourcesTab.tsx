@@ -18,6 +18,7 @@ interface SourceFormData {
   tags: string;
   raw_content: string;
   url: string;
+  scope: 'both' | 'agent' | 'portal';
 }
 
 interface KnowledgeSourcesTabProps {
@@ -217,7 +218,7 @@ export function KnowledgeSourcesTab(props: KnowledgeSourcesTabProps) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600 }}>Category</label>
               <input
@@ -251,6 +252,20 @@ export function KnowledgeSourcesTab(props: KnowledgeSourcesTabProps) {
                 onChange={e => setSourceForm({ ...sourceForm, tags: e.target.value })}
                 placeholder="e.g. onboarding, internal"
               />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600 }}>AI Availability</label>
+              <select
+                className="input"
+                value={sourceForm.scope}
+                onChange={e => setSourceForm({ ...sourceForm, scope: e.target.value as any })}
+                style={{ appearance: 'none', WebkitAppearance: 'none' }}
+              >
+                <option value="both">🔄 Both Agent &amp; Portal AI</option>
+                <option value="agent">🤖 Agent AI Only</option>
+                <option value="portal">🌐 Portal AI Only</option>
+              </select>
             </div>
           </div>
 
@@ -434,6 +449,7 @@ export function KnowledgeSourcesTab(props: KnowledgeSourcesTabProps) {
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Category</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Type</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Classification</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600 }}>Scope</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Status</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Chunks</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600 }}>Actions</th>
@@ -522,6 +538,18 @@ export function KnowledgeSourcesTab(props: KnowledgeSourcesTabProps) {
                         }}>
                           {source.classification}
                         </span>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        {source.scope && (
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 'var(--radius-full)', fontSize: '11px', fontWeight: 600,
+                            background: source.scope === 'portal' ? 'rgba(16,185,129,0.1)' : source.scope === 'agent' ? 'rgba(37,99,235,0.1)' : 'var(--bg-tertiary)',
+                            color: source.scope === 'portal' ? '#10b981' : source.scope === 'agent' ? '#2563eb' : 'var(--text-secondary)',
+                            border: `1px solid ${source.scope === 'portal' ? 'rgba(16,185,129,0.3)' : source.scope === 'agent' ? 'rgba(37,99,235,0.3)' : 'var(--border)'}`
+                          }}>
+                            {source.scope === 'portal' ? '🌐 Portal' : source.scope === 'agent' ? '🤖 Agent' : '🔄 Both'}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{

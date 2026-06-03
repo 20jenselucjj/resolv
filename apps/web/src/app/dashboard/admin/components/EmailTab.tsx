@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Server, Mail, FileText, Reply, Inbox } from 'lucide-react';
 import { SmtpConfig } from './SmtpConfig';
 import { EmailInboundTab } from './EmailInboundTab';
@@ -17,7 +17,7 @@ interface SubTabConfig {
 }
 
 const SUB_TABS: SubTabConfig[] = [
-  { id: 'outbound', label: 'Outbound Email', icon: <Server size={14} /> },
+  { id: 'outbound', label: 'Email Sending', icon: <Server size={14} /> },
   { id: 'inbound', label: 'Inbound Email', icon: <Inbox size={14} /> },
   { id: 'templates', label: 'Templates', icon: <FileText size={14} /> },
   { id: 'auto-reply', label: 'Auto Replies', icon: <Reply size={14} /> },
@@ -28,7 +28,11 @@ export function EmailTab({ showAlert, setConfirmModal }: {
   showAlert: (m: string, t?: 'success' | 'error') => void;
   setConfirmModal: (modal: { open: boolean; title: string; message: string; onConfirm: () => void } | null) => void;
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<EmailSubTab>('outbound');
+  const [activeSubTab, setActiveSubTab] = useState<EmailSubTab>(() => {
+    try { return (localStorage.getItem('resolv_email_tab') as EmailSubTab) || 'outbound' } catch { return 'outbound' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_email_tab', activeSubTab) }, [activeSubTab]);
 
   const tabStyle = (isActive: boolean): React.CSSProperties => ({
     padding: '8px 16px',

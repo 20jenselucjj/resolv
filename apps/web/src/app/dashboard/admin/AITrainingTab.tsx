@@ -13,7 +13,11 @@ import {
 } from './components/ai-training';
 
 export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
-  const [activeSubTab, setActiveSubTab] = useState<'sources' | 'qa' | 'rag' | 'test' | 'analytics'>('sources');
+  const [activeSubTab, setActiveSubTab] = useState<'sources' | 'qa' | 'rag' | 'test' | 'analytics'>(() => {
+    try { return (localStorage.getItem('resolv_ai_training_subtab') as 'sources' | 'qa' | 'rag' | 'test' | 'analytics') || 'sources' } catch { return 'sources' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_ai_training_subtab', activeSubTab) }, [activeSubTab]);
   const [loading, setLoading] = useState(false);
 
   // --- Sub-tab 1: Sources State ---
@@ -32,7 +36,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
     classification: 'unclassified' as 'unclassified' | 'sensitive' | 'confidential' | 'secret',
     tags: '',
     raw_content: '',
-    url: ''
+    url: '',
+    scope: 'both' as 'both' | 'agent' | 'portal'
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -47,13 +52,15 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
     question: '',
     answer: '',
     category: '',
-    tags: ''
+    tags: '',
+    scope: 'both'
   });
   const [qaEditForm, setQAEditForm] = useState({
     question: '',
     answer: '',
     category: '',
-    tags: ''
+    tags: '',
+    scope: 'both'
   });
 
   // --- Sub-tab 3: RAG Settings State ---
@@ -137,6 +144,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         if (sourceForm.category) formData.append('category', sourceForm.category);
         if (sourceForm.tags.trim()) formData.append('tags', sourceForm.tags);
         if (sourceForm.classification) formData.append('classification', sourceForm.classification);
+        if (sourceForm.scope) formData.append('scope', sourceForm.scope);
 
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
         const res = await fetch(`${baseUrl}/ai/knowledge/sources/upload`, {
@@ -159,7 +167,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       setShowAddSource(false);
       setSourceForm({
         name: '', source_type: 'manual', category: '',
-        classification: 'unclassified', tags: '', raw_content: '', url: ''
+        classification: 'unclassified', tags: '', raw_content: '', url: '',
+        scope: 'both'
       });
       loadTabSpecificData();
       return;
@@ -185,6 +194,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         category: sourceForm.category,
         classification: sourceForm.classification,
         tags: sourceForm.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
+        scope: sourceForm.scope,
         raw_content: sourceForm.source_type === 'manual' ? sourceForm.raw_content : undefined,
         url: sourceForm.source_type === 'url' ? sourceForm.url : undefined
       };
@@ -208,7 +218,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         classification: 'unclassified',
         tags: '',
         raw_content: '',
-        url: ''
+        url: '',
+        scope: 'both'
       });
       loadTabSpecificData();
     } catch (err: any) {
@@ -224,7 +235,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       classification: source.classification,
       tags: (source.tags || []).join(', '),
       raw_content: source.raw_content || '',
-      url: source.url || ''
+      url: source.url || '',
+      scope: (source.scope || 'both') as 'both' | 'agent' | 'portal'
     });
     setEditingSource(source);
     setShowAddSource(true);
@@ -240,7 +252,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       classification: 'unclassified',
       tags: '',
       raw_content: '',
-      url: ''
+      url: '',
+      scope: 'both'
     });
     setShowAddSource(false);
   };
@@ -371,12 +384,13 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         question: qaForm.question,
         answer: qaForm.answer,
         category: qaForm.category,
-        tags: qaForm.tags.split(',').map(t => t.trim()).filter(Boolean)
+        tags: qaForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+        scope: qaForm.scope
       };
       await api.post('/ai/knowledge/qa', payload);
       showAlert('Q&A pair created successfully');
       setShowAddQA(false);
-      setQAForm({ question: '', answer: '', category: '', tags: '' });
+      setQAForm({ question: '', answer: '', category: '', tags: '', scope: 'both' });
       loadTabSpecificData();
     } catch (err: any) {
       showAlert(err.message || 'Failed to create Q&A pair', 'error');
@@ -389,7 +403,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       question: qa.question,
       answer: qa.answer,
       category: qa.category || '',
-      tags: (qa.tags || []).join(', ')
+      tags: (qa.tags || []).join(', '),
+      scope: qa.scope || 'both'
     });
   };
 
@@ -403,7 +418,8 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         question: qaEditForm.question,
         answer: qaEditForm.answer,
         category: qaEditForm.category,
-        tags: qaEditForm.tags.split(',').map(t => t.trim()).filter(Boolean)
+        tags: qaEditForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+        scope: qaEditForm.scope
       };
       await api.patch(`/ai/knowledge/qa/${id}`, payload);
       showAlert('Q&A pair updated successfully');

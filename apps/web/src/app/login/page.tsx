@@ -187,16 +187,22 @@ function LoginForm() {
     setError('');
     setLoading(true);
     try {
-      const loginPayload: Record<string, string> = { email: form.email, password: form.password };
+      const loginPayload: Record<string, any> = { email: form.email, password: form.password, rememberMe };
       if (emergencyKey) {
         loginPayload.emergency_key = emergencyKey;
       }
-      const res = await api.post<{ data: { user: User; token: string; passwordResetRequired?: boolean } }>(
+      const res = await api.post<{ data: { user: User; token: string; refreshToken?: string; passwordResetRequired?: boolean } }>(
         mode === 'login' ? '/auth/login' : '/auth/register',
         mode === 'login' ? loginPayload : form
       );
       setToken(res.data.token);
       setUser(res.data.user);
+
+      // Store refresh token if provided
+      if (res.data.refreshToken) {
+        localStorage.setItem('resolv_refresh_token', res.data.refreshToken);
+      }
+
       if (rememberMe) {
         localStorage.setItem('resolv_remember_me', 'true');
         localStorage.setItem('resolv_remembered_email', form.email);

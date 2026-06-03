@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Mail } from 'lucide-react';
+import { Mail, Info } from 'lucide-react';
 import { api, API_BASE } from '@/lib/api';
 
 interface OAuthStatus {
@@ -105,9 +105,36 @@ export function SmtpConfig({ showAlert }: { showAlert: (m: string, t?: 'success'
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
   }
 
+  const infoBanner = (
+    <div style={{
+      padding: '12px 16px',
+      borderRadius: 'var(--radius-md)',
+      background: 'var(--bg-secondary)',
+      border: '1px solid var(--border)',
+      marginBottom: 20,
+      fontSize: 13,
+      color: 'var(--text-secondary)',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 10,
+    }}>
+      <div style={{ flexShrink: 0, marginTop: 2 }}>
+        <Info size={14} />
+      </div>
+      <div>
+        <strong style={{ color: 'var(--text)' }}>Email Configuration</strong>
+        <div style={{ marginTop: 4 }}>
+          If you've configured Google Workspace OAuth in <strong>Directory Sync</strong>, email sending uses those credentials automatically.
+          Configure OAuth here only if you want a separate email account or don't use Directory Sync.
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="card" style={{ padding: 0 }}>
       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {infoBanner}
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
@@ -117,10 +144,10 @@ export function SmtpConfig({ showAlert }: { showAlert: (m: string, t?: 'success'
           }}>
             <Mail size={14} color="var(--accent)" />
           </div>
-          <div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>Outbound Email</div>
+          <div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>Email Sending Configuration</div>
         </div>
 
-        {status.connected && status.connectedVia === 'directory_sync' ? (
+        {status.connected && status.connectedVia === 'directory_sync' && !showManualSetup ? (
           <>
             {/* ── Connected via Directory Sync ── */}
             <div style={{
@@ -143,6 +170,51 @@ export function SmtpConfig({ showAlert }: { showAlert: (m: string, t?: 'success'
                 style={{ fontSize: 12, padding: '4px 12px', border: '1px solid var(--border)' }}
               >
                 Configure separately
+              </button>
+            </div>
+          </>
+        ) : status.connected && status.connectedVia === 'directory_sync' && showManualSetup ? (
+          <>
+            {/* ── Manual setup when already connected via Directory Sync ── */}
+            <div style={{
+              padding: '14px 16px', borderRadius: 'var(--radius-md)',
+              background: '#fff3cd', border: '1px solid #ffc107',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ color: '#856404', fontWeight: 700, fontSize: 14 }}>{'\u26A0'} Separate Configuration</span>
+              </div>
+              <div style={{ fontSize: 13, color: '#856404', lineHeight: 1.6 }}>
+                You're currently using Directory Sync credentials. Configure separate OAuth credentials below to use a different email account.
+              </div>
+            </div>
+
+            {/* Client ID */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Client ID</label>
+              <input className="input" value={oauthConfig.clientId} onChange={e => setOAuthConfig(prev => ({ ...prev, clientId: e.target.value }))} placeholder="Your Google OAuth Client ID" />
+            </div>
+
+            {/* Client Secret */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Client Secret</label>
+              <div style={{ position: 'relative' }}>
+                <input className="input" type={showClientSecret ? 'text' : 'password'} value={oauthConfig.clientSecret} onChange={e => setOAuthConfig(prev => ({ ...prev, clientSecret: e.target.value }))} placeholder="Your Google OAuth Client Secret" style={{ paddingRight: 70 }} />
+                <button onClick={() => setShowClientSecret(!showClientSecret)} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 500, padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>
+                  {showClientSecret ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setShowManualSetup(false)}
+                style={{ fontSize: 12, padding: '4px 12px', border: '1px solid var(--border)' }}
+              >
+                Cancel — use Directory Sync
+              </button>
+              <button className="btn btn-primary" onClick={handleSaveOAuthConfig} disabled={savingOAuthConfig || !oauthConfig.clientId || !oauthConfig.clientSecret}>
+                {savingOAuthConfig ? 'Saving...' : 'Save & Connect'}
               </button>
             </div>
           </>

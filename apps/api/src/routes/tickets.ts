@@ -5,7 +5,7 @@ import { JwtPayload } from '../plugins/auth';
 import { syncTicketToKnowledgeBase } from './ai-training';
 import { sendTemplateEmail, isEmailEnabledForEvent } from '../services/outbound-email';
 import type { EmailAttachment } from '../services/outbound-email';
-import { triggerAutoReplies } from './auto-reply';
+import { dispatchNotifications } from '../services/notification-runner';
 import fs from 'fs';
 
 // ─── Email variable helpers ─────────────────────────────────────────────────
@@ -288,77 +288,12 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Fire-and-forget email notifications
-      const webUrl = process.env.WEB_URL || 'http://localhost:3000';
-
-      // Look up assignee name and category name for email
-      let assigneeName = 'Unassigned';
-      let categoryName = 'None';
-      if (ticket.assigned_to_id) {
-        const assigneeResult = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.assigned_to_id]);
-        if (assigneeResult.rows.length > 0) assigneeName = assigneeResult.rows[0].name;
-      }
-      try {
-        if (ticket.category_id) {
-          const catResult = await pool.query('SELECT name FROM categories WHERE id = $1', [ticket.category_id]);
-          if (catResult.rows.length > 0) categoryName = catResult.rows[0].name;
-        }
-      } catch { /* categories table may not exist */ }
-
-      const emailVars = {
-        ticket_id: ticket.number,
-        ticket_title: ticket.title,
-        user_name: request.user.name,
-        ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}`,
-        priority: fmtPriority(ticket.priority),
-        status: fmtStatus(ticket.status),
-        requestor_name: request.user.name,
-        requestor_email: request.user.email,
-        assigned_to_name: assigneeName,
-        created_at: fmtDate(ticket.created_at),
-        due_date: fmtDate(ticket.due_date),
-        category: categoryName,
-        ticket_type: fmtType(ticket.ticket_type),
-        description: ticket.description || '',
-        priority_color: priorityColor(ticket.priority),
-        status_color: statusColor(ticket.status),
-      };
-
-      // Notify ticket creator
-      sendTemplateEmail(
-        request.user.email,
-        request.user.name,
-        'Ticket Created',
-        emailVars,
-        ticket.id
-      ).catch(() => {});
-
-      // If unassigned, also email all agents/admins
-      if (!ticket.assigned_to_id) {
-        const allAgents = await pool.query(
-          "SELECT id, email, name FROM users WHERE role IN ('admin', 'agent') AND is_active = true"
-        );
-        for (const agent of allAgents.rows) {
-          if (agent.email && agent.email !== request.user.email) {
-            sendTemplateEmail(
-              agent.email,
-              agent.name,
-              'Ticket Created',
-              { ...emailVars, user_name: agent.name },
-              ticket.id
-            ).catch(() => {});
-          }
-        }
-      }
-
-      // Trigger auto-reply rules for this ticket (fire-and-forget)
-      triggerAutoReplies(
-        { id: ticket.id, number: ticket.number, title: ticket.title, description: ticket.description,
-          priority: ticket.priority, ticket_type: ticket.ticket_type, status: ticket.status,
-          category_id: ticket.category_id, created_by_id: ticket.created_by_id, assigned_to_id: ticket.assigned_to_id },
-        { id: request.user.id, email: request.user.email, name: request.user.name },
-        ticket.assigned_to_id ? await pool.query('SELECT id, email, name FROM users WHERE id = $1', [ticket.assigned_to_id]).then(r => r.rows[0] || null) : null
-      ).catch(() => {});
+      // Fire-and-forget: dispatch notifications through the pipeline
+      dispatchNotifications({
+        type: 'ticket_created',
+        ticket: { id: ticket.id, number: ticket.number, title: ticket.title, description: ticket.description, priority: ticket.priority, status: ticket.status, ticket_type: ticket.ticket_type, category_id: ticket.category_id, due_date: ticket.due_date, created_at: ticket.created_at, created_by_id: ticket.created_by_id, assigned_to_id: ticket.assigned_to_id },
+        actor: { id: request.user.id, name: request.user.name, email: request.user.email },
+      }).catch(() => {});
 
       return reply.status(201).send({ data: ticket });
     } catch (error) {
@@ -466,6 +401,34 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       if (body.status === 'resolved') { updates.push(`resolved_at = NOW()`); }
       if (body.status === 'closed') { updates.push(`closed_at = NOW()`); }
 
+      // When reopening a closed/resolved ticket, preserve close_notes as an
+      // internal note and clear closing metadata
+      let preservedComment: any = null;
+      const closedStatuses = ['closed', 'resolved'];
+      const openStatuses = ['open', 'in_progress', 'waiting'];
+      const isReopening = body.status
+        && body.status !== ticket.status
+        && closedStatuses.includes(ticket.status)
+        && openStatuses.includes(body.status);
+      if (isReopening) {
+        if (ticket.close_notes) {
+          const commentResult = await client.query(
+            `INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal)
+             VALUES ($1, $2, $3, true)
+             RETURNING *`,
+            [id, request.user.id, ticket.close_notes]
+          );
+          preservedComment = {
+            ...commentResult.rows[0],
+            author_name: request.user.name,
+            author_email: request.user.email,
+          };
+        }
+        updates.push('close_notes = NULL');
+        updates.push('closed_at = NULL');
+        updates.push('resolved_at = NULL');
+      }
+
       if (updates.length === 0) {
         await client.query('COMMIT');
         return reply.send({ data: ticket });
@@ -507,7 +470,10 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         (updated as any).closed_by_name = request.user.name;
       }
 
-      const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+      // Emit real-time event for the preserved close_notes comment
+      if (preservedComment) {
+        fastify.io.emit(`ticket:comment:${id}`, { comment: preservedComment });
+      }
 
       // Emit real-time event
       fastify.io.emit(`ticket:updated:${id}`, { ticket: updated });
@@ -518,126 +484,49 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         syncTicketToKnowledgeBase(id, request.user.id).catch(console.error);
       }
 
-      // Fire-and-forget: email notification on resolution (only if explicitly requested)
-      if (body.status === 'resolved' && body.send_email !== false) {
-        const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [updated.created_by_id]);
-        if (creatorResult.rows.length > 0) {
-          let resolvedAssigneeName = 'Unassigned';
-          let resolvedCategoryName = 'None';
-          if (updated.assigned_to_id) {
-            const a = await pool.query('SELECT name FROM users WHERE id = $1', [updated.assigned_to_id]);
-            if (a.rows.length > 0) resolvedAssigneeName = a.rows[0].name;
-          }
-          try {
-            if (updated.category_id) {
-              const c = await pool.query('SELECT name FROM categories WHERE id = $1', [updated.category_id]);
-              if (c.rows.length > 0) resolvedCategoryName = c.rows[0].name;
-            }
-          } catch { /* categories table may not exist */ }
-          sendTemplateEmail(
-            creatorResult.rows[0].email,
-            creatorResult.rows[0].name,
-            'Ticket Resolved',
-            {
-              ticket_id: updated.number,
-              ticket_title: updated.title,
-              user_name: creatorResult.rows[0].name,
-              close_notes: updated.close_notes || 'Your ticket has been resolved.',
-              ticket_url: `${webUrl}/dashboard/tickets/${id}`,
-              priority: fmtPriority(updated.priority),
-              status: fmtStatus(updated.status),
-              requestor_name: creatorResult.rows[0].name,
-              assigned_to_name: resolvedAssigneeName,
-              created_at: fmtDate(updated.created_at),
-              due_date: fmtDate(updated.due_date),
-              category: resolvedCategoryName,
-              ticket_type: fmtType(updated.ticket_type),
-              priority_color: priorityColor(updated.priority),
-              status_color: statusColor(updated.status),
-            },
-            id
-          ).catch(() => {});
+      // Fire-and-forget: dispatch notifications through the pipeline
+      if (body.status === 'resolved') {
+        dispatchNotifications({
+          type: 'ticket_resolved',
+          ticket: { id: updated.id, number: updated.number, title: updated.title, description: updated.description, priority: updated.priority, status: updated.status, ticket_type: updated.ticket_type, category_id: updated.category_id, due_date: updated.due_date, created_at: updated.created_at, created_by_id: updated.created_by_id, assigned_to_id: updated.assigned_to_id },
+          previousTicket: { status: ticket.status, priority: ticket.priority, assigned_to_id: ticket.assigned_to_id },
+          actor: { id: request.user.id, name: request.user.name, email: request.user.email },
+        }).catch(() => {});
+      } else if (body.status === 'closed') {
+        dispatchNotifications({
+          type: 'ticket_closed',
+          ticket: { id: updated.id, number: updated.number, title: updated.title, description: updated.description, priority: updated.priority, status: updated.status, ticket_type: updated.ticket_type, category_id: updated.category_id, due_date: updated.due_date, created_at: updated.created_at, created_by_id: updated.created_by_id, assigned_to_id: updated.assigned_to_id },
+          previousTicket: { status: ticket.status, priority: ticket.priority, assigned_to_id: ticket.assigned_to_id },
+          actor: { id: request.user.id, name: request.user.name, email: request.user.email },
+        }).catch(() => {});
+      } else if (body.assigned_to_id && body.assigned_to_id !== ticket.assigned_to_id) {
+        // Assignment/reassignment
+        let oldAssignee = undefined;
+        let newAssignee = undefined;
+        if (ticket.assigned_to_id) {
+          const oldA = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [ticket.assigned_to_id]);
+          if (oldA.rows.length > 0) oldAssignee = oldA.rows[0];
         }
-      }
-
-      // Fire-and-forget: email notification on close (only if explicitly requested)
-      if (body.status === 'closed' && body.send_email !== false) {
-        const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [updated.created_by_id]);
-        if (creatorResult.rows.length > 0) {
-          let closedAssigneeName = 'Unassigned';
-          let closedCategoryName = 'None';
-          if (updated.assigned_to_id) {
-            const a = await pool.query('SELECT name FROM users WHERE id = $1', [updated.assigned_to_id]);
-            if (a.rows.length > 0) closedAssigneeName = a.rows[0].name;
-          }
-          try {
-            if (updated.category_id) {
-              const c = await pool.query('SELECT name FROM categories WHERE id = $1', [updated.category_id]);
-              if (c.rows.length > 0) closedCategoryName = c.rows[0].name;
-            }
-          } catch { /* categories table may not exist */ }
-          sendTemplateEmail(
-            creatorResult.rows[0].email,
-            creatorResult.rows[0].name,
-            'Ticket Resolved',
-            {
-              ticket_id: updated.number,
-              ticket_title: updated.title,
-              user_name: creatorResult.rows[0].name,
-              close_notes: updated.close_notes || 'Your ticket has been closed.',
-              ticket_url: `${webUrl}/dashboard/tickets/${id}`,
-              status: 'closed',
-              priority: fmtPriority(updated.priority),
-              requestor_name: creatorResult.rows[0].name,
-              assigned_to_name: closedAssigneeName,
-              created_at: fmtDate(updated.created_at),
-              due_date: fmtDate(updated.due_date),
-              category: closedCategoryName,
-              ticket_type: fmtType(updated.ticket_type),
-              priority_color: priorityColor(updated.priority),
-              status_color: statusColor('closed'),
-            },
-            id
-          ).catch(() => {});
+        if (body.assigned_to_id) {
+          const newA = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [body.assigned_to_id]);
+          if (newA.rows.length > 0) newAssignee = newA.rows[0];
         }
-      }
-
-      // Fire-and-forget: email notification on assignment change
-      if (body.assigned_to_id && body.assigned_to_id !== ticket.assigned_to_id && body.assigned_to_id !== request.user.id && body.send_email !== false) {
-        const assigneeResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [body.assigned_to_id]);
-        if (assigneeResult.rows.length > 0) {
-          const creatorForAssign = await pool.query('SELECT name FROM users WHERE id = $1', [updated.created_by_id]);
-          let assignCategoryName = 'None';
-          try {
-            if (updated.category_id) {
-              const c = await pool.query('SELECT name FROM categories WHERE id = $1', [updated.category_id]);
-              if (c.rows.length > 0) assignCategoryName = c.rows[0].name;
-            }
-          } catch { /* categories table may not exist */ }
-          sendTemplateEmail(
-            assigneeResult.rows[0].email,
-            assigneeResult.rows[0].name,
-            'Ticket Assigned',
-            {
-              ticket_id: updated.number,
-              ticket_title: updated.title,
-              user_name: assigneeResult.rows[0].name,
-              agent_name: assigneeResult.rows[0].name,
-              ticket_url: `${webUrl}/dashboard/tickets/${id}`,
-              priority: fmtPriority(updated.priority),
-              status: fmtStatus(updated.status),
-              requestor_name: creatorForAssign.rows[0]?.name || 'Unknown',
-              assigned_to_name: assigneeResult.rows[0].name,
-              created_at: fmtDate(updated.created_at),
-              due_date: fmtDate(updated.due_date),
-              category: assignCategoryName,
-              ticket_type: fmtType(updated.ticket_type),
-              priority_color: priorityColor(updated.priority),
-              status_color: statusColor(updated.status),
-            },
-            id
-          ).catch(() => {});
-        }
+        dispatchNotifications({
+          type: ticket.assigned_to_id ? 'ticket_reassigned' : 'ticket_assigned',
+          ticket: { id: updated.id, number: updated.number, title: updated.title, description: updated.description, priority: updated.priority, status: updated.status, ticket_type: updated.ticket_type, category_id: updated.category_id, due_date: updated.due_date, created_at: updated.created_at, created_by_id: updated.created_by_id, assigned_to_id: updated.assigned_to_id },
+          previousTicket: { assigned_to_id: ticket.assigned_to_id },
+          actor: { id: request.user.id, name: request.user.name, email: request.user.email },
+          oldAssignee,
+          newAssignee,
+        }).catch(() => {});
+      } else if (body.status || body.priority || body.title || body.description) {
+        // Generic update
+        dispatchNotifications({
+          type: body.status && body.status !== ticket.status ? 'status_changed' : 'ticket_updated',
+          ticket: { id: updated.id, number: updated.number, title: updated.title, description: updated.description, priority: updated.priority, status: updated.status, ticket_type: updated.ticket_type, category_id: updated.category_id, due_date: updated.due_date, created_at: updated.created_at, created_by_id: updated.created_by_id, assigned_to_id: updated.assigned_to_id },
+          previousTicket: { status: ticket.status, priority: ticket.priority, assigned_to_id: ticket.assigned_to_id },
+          actor: { id: request.user.id, name: request.user.name, email: request.user.email },
+        }).catch(() => {});
       }
 
       return reply.send({ data: updated });
@@ -771,9 +660,10 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         author_name: request.user.name,
         author_email: request.user.email,
       };
+      let preservedComment: any = null;
 
       // Get ticket info for notification
-      const ticketResult = await client.query('SELECT number, title, created_by_id, assigned_to_id, status, priority, created_at, due_date, ticket_type, category_id FROM tickets WHERE id = $1', [id]);
+      const ticketResult = await client.query('SELECT number, title, description, created_by_id, assigned_to_id, status, priority, created_at, due_date, ticket_type, category_id FROM tickets WHERE id = $1', [id]);
       if (ticketResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Ticket not found' });
@@ -827,8 +717,22 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         } catch { /* use default */ }
 
         if (autoReopenEnabled) {
+          // Preserve close_notes as an internal note before clearing
+          if (ticket.close_notes) {
+            const result = await client.query(
+              `INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal)
+               VALUES ($1, $2, $3, true)
+               RETURNING *`,
+              [id, request.user.id, ticket.close_notes]
+            );
+            preservedComment = {
+              ...result.rows[0],
+              author_name: request.user.name,
+              author_email: request.user.email,
+            };
+          }
           await client.query(
-            "UPDATE tickets SET status = 'open', closed_at = NULL, resolved_at = NULL WHERE id = $1",
+            "UPDATE tickets SET status = 'open', close_notes = NULL, closed_at = NULL, resolved_at = NULL WHERE id = $1",
             [id]
           );
           await client.query(
@@ -842,6 +746,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       await client.query('COMMIT');
 
+      if (preservedComment) {
+        fastify.io.emit(`ticket:comment:${id}`, { comment: preservedComment });
+      }
       fastify.io.emit(`ticket:comment:${id}`, { comment });
 
       // Look up attachments for this comment to include in email
@@ -865,71 +772,14 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         commentAttachments = [];
       }
 
-      // Fire-and-forget email notification for non-internal comments
+      // Fire-and-forget: dispatch comment notification through the pipeline
       if (!is_internal && body.send_email !== false) {
-        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
-
-        // Look up related names and category for email variables
-        const requestorRow = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.created_by_id]);
-        const requestorName = requestorRow.rows[0]?.name || 'Unknown';
-
-        let assigneeName = 'Unassigned';
-        if (ticket.assigned_to_id) {
-          const a = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.assigned_to_id]);
-          if (a.rows.length > 0) assigneeName = a.rows[0].name;
-        }
-
-        let categoryName = 'None';
-        if (ticket.category_id) {
-          try {
-            const c = await pool.query('SELECT name FROM categories WHERE id = $1', [ticket.category_id]);
-            if (c.rows.length > 0) categoryName = c.rows[0].name;
-          } catch { /* categories table may not exist */ }
-        }
-
-        const emailVars = {
-          ticket_id: ticket.number,
-          ticket_title: ticket.title,
-          ticket_url: `${webUrl}/dashboard/tickets/${id}`,
-          requestor_name: requestorName,
-          assigned_to_name: assigneeName,
-          created_at: fmtDate(ticket.created_at),
-          priority: fmtPriority(ticket.priority),
-          priority_color: priorityColor(ticket.priority),
-          status: fmtStatus(ticket.status),
-          status_color: statusColor(ticket.status),
-          comment_body: body.body,
-        };
-
-        // Email the ticket creator (if they didn't make the comment)
-        if (ticket.created_by_id !== request.user.id) {
-          const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.created_by_id]);
-          if (creatorResult.rows.length > 0) {
-            sendTemplateEmail(
-              creatorResult.rows[0].email,
-              creatorResult.rows[0].name,
-              'Comment Added',
-              { ...emailVars, user_name: creatorResult.rows[0].name },
-              id,
-              commentAttachments.length > 0 ? commentAttachments : undefined
-            ).catch(() => {});
-          }
-        }
-
-        // Email the assigned agent (if they didn't make the comment)
-        if (ticket.assigned_to_id && ticket.assigned_to_id !== request.user.id && ticket.assigned_to_id !== ticket.created_by_id) {
-          const agentResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.assigned_to_id]);
-          if (agentResult.rows.length > 0) {
-            sendTemplateEmail(
-              agentResult.rows[0].email,
-              agentResult.rows[0].name,
-              'Comment Added',
-              { ...emailVars, user_name: agentResult.rows[0].name },
-              id,
-              commentAttachments.length > 0 ? commentAttachments : undefined
-            ).catch(() => {});
-          }
-        }
+        dispatchNotifications({
+          type: 'comment_added',
+          ticket: { id: id, number: ticket.number, title: ticket.title, description: ticket.description, priority: (ticket as any).priority || 'medium', status: ticket.status, ticket_type: (ticket as any).ticket_type || 'incident', category_id: ticket.category_id, due_date: ticket.due_date, created_at: (ticket as any).created_at || new Date().toISOString(), created_by_id: ticket.created_by_id, assigned_to_id: ticket.assigned_to_id },
+          actor: { id: request.user.id, name: request.user.name, email: request.user.email },
+          comment: { id: comment.id, body: body.body, authorName: request.user.name },
+        }).catch(() => {});
       }
 
       return reply.status(201).send({ data: comment });

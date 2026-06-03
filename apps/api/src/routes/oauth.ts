@@ -738,16 +738,33 @@ if (window.opener) {
       const isConnected = hasDedicatedConnection || hasDsFallback;
       const connectedVia = hasDedicatedConnection ? 'smtp_oauth' : hasDsFallback ? 'directory_sync' : null;
       const email = smtpConfig?.email || dsConfig?.email || null;
-      const expiresAt = smtpConfig?.tokenExpiresAt || dsConfig?.tokenExpiresAt || null;
-      const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : true;
 
+      // Read actual token expiry from the token records (always updated on refresh),
+      // not from configs which may be stale (directory_sync_config is not updated
+      // during outbound token refresh).
+      let actualExpiresAt: string | null = null;
+      if (smtpTokenResult.rows.length > 0) {
+        try {
+          const smtpTokens = JSON.parse(smtpTokenResult.rows[0].value);
+          actualExpiresAt = smtpTokens.expiry_date || null;
+        } catch { /* ignore */ }
+      }
+      if (!actualExpiresAt && dsTokenResult.rows.length > 0) {
+        try {
+          const dsTokens = JSON.parse(dsTokenResult.rows[0].value);
+          actualExpiresAt = dsTokens.expiry_date || null;
+        } catch { /* ignore */ }
+      }
+
+      // Don't gate 'connected' on token expiry — the system auto-refreshes tokens
+      // on send. As long as credentials + tokens exist, email sending works.
       return reply.send({
         data: {
-          connected: isConnected && !isExpired,
+          connected: isConnected,
           connectedVia,
           provider: smtpConfig?.provider || dsConfig?.provider || null,
           email,
-          expiresAt,
+          expiresAt: actualExpiresAt,
           configured: smtpConfigured || dsHasCredentials,
           dsCredentialsAvailable: dsHasCredentials,
         },
@@ -783,6 +800,84 @@ if (window.opener) {
     } catch (err: any) {
       fastify.log.error(err);
       return reply.status(500).send({ error: 'Failed to disconnect OAuth.' });
+    }
+  });
+
+  // POST /oauth/refresh-token — Proactively refresh OAuth token before it expires
+  fastify.post('/oauth/refresh-token', {
+    preHandler: [fastify.authenticate],
+  }, async (request, reply) => {
+    try {
+      // Get current tokens
+      const tokenResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_tokens'"
+      );
+
+      if (tokenResult.rows.length === 0) {
+        return reply.status(404).send({ error: 'No OAuth tokens found' });
+      }
+
+      const tokens = JSON.parse(tokenResult.rows[0].value);
+
+      // Get OAuth config
+      const configResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_config'"
+      );
+
+      if (configResult.rows.length === 0) {
+        return reply.status(404).send({ error: 'No OAuth config found' });
+      }
+
+      const config = JSON.parse(configResult.rows[0].value);
+
+      // Determine token endpoint based on provider
+      const tokenEndpoint = config.provider === 'microsoft'
+        ? `https://login.microsoftonline.com/${config.tenant || 'common'}/oauth2/v2.0/token`
+        : 'https://oauth2.googleapis.com/token';
+
+      // Refresh the token
+      const tokenResponse = await httpsPost(tokenEndpoint, {
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        refresh_token: tokens.refresh_token,
+        grant_type: 'refresh_token',
+      });
+
+      if (tokenResponse.error) {
+        console.error('[OAuth] Token refresh failed:', tokenResponse.error_description || tokenResponse.error);
+        return reply.status(500).send({ error: tokenResponse.error_description || tokenResponse.error });
+      }
+
+      // Save new tokens
+      const newTokens = {
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token || tokens.refresh_token,
+        expiry_date: new Date(Date.now() + (tokenResponse.expires_in || 3600) * 1000).toISOString(),
+      };
+
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('smtp_oauth_tokens', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(newTokens)]
+      );
+
+      // Update config with new expiry
+      const updatedConfig = { ...config, tokenExpiresAt: newTokens.expiry_date };
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('smtp_oauth_config', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(updatedConfig)]
+      );
+
+      return reply.send({
+        success: true,
+        expiresAt: newTokens.expiry_date,
+      });
+    } catch (error: any) {
+      console.error('[OAuth] Token refresh error:', error);
+      return reply.status(500).send({ error: error.message });
     }
   });
 }
