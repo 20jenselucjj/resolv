@@ -9,7 +9,8 @@
   "scripts": {
     "predev": "node scripts/kill-dev-ports.js",
     "dev": "concurrently \"npm run dev --workspace=apps/web\" \"npm run dev --workspace=apps/api\"",
-    "build": "npm run build --workspace=apps/web && npm run build --workspace=apps/api",
+    "build": "npm run build --workspace=apps/web && npm run build --workspace=apps/api && npm run build:agent-api",
+    "build:agent-api": "node scripts/copy-agent-exe.js",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api"
   },

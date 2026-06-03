@@ -7,6 +7,24 @@ import fs from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { ZipArchive } = require('archiver') as { ZipArchive: any };
 
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// Find the agent binary by checking multiple locations in order of preference
+function findAgentBinary(): string | null {
+  // 1. Env var override
+  if (process.env.AGENT_BINARY_PATH && fs.existsSync(process.env.AGENT_BINARY_PATH)) {
+    return process.env.AGENT_BINARY_PATH;
+  }
+  // 2. Copied into the API's uploads directory during build (production)
+  const inUploads = path.join(UPLOAD_DIR, 'agent', 'ResolvAgent.exe');
+  if (fs.existsSync(inUploads)) return inUploads;
+  // 3. Monorepo dev path
+  const devPath = path.resolve(process.cwd(), '../agent/node-agent/dist/ResolvAgent.exe');
+  if (fs.existsSync(devPath)) return devPath;
+  return null;
+}
+
 const createAssetSchema = z.object({
   name: z.string().min(1).max(255),
   display_name: z.string().max(255).optional(),
@@ -188,10 +206,11 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     const host = (request.headers['x-forwarded-host'] as string) || (request.headers.host as string) || `localhost:${process.env.PORT || 3001}`;
     const serverUrl = `${proto}://${host}`;
 
-    const agentDir = path.resolve(process.cwd(), '../agent/node-agent');
-    const exePath = path.join(agentDir, 'dist', 'ResolvAgent.exe');
-    if (!fs.existsSync(exePath)) {
-      return reply.status(400).send({ error: 'Agent binary not built yet. Run: cd apps/agent/node-agent && npm run build' });
+    const exePath = findAgentBinary();
+    if (!exePath) {
+      return reply.status(400).send({
+        error: 'Agent binary not found. Set AGENT_BINARY_PATH env var, or copy ResolvAgent.exe to uploads/agent/ResolvAgent.exe, or run: cd apps/agent/node-agent && npm run build'
+      });
     }
 
     const configJson = JSON.stringify({ serverUrl, agentSecret }, null, 2);
@@ -569,7 +588,7 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       WHERE id=$13
     `, [
       body.hostname, body.agent_version, body.ip_address || null, body.mac_address || null, body.domain || null,
-      os ? `${os.distro || os.platform || ''} ${os.release || ''}`.trim() : null,
+      os ? `${os.distro || os.platform || ''}`.trim() : null,
       os?.release || null, os?.build || null, os?.arch || null,
       hardware?.system?.manufacturer || null, hardware?.system?.model || null, hardware?.system?.serial || null,
       assetId,
