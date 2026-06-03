@@ -42,7 +42,10 @@ export function RichTextEditor({
       if (!res.ok) throw new Error('Upload failed');
       const data = await res.json();
       setUploadProgress('');
-      return data.data.url;
+      // Convert the relative URL to absolute so images render in the editor preview
+      const relativeUrl = data.data.url;
+      const origin = new URL(apiBase).origin;
+      return origin + relativeUrl;
     } catch (err) {
       console.error('Image upload failed:', err);
       setUploadProgress('');

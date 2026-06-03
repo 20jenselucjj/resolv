@@ -388,6 +388,17 @@ export default function ArticleDetailPage() {
       });
     };
 
+    // Resolve image URLs: if relative, prepend the API origin
+    const resolveImageUrl = (url: string) => {
+      if (url.startsWith('http')) return url;
+      if (url.startsWith('/')) {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const origin = apiBase.replace(/\/api\/?$/, '');
+        return origin + url;
+      }
+      return url;
+    };
+
     const renderInline = (textStr: string, keyPrefix: string) => {
       const tokens = parseInline(textStr);
       return tokens.map((token, j) => {
@@ -411,6 +422,7 @@ export default function ArticleDetailPage() {
     };
 
     return lines.map((line, i) => {
+      const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
       const headingMatch = line.match(/^(#{2,3})\s+(.*)/);
       const blockquoteMatch = line.match(/^>\s+(.*)/);
       const isHr = line.trim() === '---';
@@ -420,8 +432,14 @@ export default function ArticleDetailPage() {
       let text = line;
       let elType = 'p';
       let style: React.CSSProperties = { minHeight: '1.5em', marginBottom: '1em' };
-      
-      if (headingMatch) {
+      let extraProps: Record<string, any> = {};
+
+      if (imageMatch) {
+        elType = 'img';
+        text = '';
+        style = { maxWidth: '100%', height: 'auto', borderRadius: 'var(--radius)', margin: '1.5em 0', display: 'block' };
+        extraProps = { src: resolveImageUrl(imageMatch[2]), alt: imageMatch[1] || '' };
+      } else if (headingMatch) {
         elType = headingMatch[1].length === 2 ? 'h2' : 'h3';
         text = headingMatch[2];
         style = {
@@ -462,7 +480,7 @@ export default function ArticleDetailPage() {
         return <br key={i} />;
       }
 
-      return React.createElement(elType, { key: i, id: `heading-${i}`, style }, renderInline(text, `line-${i}`));
+      return React.createElement(elType, { key: i, id: `heading-${i}`, style, ...extraProps }, elType === 'img' ? null : renderInline(text, `line-${i}`));
     });
   };
 

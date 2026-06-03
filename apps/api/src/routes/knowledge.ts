@@ -313,8 +313,8 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     return reply.send({ data: { url, filename, size: stat.size, mime_type: data.mimetype } });
   });
 
-  // GET /knowledge/images/:filename - serve inline content images
-  fastify.get('/knowledge/images/:filename', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  // GET /knowledge/images/:filename - serve inline content images (no auth; images are secured by random UUID filenames)
+  fastify.get('/knowledge/images/:filename', async (request, reply) => {
     const { filename } = request.params as { filename: string };
     const filePath = path.join(UPLOAD_DIR, 'kb-images', filename);
     if (!fs.existsSync(filePath)) return reply.status(404).send({ error: 'Image not found' });

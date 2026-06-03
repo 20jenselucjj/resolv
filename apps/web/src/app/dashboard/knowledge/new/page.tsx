@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { 
-  ArrowLeft, AlertTriangle, Tag, FileText, 
-  Type, X, Layout, Send, Save, Link as LinkIcon, Clock, Check, Paperclip
+  ArrowLeft, AlertTriangle, FileText, 
+  Type, Layout, Globe, Save, Link as LinkIcon, Clock, Check
 } from 'lucide-react';
 
 function ConfirmModal({ open, title, message, onConfirm, onCancel, danger = true }: {
@@ -82,11 +82,9 @@ export default function NewArticlePage() {
   const [form, setForm] = useState({
     title: '',
     body: '',
-    category: '',
-    tags: [] as string[],
+    category_id: '',
     status: 'published' as 'published' | 'draft',
   });
-  const [tagInput, setTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
@@ -113,7 +111,7 @@ export default function NewArticlePage() {
       setLastSaved(new Date());
     }, 2000);
     return () => clearTimeout(timer);
-  }, [form.title, form.body, form.category, form.tags]);
+  }, [form.title, form.body]);
 
   const applyTemplate = (templateId: string) => {
     const template = TEMPLATES.find(t => t.id === templateId);
@@ -139,28 +137,18 @@ export default function NewArticlePage() {
     return Math.max(1, Math.ceil(words / 200));
   }, [form.body]);
 
-  function addTag(tag: string) {
-    const t = tag.trim().toLowerCase();
-    if (t && !form.tags.includes(t)) {
-      setForm((f) => ({ ...f, tags: [...f.tags, t] }));
-    }
-    setTagInput('');
-  }
-
-  function removeTag(tag: string) {
-    setForm((f) => ({ ...f, tags: f.tags.filter((t) => t !== tag) }));
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { setError('Title is required'); return; }
     if (!form.body.trim()) { setError('Body is required'); return; }
-    if (!form.category) { setError('Category is required'); return; }
+    if (!form.category_id) { setError('Category is required'); return; }
 
     setLoading(true);
     setError('');
     try {
-      const res = await api.post<{ data: { id: string; slug: string } }>('/knowledge', form);
+      const { category_id, status } = form;
+      const payload = { title: form.title, body: form.body, category_id, status };
+      const res = await api.post<{ data: { id: string; slug: string } }>('/knowledge', payload);
       router.push(`/dashboard/knowledge/${res.data.slug}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create article');
@@ -168,7 +156,7 @@ export default function NewArticlePage() {
     }
   }
 
-  const isValid = form.title.trim() && form.body.trim() && form.category;
+  const isValid = form.title.trim() && form.body.trim() && form.category_id;
 
   return (
     <div style={{ flex: 1, overflow: 'auto', background: 'var(--background)' }}>
@@ -243,14 +231,14 @@ export default function NewArticlePage() {
                 Category <span style={{ color: 'var(--danger)' }}>*</span>
               </label>
               <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                value={form.category_id}
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
                 className="select"
                 style={{ height: 48, fontSize: 15 }}
               >
                 <option value="">Select a category</option>
                 {categories.map((cat) => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
             </div>
@@ -258,8 +246,8 @@ export default function NewArticlePage() {
             {/* Status */}
             <div style={{ background: 'var(--card)', padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
               <label style={labelStyle}>
-                <Send size={14} />
-                Visibility
+                <Globe size={14} />
+                Access
               </label>
               <select
                 value={form.status}
@@ -267,8 +255,8 @@ export default function NewArticlePage() {
                 className="select"
                 style={{ height: 48, fontSize: 15 }}
               >
-                <option value="published">Published (Visible to everyone)</option>
-                <option value="draft">Draft (Visible to agents only)</option>
+                <option value="published">All users — published</option>
+                <option value="draft">Agents &amp; admins — draft</option>
               </select>
             </div>
           </div>
@@ -291,73 +279,6 @@ export default function NewArticlePage() {
               placeholder="Write your article content here..."
               preview="live"
             />
-          </div>
-
-          {/* Attachments notice */}
-          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 'var(--radius)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Paperclip size={18} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Attachments</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>You can add attachments after creating the article.</div>
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div style={{ background: 'var(--card)', padding: 24, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-            <label style={labelStyle}>
-              <Tag size={14} />
-              Tags
-              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)', fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>Press Enter or comma to add</span>
-            </label>
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
-              padding: '12px 16px',
-              background: 'var(--background)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              minHeight: 56,
-              cursor: 'text',
-              transition: 'border-color 0.2s',
-            }}
-            onClick={() => document.getElementById('tag-input')?.focus()}
-            >
-              {form.tags.map((tag) => (
-                <span key={tag} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  fontSize: 13, padding: '4px 12px',
-                  background: 'var(--accent)', color: 'var(--background)',
-                  borderRadius: '99px', fontWeight: 600,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                }}>
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--background)', display: 'flex', padding: 0, opacity: 0.8 }}
-                  >
-                    <X size={14} />
-                  </button>
-                </span>
-              ))}
-              <input
-                id="tag-input"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); }
-                  if (e.key === ',') { e.preventDefault(); addTag(tagInput); }
-                  if (e.key === 'Backspace' && !tagInput && form.tags.length > 0) {
-                    removeTag(form.tags[form.tags.length - 1]);
-                  }
-                }}
-                placeholder={form.tags.length === 0 ? 'e.g. guide, tutorial, faq' : ''}
-                style={{
-                  border: 'none', outline: 'none', background: 'none',
-                  fontSize: 15, color: 'var(--foreground)', flex: 1, minWidth: 200,
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
           </div>
 
           {error && (

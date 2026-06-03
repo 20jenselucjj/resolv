@@ -8,7 +8,7 @@ import {
   Plus, Search, Book, Eye, ThumbsUp, ThumbsDown,
   Calendar, Tag, ChevronRight, Filter, X, Clock,
   LayoutGrid, List, ArrowUpDown, TrendingUp, Star,
-  FileText, SortAsc
+  FileText, SortAsc, Link2
 } from 'lucide-react';
 
 interface Article {
@@ -81,6 +81,16 @@ export default function KnowledgeBasePage() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleShare = (e: React.MouseEvent, articleId: string, slug: string) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/dashboard/knowledge/${slug}`;
+    navigator.clipboard.writeText(url).catch(() => {});
+    setCopiedId(articleId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(prev => prev ? prev : true);
@@ -442,27 +452,43 @@ export default function KnowledgeBasePage() {
                     </div>
                   )}
 
-                  {/* Stats footer */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    paddingTop: 10, borderTop: '1px solid var(--border-subtle)', marginTop: 2,
-                  }}>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <Eye size={12} />
-                        <span>{article.views}</span>
+                    {/* Stats footer */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      paddingTop: 10, borderTop: '1px solid var(--border-subtle)', marginTop: 2,
+                    }}>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                          <Eye size={12} />
+                          <span>{article.views}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                          <ThumbsUp size={11} color="var(--success)" />
+                          <span style={{ color: 'var(--success)', fontWeight: 600 }}>{article.helpful_count}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                          <ThumbsDown size={11} color="var(--danger)" />
+                          <span style={{ color: 'var(--danger)' }}>{article.not_helpful_count}</span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <ThumbsUp size={11} color="var(--success)" />
-                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>{article.helpful_count}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <ThumbsDown size={11} color="var(--danger)" />
-                        <span style={{ color: 'var(--danger)' }}>{article.not_helpful_count}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <button
+                          onClick={(e) => handleShare(e, article.id, article.slug)}
+                          title={copiedId === article.id ? 'Copied!' : 'Copy article link'}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            padding: 4, display: 'flex', alignItems: 'center',
+                            color: copiedId === article.id ? 'var(--success)' : 'var(--text-muted)',
+                            opacity: 0.6, transition: 'opacity 0.2s, color 0.2s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+                          onMouseLeave={e => { e.currentTarget.style.opacity = '0.6'; }}
+                        >
+                          <Link2 size={13} />
+                        </button>
+                        <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
                       </div>
                     </div>
-                    <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
-                  </div>
                 </div>
               ) : (
                 /* List Row */
@@ -543,6 +569,20 @@ export default function KnowledgeBasePage() {
                       <ThumbsUp size={11} color="var(--success)" />
                       <span style={{ color: 'var(--success)', fontWeight: 600 }}>{article.helpful_count}</span>
                     </div>
+                    <button
+                      onClick={(e) => handleShare(e, article.id, article.slug)}
+                      title={copiedId === article.id ? 'Copied!' : 'Copy article link'}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        padding: 4, display: 'flex', alignItems: 'center',
+                        color: copiedId === article.id ? 'var(--success)' : 'var(--text-muted)',
+                        opacity: 0.5, transition: 'opacity 0.2s, color 0.2s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+                      onMouseLeave={e => { e.currentTarget.style.opacity = '0.5'; }}
+                    >
+                      <Link2 size={12} />
+                    </button>
                     <ChevronRight size={14} style={{ opacity: 0.4 }} />
                   </div>
                 </div>
