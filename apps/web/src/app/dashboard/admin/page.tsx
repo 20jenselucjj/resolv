@@ -17,12 +17,12 @@ import {
 import { DirectorySyncTab } from './DirectorySyncTab';
 import { AITrainingTab } from './AITrainingTab';
 import {
-  OverviewTab, UsersTab, CategoriesTab, SLAPoliciesTab, EmailTemplatesTab,
+  OverviewTab, UsersTab, CategoriesTab, SLAPoliciesTab,
   SettingsTab, RolesTab, AutomationTab, WorkingHoursTab, AuditLogTab,
   IntegrationsTab, PortalCustomizationTab, AIConfigTab,
   TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
   NotificationSettingsTab, WorkflowTab, BackupRestoreTab,
-  EmailLogTab, EmailInboundTab, EmailTab,
+  EmailTab,
   TicketsTab, SlaHoursTab, AiTab
 } from './components';
 import { ConfirmModal, Alert, Modal } from './components/SharedUI';
@@ -94,11 +94,11 @@ export default function AdminPage() {
     { tab: 'overview', keywords: ['overview', 'dashboard', 'stats', 'statistics', 'summary', 'activity', 'monitor', 'health', 'kpi', 'metrics'] },
     { tab: 'users', keywords: ['users', 'user', 'invite', 'accounts', 'people', 'members', 'staff', 'deactivate', 'activate', 'password', 'reset', 'department', 'bulk'] },
     { tab: 'roles', keywords: ['roles', 'permissions', 'access', 'rbac', 'admin', 'agent', 'privileges', 'security', 'manage users', 'delete tickets', 'assign tickets'] },
-    { tab: 'directory-sync', keywords: ['directory sync', 'directory', 'sync', 'provision', 'google workspace', 'azure ad', 'okta', 'ldap', 'active directory', 'scim', 'user provisioning', 'sso', 'single sign-on', 'oauth', 'identity', 'login', 'auth'] },
+    { tab: 'directory-sync', keywords: ['directory sync', 'directory', 'sync', 'provision', 'google workspace', 'ldap', 'active directory', 'scim', 'user provisioning', 'sso', 'single sign-on', 'oauth', 'identity', 'login', 'auth'] },
     { tab: 'tickets', keywords: ['tickets', 'categories', 'category', 'ticket type', 'classification', 'routing', 'organize', 'color', 'workflow', 'transitions', 'status flow', 'ticket workflow', 'required fields', 'transition', 'ticket statuses', 'status labels', 'status names', 'progress text', 'open', 'in progress', 'waiting', 'closed', 'rename status'] },
     { tab: 'sla-hours', keywords: ['sla', 'service level', 'response time', 'resolution time', 'breach', 'priority', 'critical', 'high', 'medium', 'low', 'policies', 'working hours', 'business hours', 'schedule', 'timezone', 'calendar', 'open', 'closed', 'monday', 'friday', 'weekend', 'operating'] },
     { tab: 'automation', keywords: ['automation', 'rules', 'trigger', 'workflow', 'escalate', 'escalation', 'auto', 'routing', 'condition', 'action', 'notify'] },
-    { tab: 'email-templates', keywords: ['email', 'templates', 'template', 'notification', 'smtp', 'mail', 'subject', 'body', 'ticket created', 'ticket resolved', 'survey', 'auto reply', 'auto-reply', 'autoreply', 'automatic reply', 'reply rule', 'trigger reply', 'auto responder', 'auto-responder'] },
+    { tab: 'email', keywords: ['email', 'templates', 'template', 'notification', 'smtp', 'mail', 'subject', 'body', 'ticket created', 'ticket resolved', 'survey', 'auto reply', 'auto-reply', 'autoreply', 'automatic reply', 'reply rule', 'trigger reply', 'auto responder', 'auto-responder', 'inbound', 'gmail', 'email log', 'email history', 'sent email', 'received email', 'delivery', 'outbound', 'smtp log', 'email server', 'imap', 'email polling', 'email routing', 'email ticket', 'gmail inbox'] },
     { tab: 'portal-customization', keywords: ['portal', 'branding', 'hero', 'customize', 'customization', 'quick actions', 'company name', 'subtitle', 'end user', 'user portal'] },
     { tab: 'canned-responses', keywords: ['canned responses', 'canned', 'responses', 'quick replies', 'templates', 'reply templates', 'shortcuts'] },
     { tab: 'ai', keywords: ['ai', 'assistant', 'openai', 'gpt', 'model', 'temperature', 'tokens', 'api key', 'system prompt', 'provider', 'base url', 'allowed roles', 'ai training', 'training', 'knowledge', 'rag', 'retrieval', 'vector', 'embedding', 'chunks', 'qa pairs', 'q&a', 'sources', 'documents', 'ingest', 'semantic', 'hybrid', 'keyword', 'similarity', 'top k', 'chunk size', 'chunk overlap', 'citation', 'analytics', 'test', 'evaluate', 'rag settings', 'knowledge sources', 'ticket sync', 'kb sync'] },
@@ -110,8 +110,6 @@ export default function AdminPage() {
     { tab: 'audit-log', keywords: ['audit', 'log', 'history', 'trail', 'audit log', 'operations', 'changes', 'who', 'actor', 'events'] },
     { tab: 'notification-settings', keywords: ['notifications', 'notification settings', 'alerts', 'channels', 'email alerts', 'in-app', 'slack alerts', 'webhook alerts', 'notify'] },
     { tab: 'backup-restore', keywords: ['backup', 'restore', 'database backup', 'dump', 'disaster recovery', 'export', 'sql dump'] },
-    { tab: 'email-log', keywords: ['email log', 'email history', 'sent email', 'received email', 'delivery', 'outbound', 'inbound', 'smtp log'] },
-    { tab: 'email-inbound', keywords: ['inbound email', 'imap', 'email polling', 'email routing', 'email ticket', 'gmail inbox', 'ticket from email'] },
   ], []);
 
   // Smart search: find matching tabs from the deep index
@@ -149,9 +147,7 @@ export default function AdminPage() {
     {
       group: 'COMMUNICATION',
       items: [
-        { id: 'email-templates', label: 'Email', icon: <Mail size={15} /> },
-        { id: 'email-inbound', label: 'Inbound Email', icon: <Mail size={15} /> },
-        { id: 'email-log', label: 'Email Log', icon: <Mail size={15} /> },
+        { id: 'email', label: 'Email', icon: <Mail size={15} /> },
         { id: 'notification-settings', label: 'Notification Settings', icon: <Bell size={15} /> },
         { id: 'portal-customization', label: 'Portal', icon: <LayoutGrid size={15} /> },
         { id: 'canned-responses', label: 'Canned Responses', icon: <Book size={15} /> },
@@ -210,9 +206,7 @@ export default function AdminPage() {
       case 'tickets': return 'Configure ticket categories, workflow transitions, and status labels';
       case 'sla-hours': return 'Set Service Level Agreement targets, business hours, and holiday calendars';
       case 'automation': return 'Create workflow triggers, automated actions, and conditions';
-      case 'email-templates': return 'Manage notification templates and automatic reply rules';
-      case 'email-inbound': return 'Configure Gmail API inbound email processing and parsing rules';
-      case 'email-log': return 'Search and audit all incoming and outgoing email messages';
+      case 'email': return 'Configure outbound email, inbound email, templates, auto replies, and view email logs';
       case 'ai': return 'Configure the AI assistant and manage knowledge training sources';
       default: return 'Manage system configuration and administrative policies';
     }
@@ -486,7 +480,7 @@ export default function AdminPage() {
               onRefresh={() => loadTabData('sla-hours')}
             />
           )}
-          {activeTab === 'email-templates' && (
+          {activeTab === 'email' && (
             <EmailTab showAlert={showAlert} setConfirmModal={setConfirmModal} />
           )}
           {activeTab === 'settings' && (
@@ -536,8 +530,7 @@ export default function AdminPage() {
           )}
           {activeTab === 'notification-settings' && <NotificationSettingsTab showAlert={showAlert} />}
           {activeTab === 'backup-restore' && <BackupRestoreTab showAlert={showAlert} />}
-          {activeTab === 'email-log' && <EmailLogTab showAlert={showAlert} />}
-          {activeTab === 'email-inbound' && <EmailInboundTab showAlert={showAlert} />}
+          
         </div>
       </div>
 

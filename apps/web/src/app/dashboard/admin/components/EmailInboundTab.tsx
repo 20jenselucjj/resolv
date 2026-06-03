@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Mail, Save, ChevronDown, X, CheckCircle, Circle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Mail, Save, ChevronDown, X, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface InboundConfig {
@@ -16,6 +16,7 @@ interface InboundConfig {
   default_priority: string;
   default_type: string;
   default_status: string;
+  auto_reopen_on_reply: string;
 }
 
 interface TicketTypeDefault {
@@ -41,6 +42,7 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
     default_priority: 'medium',
     default_type: 'incident',
     default_status: 'open',
+    auto_reopen_on_reply: 'false',
   });
   const [typeDefaults, setTypeDefaults] = useState<Record<string, TicketTypeDefault>>({});
   const [savingTypeDefaults, setSavingTypeDefaults] = useState(false);
@@ -50,7 +52,7 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
   const [testing, setTesting] = useState(false);
   const [emailDropdownOpen, setEmailDropdownOpen] = useState(false);
   const emailDropdownRef = useRef<HTMLDivElement>(null);
-  const [setupExpanded, setSetupExpanded] = useState(true);
+
 
   useEffect(() => {
     Promise.all([
@@ -81,6 +83,7 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
             default_priority: parsingRes.data.default_priority ?? prev.default_priority,
             default_type: parsingRes.data.default_type ?? prev.default_type,
             default_status: parsingRes.data.default_status ?? prev.default_status,
+            auto_reopen_on_reply: parsingRes.data.auto_reopen_on_reply !== undefined ? String(parsingRes.data.auto_reopen_on_reply) : prev.auto_reopen_on_reply,
           }));
         }
         if (typeDefaultsRes.data) {
@@ -133,6 +136,7 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
         default_priority: config.default_priority,
         default_type: config.default_type,
         default_status: config.default_status,
+        auto_reopen_on_reply: config.auto_reopen_on_reply === 'true',
       };
       await api.post('/admin/email/inbound/parsing', parsingPayload);
 
@@ -184,90 +188,10 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
     boxSizing: 'border-box',
   };
 
-  // Compute setup readiness
-  const isOauthConnected = gmailStatus?.connected === true;
-  const isEnabled = config.enabled === 'true';
-  const hasAddress = config.inbound_email_address.trim().length > 0;
-  const canCreateTickets = config.ticket_creation_enabled === 'true';
-  const isReady = isOauthConnected && isEnabled && canCreateTickets;
-  const steps = [
-    { label: 'Gmail OAuth Connected', done: isOauthConnected, hint: 'Connect via Directory Sync tab' },
-    { label: 'Inbound Processing Enabled', done: isEnabled, hint: 'Toggle to enable email polling' },
-    { label: 'Ticket Creation Enabled', done: canCreateTickets, hint: 'Turn on in Email Processing Rules below' },
-    { label: 'Inbound Email Address Set' + (hasAddress ? ` (${config.inbound_email_address})` : ''), done: hasAddress, hint: 'Filter emails to a specific address (optional but recommended)' },
-  ];
-
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Setup Status Card — collapsible */}
-      <div className="card" style={{ padding: 16 }}>
-        <div
-          role="button"
-          tabIndex={0}
-          aria-expanded={setupExpanded}
-          aria-label={setupExpanded ? 'Collapse setup steps' : 'Expand setup steps'}
-          onClick={() => setSetupExpanded(!setupExpanded)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSetupExpanded(!setupExpanded); } }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', outline: 'none',
-          }}
-        >
-          {isReady ? (
-            <CheckCircle size={18} color="var(--success)" />
-          ) : (
-            <AlertTriangle size={18} color="var(--warning)" />
-          )}
-          <div style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0 }}>Setup Progress</div>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-            {steps.filter(s => s.done).length}/{steps.length} steps done
-          </span>
-          <ChevronDown
-            size={14}
-            style={{
-              color: 'var(--text-muted)',
-              transition: 'transform 0.2s',
-              transform: setupExpanded ? 'rotate(180deg)' : 'none',
-              flexShrink: 0,
-            }}
-          />
-        </div>
-        <div style={{
-          maxHeight: setupExpanded ? '800px' : '0',
-          overflow: 'hidden',
-          transition: 'max-height 0.4s ease, opacity 0.3s ease',
-          opacity: setupExpanded ? 1 : 0,
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
-            {steps.map((step, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '6px 10px', borderRadius: 'var(--radius-md)',
-                background: step.done ? 'rgba(34, 197, 94, 0.06)' : 'var(--bg-secondary)',
-                border: `1px solid ${step.done ? 'rgba(34, 197, 94, 0.2)' : 'var(--border-subtle)'}`,
-              }}>
-                {step.done ? (
-                  <CheckCircle size={15} color="var(--success)" />
-                ) : (
-                  <Circle size={15} color="var(--text-muted)" />
-                )}
-                <span style={{
-                  fontSize: 13, fontWeight: 500,
-                  color: step.done ? 'var(--text)' : 'var(--text-secondary)',
-                  textDecoration: step.done ? 'none' : undefined,
-                }}>
-                  {step.label}
-                </span>
-                {!step.done && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{step.hint}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Gmail API Connection */}
       <div className="card" style={{ padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
@@ -444,6 +368,28 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
                 width: 20, height: 20, borderRadius: '50%', background: 'var(--text-inverse)',
                 position: 'absolute', top: 3,
                 left: config.reply_enabled === 'true' ? 25 : 3,
+                transition: 'left 0.2s ease',
+              }} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Auto-reopen closed tickets on reply</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>When the reporter replies to a closed/resolved ticket (via email or portal), automatically reopen it</div>
+            </div>
+            <button
+              onClick={() => update('auto_reopen_on_reply', config.auto_reopen_on_reply === 'true' ? 'false' : 'true')}
+              style={{
+                width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', flexShrink: 0,
+                background: config.auto_reopen_on_reply === 'true' ? 'var(--accent)' : 'var(--bg-tertiary)',
+                position: 'relative', transition: 'background 0.2s',
+              }}
+            >
+              <div style={{
+                width: 20, height: 20, borderRadius: '50%', background: 'var(--text-inverse)',
+                position: 'absolute', top: 3,
+                left: config.auto_reopen_on_reply === 'true' ? 25 : 3,
                 transition: 'left 0.2s ease',
               }} />
             </button>

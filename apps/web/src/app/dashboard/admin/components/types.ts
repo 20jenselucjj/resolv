@@ -114,6 +114,64 @@ export interface AIConfig {
   system_prompt: string;
   allowed_roles: string[];
   max_messages_per_day: number;
+  // Portal AI (self-service)
+  portal_enabled: boolean;
+  portal_model: string;
+  portal_temperature: number;
+  portal_max_tokens: number;
+  portal_system_prompt: string;
+  portal_allowed_roles: string[];
+  portal_tools?: {
+    getTicketDetails: boolean;
+    createTickets: boolean;
+    getMyTickets: boolean;
+    searchKnowledge: boolean;
+  };
+  portal_behavior?: {
+    responseLength: 'short' | 'medium' | 'long';
+    includeCitations: boolean;
+    includeSources: boolean;
+    fallbackToWeb: boolean;
+    maxCitations: number;
+  };
+  // Tool toggles
+  tools?: {
+    searchTickets: boolean;
+    createTickets: boolean;
+    getTicketDetails: boolean;
+    getMyTickets: boolean;
+    searchKnowledge: boolean;
+    getStats: boolean;
+  };
+  // Behavior settings
+  behavior?: {
+    responseLength: 'short' | 'medium' | 'long';
+    includeCitations: boolean;
+    includeSources: boolean;
+    fallbackToWeb: boolean;
+    maxCitations: number;
+  };
+  // Legacy rules (flat text array — replaced by guidelines)
+  rules?: string[];
+  // Structured behavioral guidelines
+  guidelines?: {
+    agent: AiGuidelinesSection;
+    portal: AiGuidelinesSection;
+  };
+}
+
+export interface AiGuidelinesSection {
+  ticketLookup: string;
+  autonomousExecution?: string;
+  conversationalTone: string;
+  ticketCreationWorkflow: string;
+  priorityGuidelines: string;
+  ticketTypeGuidelines: string;
+  categoryGuidelines: string;
+  ticketEditingWorkflow?: string;
+  commentWorkflow: string;
+  enumRule?: string;
+  hallucinationGuard?: string;
 }
 
 export interface TimeSeriesPoint {

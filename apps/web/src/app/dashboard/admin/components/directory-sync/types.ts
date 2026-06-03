@@ -2,7 +2,7 @@
 
 // --- Types ---
 
-export type ProviderType = 'google_workspace' | 'azure_ad' | 'okta';
+export type ProviderType = 'google_workspace';
 
 export interface FieldMapping {
   email: string;

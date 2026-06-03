@@ -1,6 +1,6 @@
 'use client';
 
-import { Globe, Settings, Key, Shield, ShieldCheck, AlertTriangle, Info, RefreshCw, Search, Zap, HardDrive } from 'lucide-react';
+import { Globe, Settings, Key, AlertTriangle, Info, RefreshCw, Search, Zap, HardDrive } from 'lucide-react';
 import type { DirectorySyncConfig, FieldMapping } from './types';
 import { InputField } from './InputField';
 import { ToggleSwitch } from './ToggleSwitch';
@@ -40,45 +40,22 @@ export function ProviderAndSyncConfig({
               Provider Type
               <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>
             </label>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {([
-                { value: 'google_workspace', label: 'Google Workspace', icon: Globe },
-                { value: 'azure_ad', label: 'Azure AD', icon: Shield },
-                { value: 'okta', label: 'Okta', icon: ShieldCheck },
-              ] as const).map(({ value, label, icon: Icon }) => {
-                const isCurrentProvider = config.provider === value;
-                const isLocked = value === 'google_workspace' && oauthConnected && isCurrentProvider;
-                return (
-                  <button
-                    key={value}
-                    onClick={() => setConfig(prev => ({ ...prev, provider: value }))}
-                    disabled={isLocked}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '7px',
-                      padding: '9px 18px', borderRadius: 'var(--radius-full)',
-                      border: `1.5px solid ${isCurrentProvider ? 'var(--accent)' : 'var(--border)'}`,
-                      background: isCurrentProvider ? 'var(--accent-subtle)' : 'transparent',
-                      color: isCurrentProvider ? 'var(--accent)' : 'var(--text-secondary)',
-                      cursor: isLocked ? 'not-allowed' : 'pointer',
-                      fontSize: 13, fontWeight: isCurrentProvider ? 600 : 500,
-                      opacity: isLocked ? 0.6 : 1,
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <Icon size={15} />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-            {config.provider === 'google_workspace' && oauthConnected && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <Info size={12} color="var(--text-muted)" />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Provider is locked to Google Workspace while OAuth is connected. Disconnect to switch.
-                </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '7px',
+                padding: '9px 18px', borderRadius: 'var(--radius-full)',
+                border: '1.5px solid var(--accent)',
+                background: 'var(--accent-subtle)',
+                color: 'var(--accent)',
+                fontSize: 13, fontWeight: 600,
+              }}>
+                <Globe size={15} />
+                Google Workspace
               </div>
-            )}
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Your only configured directory provider
+              </span>
+            </div>
           </div>
 
           {/* Credentials */}
@@ -93,9 +70,7 @@ export function ProviderAndSyncConfig({
               onChange={val => setConfig(prev => ({ ...prev, clientId: val }))}
               placeholder="123456789-xxxxx.apps.googleusercontent.com"
               icon={<Key size={14} />}
-              hint={config.provider === 'google_workspace'
-                ? 'From Google Cloud Console \u2192 APIs & Services \u2192 Credentials. Create an OAuth 2.0 Web Client ID.'
-                : 'The OAuth client ID provided by your identity provider.'}
+              hint="From Google Cloud Console \u2192 APIs & Services \u2192 Credentials. Create an OAuth 2.0 Web Client ID."
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Secret</label>
@@ -139,23 +114,12 @@ export function ProviderAndSyncConfig({
             </div>
           )}
 
-          {/* Tenant ID (Azure AD only) */}
-          <InputField
-            label="Tenant ID"
-            value={config.tenantId}
-            onChange={val => setConfig(prev => ({ ...prev, tenantId: val }))}
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            hidden={config.provider !== 'azure_ad'}
-            icon={<Shield size={14} />}
-          />
-
-          {/* Domain (Google Workspace only) */}
+          {/* Domain */}
           <InputField
             label="Domain"
             value={config.domain}
             onChange={val => setConfig(prev => ({ ...prev, domain: val }))}
             placeholder="e.g. company.com"
-            hidden={config.provider !== 'google_workspace'}
             icon={<Globe size={14} />}
             hint="Your Google Workspace domain name (e.g. your-company.com)"
           />

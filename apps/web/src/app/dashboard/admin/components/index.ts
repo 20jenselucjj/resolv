@@ -25,3 +25,4 @@ export { SlaHoursTab } from './SlaHoursTab';
 export { AiTab } from './AiTab';
 export { EmailLogTab } from './EmailLogTab';
 export { EmailInboundTab } from './EmailInboundTab';
+export { SmtpConfig } from './SmtpConfig';
