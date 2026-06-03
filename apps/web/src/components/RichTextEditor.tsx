@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import MDEditor, { commands } from '@uiw/react-md-editor';
 import { API_BASE } from '@/lib/api';
+import { useStore } from '@/lib/store';
 import { Loader2, Image as ImageIcon, UploadCloud, X } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -21,6 +22,7 @@ export function RichTextEditor({
   preview = 'live',
   allowImageUpload = true
 }: RichTextEditorProps) {
+  const { theme } = useStore();
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
@@ -162,7 +164,7 @@ export function RichTextEditor({
     <div
       ref={containerRef}
       style={{ position: 'relative', minHeight: height }}
-      data-color-mode="light"
+      data-color-mode={theme}
     >
       {/* Drag-over overlay ΓÇö rendered above the editor */}
       {dragOver && (

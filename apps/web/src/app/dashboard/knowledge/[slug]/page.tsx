@@ -268,7 +268,7 @@ export default function ArticleDetailPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('resolv_token') || localStorage.getItem('token')) : null;
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
       const res = await fetch(`${apiBase}/knowledge/${article.id}/attachments`, {
         method: 'POST',

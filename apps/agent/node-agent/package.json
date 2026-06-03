@@ -7,7 +7,7 @@
     "start": "node agent.js",
     "bundle-nssm": "node scripts/bundle-nssm.js",
     "build": "node scripts/bundle-nssm.js && pkg agent.js --targets node18-win-x64 --output dist/ResolvAgent.exe",
-    "postbuild": "node ../../scripts/copy-agent-exe.js"
+    "postbuild": "node ../../../scripts/copy-agent-exe.js"
   },
   "bin": "agent.js",
   "dependencies": {

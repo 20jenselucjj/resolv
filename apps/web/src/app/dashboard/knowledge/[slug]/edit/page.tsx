@@ -111,7 +111,7 @@ export default function EditArticlePage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('resolv_token') || localStorage.getItem('token')) : null;
       const res = await fetch(`${API_BASE}/knowledge/${articleId}/attachments`, {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
