@@ -109,13 +109,34 @@ async function refreshToken(): Promise<string> {
 
 /**
  * Extract ticket number from email subject.
- * Looks for patterns like: #1234, Ticket #1234, [Ticket #1234], Re: Ticket #1234
+ * Handles formats like:
+ *   #1234, Ticket #1234, [Ticket #1234], Re: Ticket #1234,
+ *   Incident #1234, [Incident #1234], SR #1234,
+ *   Your ticket #1234 has been created, etc.
  */
 function extractTicketNumber(subject: string): number | null {
-  const match = subject.match(/#(\d+)/);
-  if (!match) return null;
-  const num = parseInt(match[1]);
-  return isNaN(num) ? null : num;
+  // Strategy 1: Look for "Ticket #NNN", "Incident #NNN", "SR #NNN", etc.
+  const labeledMatch = subject.match(/(?:ticket|incident|problem|change|service\s*request|SR)\s*#(\d+)/i);
+  if (labeledMatch) {
+    const num = parseInt(labeledMatch[1]);
+    if (!isNaN(num)) return num;
+  }
+
+  // Strategy 2: Look for [#NNN] pattern (bracketed)
+  const bracketMatch = subject.match(/\[#(\d+)\]/);
+  if (bracketMatch) {
+    const num = parseInt(bracketMatch[1]);
+    if (!isNaN(num)) return num;
+  }
+
+  // Strategy 3: Look for any #NNNNN (at least 2 digits to avoid false positives)
+  const hashMatch = subject.match(/#(\d{2,})/);
+  if (hashMatch) {
+    const num = parseInt(hashMatch[1]);
+    if (!isNaN(num)) return num;
+  }
+
+  return null;
 }
 
 /**
@@ -342,7 +363,11 @@ async function createTicketFromEmail(fromEmail: string, fromName: string, subjec
     return;
   }
 
-  const ticketSubject = subject.replace(/^(Re|Fwd?|AW|WG):\s*/i, '').trim().substring(0, 500) || 'New email request';
+  const ticketSubject = subject
+    .replace(/^(Re|Fwd?|AW|WG):\s*/i, '')
+    .replace(/\[#\d+\]/g, '')
+    .trim()
+    .substring(0, 500) || 'New email request';
 
   // ── Detect priority from subject keywords ──────────────────────────
   let detectedPriority = routing.priority || config.defaultPriority || 'medium';

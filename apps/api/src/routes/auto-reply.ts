@@ -4,6 +4,32 @@ import { pool } from '../db/pool';
 import { interpolate } from '../services/email-template-engine';
 import { sendCustomEmail } from '../services/outbound-email';
 
+// ─── Email variable helpers ─────────────────────────────────────────────────
+function fmtPriority(p: string): string {
+  const map: Record<string, string> = { low: 'P4 - Low', medium: 'P3 - Medium', high: 'P2 - High', critical: 'P1 - Critical' };
+  return map[p] || p;
+}
+function fmtStatus(s: string): string {
+  const map: Record<string, string> = { open: 'Open', in_progress: 'In Progress', waiting: 'Waiting on User', resolved: 'Resolved', closed: 'Closed' };
+  return map[s] || s;
+}
+function fmtType(t: string): string {
+  const map: Record<string, string> = { incident: 'Incident', service_request: 'Service Request', problem: 'Problem', change: 'Change Request' };
+  return map[t] || t;
+}
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return 'None';
+  try { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }); } catch { return d; }
+}
+function priorityColor(p: string): string {
+  const map: Record<string, string> = { low: '#6b7280', medium: '#2563eb', high: '#f59e0b', critical: '#dc2626' };
+  return map[p] || '#6b7280';
+}
+function statusColor(s: string): string {
+  const map: Record<string, string> = { open: '#2563eb', in_progress: '#7c3aed', waiting: '#f59e0b', resolved: '#059669', closed: '#6b7280' };
+  return map[s] || '#6b7280';
+}
+
 const createRuleSchema = z.object({
   name: z.string().min(1).max(255),
   enabled: z.boolean().default(true),
@@ -200,14 +226,39 @@ export async function triggerAutoReplies(
       }
 
       // Build template variables
+      // Look up additional ticket fields for email templates
+      let ticketFull: any = null;
+      try {
+        const tResult = await pool.query('SELECT created_at, due_date, category_id, description FROM tickets WHERE id = $1', [ticket.id]);
+        if (tResult.rows.length > 0) ticketFull = tResult.rows[0];
+      } catch { /* optional */ }
+
+      let arCategoryName = 'None';
+      if (ticketFull?.category_id) {
+        try {
+          const c = await pool.query('SELECT name FROM categories WHERE id = $1', [ticketFull.category_id]);
+          if (c.rows.length > 0) arCategoryName = c.rows[0].name;
+        } catch { /* optional */ }
+      }
+
       const variables = {
         ticket_id: ticket.number,
         ticket_title: ticket.title,
         user_name: requester.name,
         agent_name: assignee?.name || 'Support Team',
         ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}`,
-        priority: ticket.priority,
-        status: ticket.status,
+        priority: fmtPriority(ticket.priority),
+        status: fmtStatus(ticket.status),
+        requestor_name: requester.name,
+        requestor_email: requester.email,
+        assigned_to_name: assignee?.name || 'Unassigned',
+        created_at: fmtDate(ticketFull?.created_at),
+        due_date: fmtDate(ticketFull?.due_date),
+        category: arCategoryName,
+        ticket_type: fmtType(ticket.ticket_type),
+        description: ticket.description || '',
+        priority_color: priorityColor(ticket.priority),
+        status_color: statusColor(ticket.status),
       };
 
       const subject = interpolate(rule.reply_subject, variables);

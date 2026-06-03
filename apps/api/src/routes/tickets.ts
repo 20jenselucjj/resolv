@@ -8,6 +8,32 @@ import type { EmailAttachment } from '../services/outbound-email';
 import { triggerAutoReplies } from './auto-reply';
 import fs from 'fs';
 
+// ─── Email variable helpers ─────────────────────────────────────────────────
+function fmtPriority(p: string): string {
+  const map: Record<string, string> = { low: 'P4 - Low', medium: 'P3 - Medium', high: 'P2 - High', critical: 'P1 - Critical' };
+  return map[p] || p;
+}
+function fmtStatus(s: string): string {
+  const map: Record<string, string> = { open: 'Open', in_progress: 'In Progress', waiting: 'Waiting on User', resolved: 'Resolved', closed: 'Closed' };
+  return map[s] || s;
+}
+function fmtType(t: string): string {
+  const map: Record<string, string> = { incident: 'Incident', service_request: 'Service Request', problem: 'Problem', change: 'Change Request' };
+  return map[t] || t;
+}
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return 'None';
+  try { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }); } catch { return d; }
+}
+function priorityColor(p: string): string {
+  const map: Record<string, string> = { low: '#6b7280', medium: '#2563eb', high: '#f59e0b', critical: '#dc2626' };
+  return map[p] || '#6b7280';
+}
+function statusColor(s: string): string {
+  const map: Record<string, string> = { open: '#2563eb', in_progress: '#7c3aed', waiting: '#f59e0b', resolved: '#059669', closed: '#6b7280' };
+  return map[s] || '#6b7280';
+}
+
 const createTicketSchema = z.object({
   title: z.string().min(3).max(500),
   description: z.string().default(''),
@@ -265,12 +291,45 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       // Fire-and-forget email notifications
       const webUrl = process.env.WEB_URL || 'http://localhost:3000';
 
+      // Look up assignee name and category name for email
+      let assigneeName = 'Unassigned';
+      let categoryName = 'None';
+      if (ticket.assigned_to_id) {
+        const assigneeResult = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.assigned_to_id]);
+        if (assigneeResult.rows.length > 0) assigneeName = assigneeResult.rows[0].name;
+      }
+      try {
+        if (ticket.category_id) {
+          const catResult = await pool.query('SELECT name FROM categories WHERE id = $1', [ticket.category_id]);
+          if (catResult.rows.length > 0) categoryName = catResult.rows[0].name;
+        }
+      } catch { /* categories table may not exist */ }
+
+      const emailVars = {
+        ticket_id: ticket.number,
+        ticket_title: ticket.title,
+        user_name: request.user.name,
+        ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}`,
+        priority: fmtPriority(ticket.priority),
+        status: fmtStatus(ticket.status),
+        requestor_name: request.user.name,
+        requestor_email: request.user.email,
+        assigned_to_name: assigneeName,
+        created_at: fmtDate(ticket.created_at),
+        due_date: fmtDate(ticket.due_date),
+        category: categoryName,
+        ticket_type: fmtType(ticket.ticket_type),
+        description: ticket.description || '',
+        priority_color: priorityColor(ticket.priority),
+        status_color: statusColor(ticket.status),
+      };
+
       // Notify ticket creator
       sendTemplateEmail(
         request.user.email,
         request.user.name,
         'Ticket Created',
-        { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` },
+        emailVars,
         ticket.id
       ).catch(() => {});
 
@@ -285,7 +344,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               agent.email,
               agent.name,
               'Ticket Created',
-              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` },
+              { ...emailVars, user_name: agent.name },
               ticket.id
             ).catch(() => {});
           }
@@ -448,6 +507,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         (updated as any).closed_by_name = request.user.name;
       }
 
+      const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+
       // Emit real-time event
       fastify.io.emit(`ticket:updated:${id}`, { ticket: updated });
       fastify.io.emit('ticket:updated', { ticket: updated });
@@ -459,9 +520,20 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       // Fire-and-forget: email notification on resolution (only if explicitly requested)
       if (body.status === 'resolved' && body.send_email !== false) {
-        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
         const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [updated.created_by_id]);
         if (creatorResult.rows.length > 0) {
+          let resolvedAssigneeName = 'Unassigned';
+          let resolvedCategoryName = 'None';
+          if (updated.assigned_to_id) {
+            const a = await pool.query('SELECT name FROM users WHERE id = $1', [updated.assigned_to_id]);
+            if (a.rows.length > 0) resolvedAssigneeName = a.rows[0].name;
+          }
+          try {
+            if (updated.category_id) {
+              const c = await pool.query('SELECT name FROM categories WHERE id = $1', [updated.category_id]);
+              if (c.rows.length > 0) resolvedCategoryName = c.rows[0].name;
+            }
+          } catch { /* categories table may not exist */ }
           sendTemplateEmail(
             creatorResult.rows[0].email,
             creatorResult.rows[0].name,
@@ -472,6 +544,16 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               user_name: creatorResult.rows[0].name,
               close_notes: updated.close_notes || 'Your ticket has been resolved.',
               ticket_url: `${webUrl}/dashboard/tickets/${id}`,
+              priority: fmtPriority(updated.priority),
+              status: fmtStatus(updated.status),
+              requestor_name: creatorResult.rows[0].name,
+              assigned_to_name: resolvedAssigneeName,
+              created_at: fmtDate(updated.created_at),
+              due_date: fmtDate(updated.due_date),
+              category: resolvedCategoryName,
+              ticket_type: fmtType(updated.ticket_type),
+              priority_color: priorityColor(updated.priority),
+              status_color: statusColor(updated.status),
             },
             id
           ).catch(() => {});
@@ -480,9 +562,20 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       // Fire-and-forget: email notification on close (only if explicitly requested)
       if (body.status === 'closed' && body.send_email !== false) {
-        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
         const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [updated.created_by_id]);
         if (creatorResult.rows.length > 0) {
+          let closedAssigneeName = 'Unassigned';
+          let closedCategoryName = 'None';
+          if (updated.assigned_to_id) {
+            const a = await pool.query('SELECT name FROM users WHERE id = $1', [updated.assigned_to_id]);
+            if (a.rows.length > 0) closedAssigneeName = a.rows[0].name;
+          }
+          try {
+            if (updated.category_id) {
+              const c = await pool.query('SELECT name FROM categories WHERE id = $1', [updated.category_id]);
+              if (c.rows.length > 0) closedCategoryName = c.rows[0].name;
+            }
+          } catch { /* categories table may not exist */ }
           sendTemplateEmail(
             creatorResult.rows[0].email,
             creatorResult.rows[0].name,
@@ -494,6 +587,15 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               close_notes: updated.close_notes || 'Your ticket has been closed.',
               ticket_url: `${webUrl}/dashboard/tickets/${id}`,
               status: 'closed',
+              priority: fmtPriority(updated.priority),
+              requestor_name: creatorResult.rows[0].name,
+              assigned_to_name: closedAssigneeName,
+              created_at: fmtDate(updated.created_at),
+              due_date: fmtDate(updated.due_date),
+              category: closedCategoryName,
+              ticket_type: fmtType(updated.ticket_type),
+              priority_color: priorityColor(updated.priority),
+              status_color: statusColor('closed'),
             },
             id
           ).catch(() => {});
@@ -502,9 +604,16 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       // Fire-and-forget: email notification on assignment change
       if (body.assigned_to_id && body.assigned_to_id !== ticket.assigned_to_id && body.assigned_to_id !== request.user.id && body.send_email !== false) {
-        const webUrl = process.env.WEB_URL || 'http://localhost:3000';
         const assigneeResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [body.assigned_to_id]);
         if (assigneeResult.rows.length > 0) {
+          const creatorForAssign = await pool.query('SELECT name FROM users WHERE id = $1', [updated.created_by_id]);
+          let assignCategoryName = 'None';
+          try {
+            if (updated.category_id) {
+              const c = await pool.query('SELECT name FROM categories WHERE id = $1', [updated.category_id]);
+              if (c.rows.length > 0) assignCategoryName = c.rows[0].name;
+            }
+          } catch { /* categories table may not exist */ }
           sendTemplateEmail(
             assigneeResult.rows[0].email,
             assigneeResult.rows[0].name,
@@ -515,6 +624,16 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               user_name: assigneeResult.rows[0].name,
               agent_name: assigneeResult.rows[0].name,
               ticket_url: `${webUrl}/dashboard/tickets/${id}`,
+              priority: fmtPriority(updated.priority),
+              status: fmtStatus(updated.status),
+              requestor_name: creatorForAssign.rows[0]?.name || 'Unknown',
+              assigned_to_name: assigneeResult.rows[0].name,
+              created_at: fmtDate(updated.created_at),
+              due_date: fmtDate(updated.due_date),
+              category: assignCategoryName,
+              ticket_type: fmtType(updated.ticket_type),
+              priority_color: priorityColor(updated.priority),
+              status_color: statusColor(updated.status),
             },
             id
           ).catch(() => {});
@@ -654,7 +773,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       };
 
       // Get ticket info for notification
-      const ticketResult = await client.query('SELECT number, title, created_by_id, assigned_to_id, status FROM tickets WHERE id = $1', [id]);
+      const ticketResult = await client.query('SELECT number, title, created_by_id, assigned_to_id, status, priority, created_at, due_date, ticket_type, category_id FROM tickets WHERE id = $1', [id]);
       if (ticketResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Ticket not found' });
@@ -750,6 +869,38 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       if (!is_internal && body.send_email !== false) {
         const webUrl = process.env.WEB_URL || 'http://localhost:3000';
 
+        // Look up related names and category for email variables
+        const requestorRow = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.created_by_id]);
+        const requestorName = requestorRow.rows[0]?.name || 'Unknown';
+
+        let assigneeName = 'Unassigned';
+        if (ticket.assigned_to_id) {
+          const a = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.assigned_to_id]);
+          if (a.rows.length > 0) assigneeName = a.rows[0].name;
+        }
+
+        let categoryName = 'None';
+        if (ticket.category_id) {
+          try {
+            const c = await pool.query('SELECT name FROM categories WHERE id = $1', [ticket.category_id]);
+            if (c.rows.length > 0) categoryName = c.rows[0].name;
+          } catch { /* categories table may not exist */ }
+        }
+
+        const emailVars = {
+          ticket_id: ticket.number,
+          ticket_title: ticket.title,
+          ticket_url: `${webUrl}/dashboard/tickets/${id}`,
+          requestor_name: requestorName,
+          assigned_to_name: assigneeName,
+          created_at: fmtDate(ticket.created_at),
+          priority: fmtPriority(ticket.priority),
+          priority_color: priorityColor(ticket.priority),
+          status: fmtStatus(ticket.status),
+          status_color: statusColor(ticket.status),
+          comment_body: body.body,
+        };
+
         // Email the ticket creator (if they didn't make the comment)
         if (ticket.created_by_id !== request.user.id) {
           const creatorResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.created_by_id]);
@@ -758,7 +909,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               creatorResult.rows[0].email,
               creatorResult.rows[0].name,
               'Comment Added',
-              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: creatorResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` },
+              { ...emailVars, user_name: creatorResult.rows[0].name },
               id,
               commentAttachments.length > 0 ? commentAttachments : undefined
             ).catch(() => {});
@@ -773,7 +924,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               agentResult.rows[0].email,
               agentResult.rows[0].name,
               'Comment Added',
-              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: agentResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` },
+              { ...emailVars, user_name: agentResult.rows[0].name },
               id,
               commentAttachments.length > 0 ? commentAttachments : undefined
             ).catch(() => {});
