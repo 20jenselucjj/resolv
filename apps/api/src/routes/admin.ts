@@ -572,12 +572,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
   function getDefaultNotificationSettings() {
     return {
-      ticket_created: { email: true, in_app: true, slack: false, webhook: false },
-      ticket_assigned: { email: true, in_app: true, slack: false, webhook: false },
-      ticket_updated: { email: false, in_app: true, slack: false, webhook: false },
-      ticket_resolved: { email: true, in_app: true, slack: false, webhook: false },
-      sla_breach: { email: true, in_app: true, slack: true, webhook: true },
-      comment_added: { email: false, in_app: true, slack: false, webhook: false },
+      ticket_created: { email: true, in_app: true },
+      ticket_assigned: { email: true, in_app: true },
+      ticket_updated: { email: false, in_app: true },
+      ticket_resolved: { email: true, in_app: true },
+      sla_breach: { email: true, in_app: true },
+      comment_added: { email: false, in_app: true },
     };
   }
 
@@ -600,8 +600,6 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       settings: z.record(z.object({
         email: z.boolean(),
         in_app: z.boolean(),
-        slack: z.boolean(),
-        webhook: z.boolean(),
       })),
     }).parse(request.body);
 

@@ -189,8 +189,6 @@ export interface TimeSeriesData {
 export interface NotificationChannel {
   email: boolean;
   in_app: boolean;
-  slack: boolean;
-  webhook: boolean;
 }
 
 export interface NotificationSettings {

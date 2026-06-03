@@ -6,12 +6,12 @@ import { api } from '@/lib/api';
 import type { NotificationSettings } from './types';
 
 const DEFAULT_SETTINGS: NotificationSettings = {
-  ticket_created: { email: true, in_app: true, slack: false, webhook: false },
-  ticket_assigned: { email: true, in_app: true, slack: false, webhook: false },
-  ticket_updated: { email: false, in_app: true, slack: false, webhook: false },
-  ticket_resolved: { email: true, in_app: true, slack: false, webhook: false },
-  sla_breach: { email: true, in_app: true, slack: true, webhook: true },
-  comment_added: { email: false, in_app: true, slack: false, webhook: false },
+  ticket_created: { email: true, in_app: true },
+  ticket_assigned: { email: true, in_app: true },
+  ticket_updated: { email: false, in_app: true },
+  ticket_resolved: { email: true, in_app: true },
+  sla_breach: { email: true, in_app: true },
+  comment_added: { email: false, in_app: true },
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -23,7 +23,7 @@ const EVENT_LABELS: Record<string, string> = {
   comment_added: 'Comment Added',
 };
 
-const CHANNELS = ['email', 'in_app', 'slack', 'webhook'] as const;
+const CHANNELS = ['email', 'in_app'] as const;
 
 export function NotificationSettingsTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);

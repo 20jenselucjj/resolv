@@ -12,7 +12,7 @@ import {
   RefreshCw, RotateCcw, ChevronLeft, ChevronRight, Filter, Calendar,
   UserPlus, MoreVertical, Edit2, Trash2, Plus, Save,
   AlertTriangle, Hash, Trash, Play, Palette, User,
-  Shield, Monitor, Download, Bell, GitBranch
+  Shield, Monitor, Download, GitBranch
 } from 'lucide-react';
 import { DirectorySyncTab } from './DirectorySyncTab';
 import { AITrainingTab } from './AITrainingTab';
@@ -21,7 +21,7 @@ import {
   SettingsTab, RolesTab, AutomationTab, WorkingHoursTab, AuditLogTab,
   IntegrationsTab, PortalCustomizationTab, AIConfigTab,
   TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
-  NotificationSettingsTab, WorkflowTab, BackupRestoreTab,
+  WorkflowTab, BackupRestoreTab,
   EmailTab,
   TicketsTab, SlaHoursTab, AiTab
 } from './components';
@@ -103,12 +103,11 @@ export default function AdminPage() {
     { tab: 'canned-responses', keywords: ['canned responses', 'canned', 'responses', 'quick replies', 'templates', 'reply templates', 'shortcuts'] },
     { tab: 'ai', keywords: ['ai', 'assistant', 'openai', 'gpt', 'model', 'temperature', 'tokens', 'api key', 'system prompt', 'provider', 'base url', 'allowed roles', 'ai training', 'training', 'knowledge', 'rag', 'retrieval', 'vector', 'embedding', 'chunks', 'qa pairs', 'q&a', 'sources', 'documents', 'ingest', 'semantic', 'hybrid', 'keyword', 'similarity', 'top k', 'chunk size', 'chunk overlap', 'citation', 'analytics', 'test', 'evaluate', 'rag settings', 'knowledge sources', 'ticket sync', 'kb sync'] },
 
-    { tab: 'settings', keywords: ['settings', 'configuration', 'config', 'system', 'general', 'integrations key', 'variables', 'global'] },
     { tab: 'integrations', keywords: ['integrations', 'integration', 'slack', 'webhook', 'jira', 'teams', 'pagerduty', 'zapier', 'connect', 'third party', 'external'] },
     { tab: 'asset-groups', keywords: ['asset groups', 'groups', 'asset categories', 'asset classification', 'group color', 'organize assets'] },
     { tab: 'agent-settings', keywords: ['agent', 'agent settings', 'agent secret', 'deploy agent', 'download agent', 'agent key', 'agent deployment', 'gpo', 'silent install', 'agent installation', 'asset discovery', 'agent config'] },
     { tab: 'audit-log', keywords: ['audit', 'log', 'history', 'trail', 'audit log', 'operations', 'changes', 'who', 'actor', 'events'] },
-    { tab: 'notification-settings', keywords: ['notifications', 'notification settings', 'alerts', 'channels', 'email alerts', 'in-app', 'slack alerts', 'webhook alerts', 'notify'] },
+    { tab: 'settings', keywords: ['settings', 'configuration', 'config', 'system', 'general', 'integrations key', 'variables', 'global', 'notifications', 'notification settings', 'alerts', 'channels', 'email alerts', 'in-app', 'notify', 'events', 'triggers'] },
     { tab: 'backup-restore', keywords: ['backup', 'restore', 'database backup', 'dump', 'disaster recovery', 'export', 'sql dump'] },
   ], []);
 
@@ -148,7 +147,7 @@ export default function AdminPage() {
       group: 'COMMUNICATION',
       items: [
         { id: 'email', label: 'Email', icon: <Mail size={15} /> },
-        { id: 'notification-settings', label: 'Notification Settings', icon: <Bell size={15} /> },
+
         { id: 'portal-customization', label: 'Portal', icon: <LayoutGrid size={15} /> },
         { id: 'canned-responses', label: 'Canned Responses', icon: <Book size={15} /> },
       ]
@@ -528,7 +527,6 @@ export default function AdminPage() {
               entityTypes={entityTypes}
             />
           )}
-          {activeTab === 'notification-settings' && <NotificationSettingsTab showAlert={showAlert} />}
           {activeTab === 'backup-restore' && <BackupRestoreTab showAlert={showAlert} />}
           
         </div>
