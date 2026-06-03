@@ -45,7 +45,6 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
     auto_reopen_on_reply: 'false',
   });
   const [typeDefaults, setTypeDefaults] = useState<Record<string, TicketTypeDefault>>({});
-  const [savingTypeDefaults, setSavingTypeDefaults] = useState(false);
   const [gmailStatus, setGmailStatus] = useState<GmailStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -140,23 +139,14 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
       };
       await api.post('/admin/email/inbound/parsing', parsingPayload);
 
+      // Save ticket type due date defaults
+      await api.post('/admin/email/ticket-type-defaults', { ticket_type_defaults: typeDefaults });
+
       showAlert('Inbound email settings saved');
     } catch {
       showAlert('Failed to save settings', 'error');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSaveTypeDefaults = async () => {
-    setSavingTypeDefaults(true);
-    try {
-      await api.post('/admin/email/ticket-type-defaults', { ticket_type_defaults: typeDefaults });
-      showAlert('Ticket type defaults saved');
-    } catch {
-      showAlert('Failed to save ticket type defaults', 'error');
-    } finally {
-      setSavingTypeDefaults(false);
     }
   };
 
@@ -519,12 +509,6 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
                 </div>
               </div>
             ))}
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn btn-primary" onClick={handleSaveTypeDefaults} disabled={savingTypeDefaults} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-              <Save size={14} />
-              {savingTypeDefaults ? 'Saving...' : 'Save Due Dates'}
-            </button>
           </div>
         </div>
 
