@@ -39,7 +39,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     if (!user) {
       api.get<{ data: User }>('/auth/me')
-        .then((res) => setUser(res.data))
+        .then((res) => {
+          setUser(res.data);
+          if (res.data.passwordResetRequired) {
+            router.push('/force-password-change');
+          }
+        })
         .catch(() => router.push('/login'));
     }
   }, [mounted, token, user]);

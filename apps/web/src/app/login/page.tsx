@@ -141,7 +141,11 @@ function LoginForm() {
       api.get<{ data: User }>('/auth/me')
         .then(res => {
           setUser(res.data);
-          router.replace(res.data.role === 'user' ? '/dashboard/portal' : '/dashboard/tickets');
+          if (res.data.passwordResetRequired) {
+            router.replace('/force-password-change');
+          } else {
+            router.replace(res.data.role === 'user' ? '/dashboard/portal' : '/dashboard/tickets');
+          }
         })
         .catch(() => {
           setError('SSO login succeeded but failed to load profile. Please try again.');
@@ -187,7 +191,7 @@ function LoginForm() {
       if (emergencyKey) {
         loginPayload.emergency_key = emergencyKey;
       }
-      const res = await api.post<{ data: { user: User; token: string } }>(
+      const res = await api.post<{ data: { user: User; token: string; passwordResetRequired?: boolean } }>(
         mode === 'login' ? '/auth/login' : '/auth/register',
         mode === 'login' ? loginPayload : form
       );
@@ -200,7 +204,11 @@ function LoginForm() {
         localStorage.removeItem('resolv_remember_me');
         localStorage.removeItem('resolv_remembered_email');
       }
-      router.push(res.data.user.role === 'user' ? '/dashboard/portal' : '/dashboard/tickets');
+      if (res.data.passwordResetRequired) {
+        router.push('/force-password-change');
+      } else {
+        router.push(res.data.user.role === 'user' ? '/dashboard/portal' : '/dashboard/tickets');
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);

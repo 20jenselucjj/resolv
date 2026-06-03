@@ -10,6 +10,7 @@ export interface User {
   department?: string;
   phone?: string;
   is_active?: boolean;
+  passwordResetRequired?: boolean;
 }
 
 export interface Notification {

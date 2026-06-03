@@ -619,6 +619,11 @@ export default function TicketDetailPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>Ticket Closed</span>
+                            {(ticket as any).closed_by_name && (
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                by {(ticket as any).closed_by_name}
+                              </span>
+                            )}
                           </div>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                             {new Date(ticket.closed_at || ticket.updated_at).toLocaleString()}
