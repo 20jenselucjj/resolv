@@ -22,6 +22,9 @@ const emailSql = fs.readFileSync(path.join(__dirname, 'migrate_email.sql'), 'utf
 const ticketDefaultsSql = fs.readFileSync(path.join(__dirname, 'migrate_ticket_defaults.sql'), 'utf8');
 const autoReplySql = fs.readFileSync(path.join(__dirname, 'migrate_auto_reply.sql'), 'utf8');
 const aiConfigSql = fs.readFileSync(path.join(__dirname, 'migrate_ai_config.sql'), 'utf8');
+const aiGuidelinesSql = fs.readFileSync(path.join(__dirname, 'migrate_ai_guidelines.sql'), 'utf8');
+const portalToolsSql = fs.readFileSync(path.join(__dirname, 'migrate_portal_tools.sql'), 'utf8');
+const passwordResetSql = fs.readFileSync(path.join(__dirname, 'migrate_password_reset.sql'), 'utf8');
 
 async function run() {
   await pool.query(sql);
@@ -34,6 +37,12 @@ async function run() {
   console.log('Auto-reply migration applied');
   await pool.query(aiConfigSql);
   console.log('AI config migration applied');
+  await pool.query(aiGuidelinesSql);
+  console.log('AI guidelines migration applied');
+  await pool.query(portalToolsSql);
+  console.log('Portal tools migration applied');
+  await pool.query(passwordResetSql);
+  console.log('Password reset migration applied');
 }
 
 run()
