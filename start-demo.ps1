@@ -37,7 +37,7 @@ Start-Sleep -Seconds 3
 
 # Start Web
 Write-Host "  Starting Web server on port 3000..." -ForegroundColor Yellow
-$webProcess = Start-Process -FilePath "npx" -ArgumentList "next start" -WorkingDirectory $webDir -PassThru -WindowStyle Minimized
+$webProcess = Start-Process -FilePath "cmd" -ArgumentList "/c npx.cmd next start" -WorkingDirectory $webDir -PassThru -WindowStyle Minimized
 Start-Sleep -Seconds 5
 
 Write-Host ""
@@ -53,7 +53,7 @@ Write-Host "" -ForegroundColor Green
 Write-Host "  Press any key to stop both servers..." -ForegroundColor Yellow
 Write-Host "=====================================================" -ForegroundColor Green
 
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+$null = Read-Host "  Press Enter to stop both servers"
 
 Write-Host ""
 Write-Host "  Stopping servers..." -ForegroundColor Yellow
