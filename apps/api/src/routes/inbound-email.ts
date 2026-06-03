@@ -4,7 +4,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
-import { testSmtpConnection, invalidateTransporter, sendTemplateEmail, loadSmtpConfig } from '../services/outbound-email';
+import { invalidateTransporter, sendTemplateEmail } from '../services/outbound-email';
 import { startInboundListener, stopInboundListener, forcePoll, getGmailStatus } from '../services/inbound-email';
 
 export default async function inboundEmailRoutes(fastify: FastifyInstance) {
@@ -121,60 +121,14 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
     return reply.status(500).send({ error: result.error || 'Failed to resend' });
   });
 
-  // POST /admin/email/smtp/test ΓÇö Enhanced SMTP test
-  fastify.post('/admin/email/smtp/test', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
-    const body = z.object({
-      host: z.string().min(1),
-      port: z.number().int().min(1).max(65535).default(587),
-      secure: z.boolean().default(false),
-      user: z.string().optional(),
-      password: z.string().optional(),
-    }).parse(request.body);
-
-    const result = await testSmtpConnection(body);
-    return reply.send({ data: result });
-  });
-
   // POST /admin/email/smtp/save ΓÇö Save SMTP settings and invalidate cached transporter
   // This is already handled by the generic PATCH /admin/settings route,
   // but we provide an explicit endpoint for SMTP batch save + invalidation
   fastify.post('/admin/email/smtp/save', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
-    const body = z.object({
-      host: z.string().optional(),
-      port: z.string().optional(),
-      secure: z.string().optional(),
-      user: z.string().optional(),
-      password: z.string().optional(),
-      from_email: z.string().optional(),
-      from_name: z.string().optional(),
-    }).parse(request.body);
-
-    const keys = ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_password', 'smtp_from_email', 'smtp_from_name'];
-    const values: Record<string, string | undefined> = {
-      smtp_host: body.host,
-      smtp_port: body.port,
-      smtp_secure: body.secure,
-      smtp_user: body.user,
-      smtp_password: body.password,
-      smtp_from_email: body.from_email,
-      smtp_from_name: body.from_name,
-    };
-
-    for (const key of keys) {
-      if (values[key] !== undefined) {
-        await pool.query(
-          `INSERT INTO system_settings (key, value, updated_at, updated_by)
-           VALUES ($1, $2, NOW(), $3)
-           ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW(), updated_by = $3`,
-          [key, values[key] || '', request.user.id]
-        );
-      }
-    }
-
+    // No-op: outbound email is now configured via Google Workspace OAuth.
     invalidateTransporter();
     return reply.send({ success: true });
   });
-
   // GET /admin/email/inbound/config ΓÇö Get inbound email settings and Gmail connection status
   fastify.get('/admin/email/inbound/config', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     const result = await pool.query(
@@ -246,7 +200,7 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
     const result = await pool.query(
       "SELECT value FROM system_settings WHERE key = 'email_parsing_config'"
     );
-    let config = { require_known_sender: true, default_priority: 'medium', default_type: 'incident', default_status: 'open' };
+    let config = { require_known_sender: true, default_priority: 'medium', default_type: 'incident', default_status: 'open', auto_reopen_on_reply: false };
     if (result.rows.length > 0) {
       try {
         config = JSON.parse(result.rows[0].value);
@@ -265,13 +219,14 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
       domain_whitelist: z.array(z.string()).optional(),
       priority_keywords: z.record(z.array(z.string())).optional(),
       type_keywords: z.record(z.array(z.string())).optional(),
+      auto_reopen_on_reply: z.boolean().optional(),
     }).parse(request.body);
 
     // Read existing config
     const existing = await pool.query(
       "SELECT value FROM system_settings WHERE key = 'email_parsing_config'"
     );
-    let config: Record<string, any> = { require_known_sender: true, default_priority: 'medium', default_type: 'incident', default_status: 'open' };
+    let config: Record<string, any> = { require_known_sender: true, default_priority: 'medium', default_type: 'incident', default_status: 'open', auto_reopen_on_reply: false };
     if (existing.rows.length > 0) {
       try {
         config = JSON.parse(existing.rows[0].value);
@@ -286,6 +241,7 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
     if (body.domain_whitelist !== undefined) config.domain_whitelist = body.domain_whitelist;
     if (body.priority_keywords !== undefined) config.priority_keywords = body.priority_keywords;
     if (body.type_keywords !== undefined) config.type_keywords = body.type_keywords;
+    if (body.auto_reopen_on_reply !== undefined) config.auto_reopen_on_reply = body.auto_reopen_on_reply;
 
     await pool.query(
       `INSERT INTO system_settings (key, value, updated_at, updated_by)
@@ -336,17 +292,15 @@ export default async function inboundEmailRoutes(fastify: FastifyInstance) {
 
   // GET /admin/email/smtp/config ΓÇö Get SMTP config
   fastify.get('/admin/email/smtp/config', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
-    const config = await loadSmtpConfig();
+    const { loadOutboundOAuthConfig } = await import('../services/outbound-email');
+    const config = await loadOutboundOAuthConfig();
     return reply.send({
       data: config ? {
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        user: config.user,
-        from_email: config.fromEmail,
-        from_name: config.fromName,
-        // Never return password
-        password_set: !!config.password,
+        provider: config.provider,
+        connected: config.connected,
+        email: config.email,
+        tokenExpiresAt: config.tokenExpiresAt,
+        client_id_preview: config.clientId ? config.clientId.substring(0, 8) + '...' : null,
       } : null,
     });
   });

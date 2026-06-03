@@ -159,19 +159,21 @@ export default async function userRoutes(fastify: FastifyInstance) {
     }
 
     if (!isAdmin) {
-      if (!currentPassword) {
-        return reply.status(400).send({ error: 'Current password is required' });
-      }
-      
-      const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [id]);
+      const userResult = await pool.query('SELECT password_hash, password_reset_required FROM users WHERE id = $1', [id]);
       if (userResult.rows.length === 0) return reply.status(404).send({ error: 'User not found' });
       
-      const valid = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
-      if (!valid) return reply.status(401).send({ error: 'Invalid current password' });
+      // If password reset is required (temporary password), skip current password check
+      if (!userResult.rows[0].password_reset_required) {
+        if (!currentPassword) {
+          return reply.status(400).send({ error: 'Current password is required' });
+        }
+        const valid = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+        if (!valid) return reply.status(401).send({ error: 'Invalid current password' });
+      }
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, id]);
+    await pool.query('UPDATE users SET password_hash = $1, password_reset_required = false WHERE id = $2', [passwordHash, id]);
     
     return reply.send({ message: 'Password updated successfully' });
   });
@@ -183,7 +185,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     const tempPassword = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
     const passwordHash = await bcrypt.hash(tempPassword, 12);
     
-    const result = await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id', [passwordHash, id]);
+    const result = await pool.query('UPDATE users SET password_hash = $1, password_reset_required = true WHERE id = $2 RETURNING id', [passwordHash, id]);
     if (result.rowCount === 0) {
       return reply.status(404).send({ error: 'User not found' });
     }
@@ -221,9 +223,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
     
     try {
       const result = await pool.query(
-        `INSERT INTO users (email, name, password_hash, role, department, is_active)
-         VALUES ($1, $2, $3, $4, $5, true)
-         RETURNING id, email, name, role, department, created_at`,
+        `INSERT INTO users (email, name, password_hash, role, department, is_active, password_reset_required)
+         VALUES ($1, $2, $3, $4, $5, true, true)
+         RETURNING id, email, name, role, department, password_reset_required, created_at`,
         [email, name, passwordHash, role, department]
       );
       

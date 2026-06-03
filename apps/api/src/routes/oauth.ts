@@ -5,7 +5,7 @@ import { URL } from 'url';
 import { pool } from '../db/pool';
 
 // In-memory store for OAuth states (state → { codeVerifier, createdAt, mode })
-const oauthStates = new Map<string, { codeVerifier: string; createdAt: number; mode: 'sync' | 'login' }>();
+const oauthStates = new Map<string, { codeVerifier: string; createdAt: number; mode: 'sync' | 'login' | 'email_send'; provider: 'google' | 'microsoft' }>();
 
 // Clean up expired states every 5 minutes
 setInterval(() => {
@@ -209,7 +209,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       const state = crypto.randomBytes(32).toString('hex');
 
       // 3. Store state + verifier
-      oauthStates.set(state, { codeVerifier, createdAt: Date.now(), mode: 'sync' });
+      oauthStates.set(state, { codeVerifier, createdAt: Date.now(), mode: 'sync', provider: 'google' });
 
       // 4. Build Google OAuth URL
       const params = new URLSearchParams({
@@ -450,7 +450,313 @@ if (window.opener) {
     }
   });
 
-  // POST /oauth/google/disconnect
+  // ─── Outbound Email OAuth ───────────────────────────────────────────────
+
+  // GET /oauth/outbound/authorize?provider=google|microsoft
+  fastify.get('/oauth/outbound/authorize', async (request, reply) => {
+    try {
+      const query = request.query as { provider?: string };
+      const provider = (query.provider === 'microsoft' ? 'microsoft' : 'google');
+
+      // Load the outbound OAuth config (client credentials)
+      const configResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_config'"
+      );
+
+      if (configResult.rows.length === 0) {
+        return reply.status(400).send({ error: 'Outbound email OAuth not configured. Set client credentials first.' });
+      }
+
+      let config: any;
+      try {
+        config = JSON.parse(configResult.rows[0].value);
+      } catch {
+        return reply.status(400).send({ error: 'Invalid OAuth configuration.' });
+      }
+
+      if (!config.clientId || !config.clientSecret) {
+        return reply.status(400).send({ error: 'Client ID and Client Secret are required.' });
+      }
+
+      const host = request.headers.host || request.hostname;
+      const protocol = request.protocol;
+      const redirectUri = `${protocol}://${host}/api/oauth/outbound/callback`;
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+      const state = crypto.randomBytes(32).toString('hex');
+
+      oauthStates.set(state, { codeVerifier, createdAt: Date.now(), mode: 'email_send', provider });
+
+      if (provider === 'microsoft') {
+        const tenant = config.tenant || 'common';
+        const params = new URLSearchParams({
+          client_id: config.clientId,
+          redirect_uri: redirectUri,
+          response_type: 'code',
+          scope: 'https://outlook.office365.com/SMTP.Send offline_access',
+          state,
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256',
+          access_type: 'offline',
+          prompt: 'consent',
+        });
+        const authorizeUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
+        return reply.redirect(302, authorizeUrl);
+      } else {
+        // Google
+        const params = new URLSearchParams({
+          client_id: config.clientId,
+          redirect_uri: redirectUri,
+          response_type: 'code',
+          scope: 'https://www.googleapis.com/auth/gmail.send',
+          state,
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256',
+          access_type: 'offline',
+          prompt: 'consent',
+        });
+        const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+        return reply.redirect(302, authorizeUrl);
+      }
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: 'Failed to initiate email OAuth flow.' });
+    }
+  });
+
+  // GET /oauth/outbound/callback
+  fastify.get('/oauth/outbound/callback', async (request, reply) => {
+    try {
+      const query = request.query as { code?: string; state?: string; error?: string };
+      const frontendOrigin = process.env.WEB_URL || 'http://localhost:3000';
+
+      if (query.error) {
+        return reply.redirect(302, `${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=${encodeURIComponent(query.error)}`);
+      }
+
+      if (!query.code || !query.state) {
+        return reply.status(400).send({ error: 'Missing code or state parameter.' });
+      }
+
+      const storedState = oauthStates.get(query.state);
+      if (!storedState || storedState.mode !== 'email_send') {
+        return reply.status(400).send({ error: 'Invalid or expired state parameter.' });
+      }
+      oauthStates.delete(query.state);
+
+      const provider = storedState.provider;
+
+      // Load OAuth config
+      const configResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_config'"
+      );
+      if (configResult.rows.length === 0) {
+        return reply.status(400).send({ error: 'OAuth config not found.' });
+      }
+
+      let config: any;
+      try {
+        config = JSON.parse(configResult.rows[0].value);
+      } catch {
+        return reply.status(400).send({ error: 'Invalid OAuth configuration.' });
+      }
+
+      const host = request.headers.host || request.hostname;
+      const protocol = request.protocol;
+      const redirectUri = `${protocol}://${host}/api/oauth/outbound/callback`;
+
+      // Exchange code for tokens
+      let tokenEndpoint: string;
+      let tokenBody: Record<string, string>;
+
+      if (provider === 'microsoft') {
+        tokenEndpoint = `https://login.microsoftonline.com/${config.tenant || 'common'}/oauth2/v2.0/token`;
+        tokenBody = {
+          code: query.code,
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+          code_verifier: storedState.codeVerifier,
+        };
+      } else {
+        tokenEndpoint = 'https://oauth2.googleapis.com/token';
+        tokenBody = {
+          code: query.code,
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+          code_verifier: storedState.codeVerifier,
+        };
+      }
+
+      const tokenResponse = await httpsPost(tokenEndpoint, tokenBody);
+
+      if (tokenResponse.error) {
+        return reply.redirect(302, `${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=${encodeURIComponent(tokenResponse.error_description || tokenResponse.error)}`);
+      }
+
+      if (!tokenResponse.refresh_token) {
+        return reply.redirect(302, `${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=no_refresh_token`);
+      }
+
+      const expiryDate = new Date(Date.now() + (tokenResponse.expires_in || 3600) * 1000).toISOString();
+
+      // Store tokens
+      const tokens = {
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token,
+        expiry_date: expiryDate,
+      };
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('smtp_oauth_tokens', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(tokens)]
+      );
+
+      // Decode ID token or userinfo for email
+      let oauthEmail = '';
+      if (tokenResponse.id_token) {
+        try {
+          const payloadBase64 = tokenResponse.id_token.split('.')[1];
+          const payloadJson = Buffer.from(payloadBase64, 'base64url').toString('utf-8');
+          const profile = JSON.parse(payloadJson);
+          oauthEmail = profile.email || profile.upn || '';
+        } catch { /* ignore */ }
+      }
+
+      // Update config
+      config.connected = true;
+      config.provider = provider;
+      config.tokenExpiresAt = expiryDate;
+      if (oauthEmail) config.email = oauthEmail;
+
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('smtp_oauth_config', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(config)]
+      );
+
+      // Email address is already stored in smtp_oauth_config above.
+
+      return reply.type('text/html').send(`<!DOCTYPE html>
+<html><head><title>Email Connected</title></head>
+<body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#f5f5f5">
+<div style="text-align:center;background:#fff;padding:40px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+<h1 style="color:#34a853">&#x2705; Email Connected</h1>
+<p>${provider === 'microsoft' ? 'Microsoft 365' : 'Google Workspace'} email sending has been connected.</p>
+${oauthEmail ? `<p style="color:#666">Connected as: <strong>${oauthEmail}</strong></p>` : ''}
+<p>You can close this window and return to the admin panel.</p>
+</div>
+<script>
+if (window.opener) {
+  window.opener.postMessage({ type: 'email-oauth-connected', provider: '${provider}' }, '*');
+}
+</script>
+</body></html>`);
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: 'Email OAuth callback failed.' });
+    }
+  });
+
+  // POST /oauth/outbound/disconnect
+  fastify.post('/oauth/outbound/disconnect', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    try {
+      await pool.query("DELETE FROM system_settings WHERE key = 'smtp_oauth_tokens'");
+
+      const configResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_config'"
+      );
+      if (configResult.rows.length > 0) {
+        try {
+          const config = JSON.parse(configResult.rows[0].value);
+          config.connected = false;
+          config.email = null;
+          config.tokenExpiresAt = null;
+          await pool.query(
+            `INSERT INTO system_settings (key, value, updated_at)
+             VALUES ('smtp_oauth_config', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+            [JSON.stringify(config)]
+          );
+        } catch { /* ignore */ }
+      }
+
+      const { invalidateTransporter } = await import('../services/outbound-email');
+      invalidateTransporter();
+
+      return reply.send({ message: 'Email OAuth disconnected successfully.' });
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: 'Failed to disconnect email OAuth.' });
+    }
+  });
+
+  // GET /admin/email/oauth-status — Check OAuth connection status for outbound email
+  fastify.get('/admin/email/oauth-status', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    try {
+      // Check smtp_oauth path (dedicated outbound email OAuth)
+      const smtpConfigResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_config'"
+      );
+      const smtpTokenResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'smtp_oauth_tokens'"
+      );
+
+      // Check directory_sync path (fallback — same Google credentials, gmail.modify scope)
+      const dsConfigResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'directory_sync_config'"
+      );
+      const dsTokenResult = await pool.query(
+        "SELECT value FROM system_settings WHERE key = 'directory_sync_tokens'"
+      );
+
+      let smtpConfig: any = null;
+      if (smtpConfigResult.rows.length > 0) {
+        try { smtpConfig = JSON.parse(smtpConfigResult.rows[0].value); } catch { /* ignore */ }
+      }
+
+      let dsConfig: any = null;
+      if (dsConfigResult.rows.length > 0) {
+        try { dsConfig = JSON.parse(dsConfigResult.rows[0].value); } catch { /* ignore */ }
+      }
+
+      const smtpHasTokens = smtpTokenResult.rows.length > 0;
+      const dsHasTokens = dsTokenResult.rows.length > 0;
+      const dsHasCredentials = !!(dsConfig?.clientId && dsConfig?.clientSecret);
+      const smtpConfigured = !!(smtpConfig?.clientId && smtpConfig?.clientSecret);
+
+      // Determine connection source: prefer dedicated smtp_oauth, fallback to directory_sync
+      const hasDedicatedConnection = smtpConfig?.connected === true && smtpHasTokens;
+      const hasDsFallback = dsHasCredentials && dsHasTokens;
+
+      const isConnected = hasDedicatedConnection || hasDsFallback;
+      const connectedVia = hasDedicatedConnection ? 'smtp_oauth' : hasDsFallback ? 'directory_sync' : null;
+      const email = smtpConfig?.email || dsConfig?.email || null;
+      const expiresAt = smtpConfig?.tokenExpiresAt || dsConfig?.tokenExpiresAt || null;
+      const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : true;
+
+      return reply.send({
+        data: {
+          connected: isConnected && !isExpired,
+          connectedVia,
+          provider: smtpConfig?.provider || dsConfig?.provider || null,
+          email,
+          expiresAt,
+          configured: smtpConfigured || dsHasCredentials,
+          dsCredentialsAvailable: dsHasCredentials,
+        },
+      });
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: 'Failed to get OAuth status.' });
+    }
+  });
   fastify.post('/oauth/google/disconnect', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     try {
       await clearTokens();

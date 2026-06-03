@@ -191,7 +191,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'portal_qa_6_label', 'portal_qa_6_prompt',
       'status_label_open', 'status_label_in_progress', 'status_label_waiting', 'status_label_resolved', 'status_label_closed',
       'canned_responses', 'custom_statuses',
-      'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_password', 'smtp_from_email', 'smtp_from_name',
+      'smtp_oauth_config',
       'status_order', 'role_permissions',
     ] as const;
 
@@ -786,20 +786,4 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.send({ data: body });
   });
 
-  // ─── Test SMTP ────────────────────────────────────────────────────────
-
-  // POST /admin/settings/test-smtp
-  fastify.post('/admin/settings/test-smtp', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
-    const body = z.object({
-      host: z.string(),
-      port: z.number(),
-      secure: z.boolean(),
-      user: z.string(),
-      password: z.string(),
-    }).parse(request.body);
-
-    const { testSmtpConnection } = await import('../services/outbound-email');
-    const result = await testSmtpConnection(body);
-    return reply.send({ data: result });
-  });
 }

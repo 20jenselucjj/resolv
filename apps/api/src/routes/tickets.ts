@@ -4,7 +4,9 @@ import { pool } from '../db/pool';
 import { JwtPayload } from '../plugins/auth';
 import { syncTicketToKnowledgeBase } from './ai-training';
 import { sendTemplateEmail, isEmailEnabledForEvent } from '../services/outbound-email';
+import type { EmailAttachment } from '../services/outbound-email';
 import { triggerAutoReplies } from './auto-reply';
+import fs from 'fs';
 
 const createTicketSchema = z.object({
   title: z.string().min(3).max(500),
@@ -129,7 +131,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       `SELECT t.*, 
         u1.name as created_by_name, u1.email as created_by_email, u1.avatar_url as created_by_avatar,
         u2.name as assigned_to_name, u2.email as assigned_to_email, u2.avatar_url as assigned_to_avatar,
-        c.name as category_name, c.color as category_color
+        c.name as category_name, c.color as category_color,
+        (SELECT u.name FROM ticket_activity ta 
+         JOIN users u ON ta.actor_id = u.id 
+         WHERE ta.ticket_id = t.id AND ta.action = 'status_changed' AND ta.new_value = 'closed'
+         ORDER BY ta.created_at DESC LIMIT 1) as closed_by_name
        FROM tickets t
        LEFT JOIN users u1 ON t.created_by_id = u1.id
        LEFT JOIN users u2 ON t.assigned_to_id = u2.id
@@ -264,7 +270,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         request.user.email,
         request.user.name,
         'Ticket Created',
-        { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` }
+        { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` },
+        ticket.id
       ).catch(() => {});
 
       // If unassigned, also email all agents/admins
@@ -278,7 +285,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               agent.email,
               agent.name,
               'Ticket Created',
-              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` }
+              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: request.user.name, ticket_url: `${webUrl}/dashboard/tickets/${ticket.id}` },
+              ticket.id
             ).catch(() => {});
           }
         }
@@ -435,6 +443,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       await client.query('COMMIT');
 
+      // Include who closed the ticket in the response (for the closing note card)
+      if (body.status === 'closed') {
+        (updated as any).closed_by_name = request.user.name;
+      }
+
       // Emit real-time event
       fastify.io.emit(`ticket:updated:${id}`, { ticket: updated });
       fastify.io.emit('ticket:updated', { ticket: updated });
@@ -459,7 +472,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               user_name: creatorResult.rows[0].name,
               close_notes: updated.close_notes || 'Your ticket has been resolved.',
               ticket_url: `${webUrl}/dashboard/tickets/${id}`,
-            }
+            },
+            id
           ).catch(() => {});
         }
       }
@@ -480,7 +494,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               close_notes: updated.close_notes || 'Your ticket has been closed.',
               ticket_url: `${webUrl}/dashboard/tickets/${id}`,
               status: 'closed',
-            }
+            },
+            id
           ).catch(() => {});
         }
       }
@@ -500,7 +515,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               user_name: assigneeResult.rows[0].name,
               agent_name: assigneeResult.rows[0].name,
               ticket_url: `${webUrl}/dashboard/tickets/${id}`,
-            }
+            },
+            id
           ).catch(() => {});
         }
       }
@@ -631,10 +647,14 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         [id, request.user.id, body.body, is_internal]
       );
 
-      const comment = result.rows[0];
+      const comment = {
+        ...result.rows[0],
+        author_name: request.user.name,
+        author_email: request.user.email,
+      };
 
       // Get ticket info for notification
-      const ticketResult = await client.query('SELECT number, title, created_by_id, assigned_to_id FROM tickets WHERE id = $1', [id]);
+      const ticketResult = await client.query('SELECT number, title, created_by_id, assigned_to_id, status FROM tickets WHERE id = $1', [id]);
       if (ticketResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Ticket not found' });
@@ -672,9 +692,59 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         [id, request.user.id]
       );
 
+      // Auto-reopen closed/resolved tickets when the reporter (end user) comments
+      const isClosed = ticket.status === 'closed' || ticket.status === 'resolved';
+      const isReporter = request.user.role === 'user' && ticket.created_by_id === request.user.id;
+      if (isClosed && isReporter) {
+        let autoReopenEnabled = false;
+        try {
+          const settingResult = await client.query(
+            "SELECT value FROM system_settings WHERE key = 'email_parsing_config'"
+          );
+          if (settingResult.rows.length > 0) {
+            const config = JSON.parse(settingResult.rows[0].value);
+            autoReopenEnabled = config.auto_reopen_on_reply === true;
+          }
+        } catch { /* use default */ }
+
+        if (autoReopenEnabled) {
+          await client.query(
+            "UPDATE tickets SET status = 'open', closed_at = NULL, resolved_at = NULL WHERE id = $1",
+            [id]
+          );
+          await client.query(
+            `INSERT INTO ticket_activity (ticket_id, actor_id, action, old_value, new_value)
+             VALUES ($1, $2, 'status_changed', $3, 'open')`,
+            [id, request.user.id, ticket.status]
+          );
+          (ticket as any).status = 'open';
+        }
+      }
+
       await client.query('COMMIT');
 
       fastify.io.emit(`ticket:comment:${id}`, { comment });
+
+      // Look up attachments for this comment to include in email
+      let commentAttachments: EmailAttachment[] = [];
+      try {
+        const attResult = await pool.query(
+          'SELECT original_name, mime_type, storage_path FROM ticket_attachments WHERE comment_id = $1',
+          [comment.id]
+        );
+        for (const att of attResult.rows) {
+          if (fs.existsSync(att.storage_path)) {
+            commentAttachments.push({
+              filename: att.original_name,
+              content: fs.readFileSync(att.storage_path),
+              mimeType: att.mime_type,
+            });
+          }
+        }
+      } catch {
+        // Attachments are optional — skip if lookup fails
+        commentAttachments = [];
+      }
 
       // Fire-and-forget email notification for non-internal comments
       if (!is_internal && body.send_email !== false) {
@@ -688,7 +758,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               creatorResult.rows[0].email,
               creatorResult.rows[0].name,
               'Comment Added',
-              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: creatorResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` }
+              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: creatorResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` },
+              id,
+              commentAttachments.length > 0 ? commentAttachments : undefined
             ).catch(() => {});
           }
         }
@@ -701,7 +773,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               agentResult.rows[0].email,
               agentResult.rows[0].name,
               'Comment Added',
-              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: agentResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` }
+              { ticket_id: ticket.number, ticket_title: ticket.title, user_name: agentResult.rows[0].name, ticket_url: `${webUrl}/dashboard/tickets/${id}` },
+              id,
+              commentAttachments.length > 0 ? commentAttachments : undefined
             ).catch(() => {});
           }
         }

@@ -496,6 +496,33 @@ function extractSimulatedTicket(content: string, userMessage?: string): Record<s
   }
 }
 
+/**
+ * Build AI behavioral guidelines text from the admin-configurable guidelines JSONB.
+ * Reads from ai_config.guidelines and produces structured sections for the system prompt.
+ * Separates Agent AI rules from Portal AI (self-service) rules.
+ */
+function buildGuidelinesText(guidelines: any, isPortal: boolean): string {
+  const g = guidelines?.[isPortal ? 'portal' : 'agent']
+  if (!g || typeof g !== 'object') return ''
+
+  const sections: string[] = []
+
+  if (g.ticketLookup) sections.push(`--- TICKET LOOKUP RULE ---\n${g.ticketLookup}`)
+  if (!isPortal && g.autonomousExecution) sections.push(`--- AUTONOMOUS EXECUTION RULES ---\n${g.autonomousExecution}`)
+  if (g.conversationalTone) sections.push(`--- CONVERSATIONAL TONE ---\n${g.conversationalTone}`)
+  if (g.ticketCreationWorkflow) sections.push(`--- TICKET CREATION RULES ---\n${g.ticketCreationWorkflow}`)
+  if (g.priorityGuidelines) sections.push(`--- PRIORITY GUIDELINES ---\n${g.priorityGuidelines}`)
+  if (g.ticketTypeGuidelines) sections.push(`--- TICKET TYPE GUIDELINES ---\n${g.ticketTypeGuidelines}`)
+  if (g.categoryGuidelines) sections.push(`--- CATEGORY GUIDELINES ---\n${g.categoryGuidelines}`)
+  if (!isPortal && g.ticketEditingWorkflow) sections.push(`--- TICKET EDITING WORKFLOW ---\n${g.ticketEditingWorkflow}`)
+  if (g.commentWorkflow) sections.push(`--- COMMENT WORKFLOW ---\n${g.commentWorkflow}`)
+  if (!isPortal && g.enumRule) sections.push(g.enumRule)
+  if (!isPortal && g.hallucinationGuard) sections.push(`--- HALLUCINATION GUARD ---\n${g.hallucinationGuard}`)
+
+  if (sections.length === 0) return ''
+  return '\n\n--- AI BEHAVIOR GUIDELINES ---\n' + sections.join('\n\n') + '\n---'
+}
+
 export async function aiRoutes(app: FastifyInstance) {
   // Auto-create ai_chat_files table if it doesn't exist yet
   await pool.query(`
@@ -524,7 +551,8 @@ export async function aiRoutes(app: FastifyInstance) {
       portal_allowed_roles: ['user'],
       tools: { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true },
       behavior: { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 },
-      rules: []
+      rules: [],
+      guidelines: null
     } })
     const cfg = { ...rows[0] }
     return reply.send({ data: cfg })
@@ -535,19 +563,25 @@ export async function aiRoutes(app: FastifyInstance) {
     const body = req.body as any
     const { rows: existing } = await pool.query('SELECT id, api_key FROM ai_config LIMIT 1')
     const apiKey = body.api_key ?? ''
+    const defaultTools = { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true }
+    const defaultBehavior = { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 }
+    const defaultPortalTools = { getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true }
     if (existing.length === 0) {
       const { rows } = await pool.query(
-        `INSERT INTO ai_config (provider, base_url, api_key, model, temperature, max_tokens, system_prompt, enabled, allowed_roles, max_messages_per_day, portal_enabled, portal_model, portal_temperature, portal_max_tokens, portal_system_prompt, portal_allowed_roles, tools, behavior, rules)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+        `INSERT INTO ai_config (provider, base_url, api_key, model, temperature, max_tokens, system_prompt, enabled, allowed_roles, max_messages_per_day, portal_enabled, portal_model, portal_temperature, portal_max_tokens, portal_system_prompt, portal_allowed_roles, tools, behavior, rules, guidelines, portal_tools, portal_behavior)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
         [body.provider||'openai', body.base_url||'https://api.openai.com/v1', apiKey, body.model||'gpt-4o-mini',
          body.temperature??0.7, body.max_tokens??1024, body.system_prompt||'You are a helpful IT support assistant.',
          body.enabled??false, body.allowed_roles||['admin','agent','user'], body.max_messages_per_day??100,
          body.portal_enabled??false, body.portal_model||'gpt-4o-mini', body.portal_temperature??0.7, body.portal_max_tokens??1024,
          body.portal_system_prompt||'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
          body.portal_allowed_roles||['user'],
-         body.tools || { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true },
-         body.behavior || { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 },
-         body.rules || []]
+         body.tools || defaultTools,
+         body.behavior || defaultBehavior,
+         body.rules || [],
+         body.guidelines || null,
+         body.portal_tools || defaultPortalTools,
+         body.portal_behavior || defaultBehavior]
       )
       const cfg = { ...rows[0], api_key: rows[0].api_key }
       return reply.send({ data: cfg })
@@ -556,18 +590,21 @@ export async function aiRoutes(app: FastifyInstance) {
         `UPDATE ai_config SET provider=$1, base_url=$2, api_key=$3, model=$4, temperature=$5, max_tokens=$6,
          system_prompt=$7, enabled=$8, allowed_roles=$9, max_messages_per_day=$10, 
          portal_enabled=$11, portal_model=$12, portal_temperature=$13, portal_max_tokens=$14, portal_system_prompt=$15, portal_allowed_roles=$16,
-         tools=$17, behavior=$18, rules=$19,
+         tools=$17, behavior=$18, rules=$19, guidelines=$20, portal_tools=$21, portal_behavior=$22,
          updated_at=NOW()
-         WHERE id=$20 RETURNING *`,
+         WHERE id=$23 RETURNING *`,
         [body.provider||'openai', body.base_url||'https://api.openai.com/v1', apiKey, body.model||'gpt-4o-mini',
          body.temperature??0.7, body.max_tokens??1024, body.system_prompt||'You are a helpful IT support assistant.',
          body.enabled??false, body.allowed_roles||['admin','agent','user'], body.max_messages_per_day??100,
          body.portal_enabled??false, body.portal_model||'gpt-4o-mini', body.portal_temperature??0.7, body.portal_max_tokens??1024,
          body.portal_system_prompt||'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
          body.portal_allowed_roles||['user'],
-         body.tools || { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true },
-         body.behavior || { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 },
+         body.tools || defaultTools,
+         body.behavior || defaultBehavior,
          body.rules || [],
+         body.guidelines || null,
+         body.portal_tools || defaultPortalTools,
+         body.portal_behavior || defaultBehavior,
          existing[0].id]
       )
       const cfg = { ...rows[0], api_key: rows[0].api_key }
@@ -656,8 +693,7 @@ export async function aiRoutes(app: FastifyInstance) {
     }
     const cfg = cfgRows[0]
 
-    // Admin tool config: map function names to config keys for filtering
-    const cfgTools = cfg.tools || {}
+    // Admin tool config: separate tools for agent vs portal AI
     const toolNameToConfigKey: Record<string, string> = {
       search_tickets: 'searchTickets',
       get_ticket: 'getTicketDetails',
@@ -666,15 +702,20 @@ export async function aiRoutes(app: FastifyInstance) {
       search_knowledge: 'searchKnowledge',
       get_stats: 'getStats',
     }
+    // Determine which AI config to use based on user role
+    const isPortalUser = user.role === 'user' && cfg.portal_enabled
 
     // Admin rules & behavior text (injected into system prompt later)
     let adminRulesText = ''
     if (cfg.rules && Array.isArray(cfg.rules) && cfg.rules.length > 0) {
       adminRulesText = '\n\n--- CUSTOM RULES ---\n' + cfg.rules.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n') + '\n---'
     }
+
+    // Use separate behavior settings for portal vs agent AI
+    const activeBehavior = isPortalUser ? (cfg.portal_behavior || cfg.behavior) : cfg.behavior
     let behaviorText = ''
-    if (cfg.behavior) {
-      const b = cfg.behavior
+    if (activeBehavior) {
+      const b = activeBehavior
       const parts: string[] = []
       if (b.responseLength === 'short') parts.push('Keep your responses very short and concise — one paragraph max.')
       if (b.responseLength === 'long') parts.push('Provide detailed, thorough responses with full context.')
@@ -683,10 +724,6 @@ export async function aiRoutes(app: FastifyInstance) {
       if (b.fallbackToWeb) parts.push('You may use web search for up-to-date information when needed.')
       if (parts.length > 0) behaviorText = '\n\n--- BEHAVIOR CONFIG ---\n' + parts.join('\n') + '\n---'
     }
-
-    // Determine which AI config to use based on user role
-    // Self-service portal AI is for 'user' role customers
-    const isPortalUser = user.role === 'user' && cfg.portal_enabled
     const activeConfig = isPortalUser ? {
       model: cfg.portal_model || cfg.model,
       temperature: cfg.portal_temperature ?? cfg.temperature,
@@ -860,115 +897,25 @@ ${ragContext}
       console.error('RAG retrieval error:', ragErr)
     }
 
-    // Inject ticket creation behavior guidelines into system prompt
-    // (appends to whatever the current system message is, whether or not RAG injected)
-    const guidelines = `
---- CRITICAL: TICKET LOOKUP RULE (read first) ---
-When a user mentions ANY ticket number (e.g. "42", "#42", "ticket 42", "ticket #42", "track 42", "status of 42"), you MUST call get_ticket({ticket_id: "42"}) as your very first action. Do NOT fabricate ticket details. Do NOT guess titles, statuses, priorities, dates, assignees, or comments. Do NOT skip the tool call and respond from memory. If you respond about a ticket without calling get_ticket first, you are giving the user FALSE information.
-
-Pre-fetched ticket data may appear in the system prompt above. If it does, use it. If it does NOT, and the user asks about a ticket, you still MUST call get_ticket().
-
-If get_ticket returns "Ticket not found", tell the user that ticket number does not exist. If it returns "Access denied", tell the user they can only view their own tickets.
-
---- AUTONOMOUS EXECUTION RULES ---
-CONVERSATIONAL TONE: Be warm, friendly, and helpful — like a knowledgeable IT coworker, not a robot. Use natural language. Show empathy when users are frustrated. Avoid cold bullet lists — weave suggestions into a natural flow. Use "you" and "your" to stay personal. Keep responses concise but never terse.
-
-You have full authority to use tools. Never ask permission for read-only actions (get_ticket, search_knowledge, get_my_tickets, search_users, search_tickets, get_stats). For write actions like creating tickets or adding comments, you may proceed when you have enough information.
-
-Do not announce your intent to call a tool. No meta-commentary like "Let me look that up" or "I'll search for that". Just call the tool silently.
-
-Do NOT output your reasoning, chain-of-thought, or internal monologue. Never start a response with "Since the user...", "Let me think...", "I should...", or "First, I need to...". Your final response to the user must be direct and conversational — no planning text whatsoever.
-
---- TICKET CREATION RULES ---
-Your goal is to help users quickly and create tickets only when needed. Follow this flow:
-
-1. ASSESS: Read the user's message. Is this a problem (something broken/not working) or a request (new access, equipment, software)?
-   - If the user is vague (e.g., "I need help with my computer" or "something is wrong"): Ask 1-2 clarifying questions. Good questions: "What's happening exactly — any error messages?" or "Which software or device is affected?"
-   - If they describe a specific problem but also clearly want a ticket (e.g., "I need a ticket for my crashing Outlook"): Skip to step 3.
-
-2. TROUBLESHOOT FIRST: If the user describes a common problem, offer 1-2 quick self-help steps before creating a ticket.
-
-   TONE: Be warm and helpful, like a friendly IT colleague. Start with empathy ("That's frustrating — let's try a couple of things first"). Give suggestions in a natural, conversational flow — not a cold bullet list. Use "you" and "your" to make it personal. Keep it brief.
-
-   Examples of good troubleshooting responses:
-   - Boot loop: "That's never fun. First thing to try — unplug any USB devices or docks, then hold the power button until it shuts off completely. Wait a few seconds, power back on, and see if it starts normally. If it's still looping, let me know where it gets stuck and I'll create a ticket for you."
-   - Slow computer: "Let's try the quick fixes first — a restart often clears things up if it's been running a while. If that doesn't help, check Task Manager (Ctrl+Shift+Esc) to see if anything's eating up your CPU. Still slow? I can create a ticket and IT will dig deeper."
-   - Can't connect to VPN: "VPN hiccups are pretty common. Try disconnecting and reconnecting first — sometimes that's all it takes. If it still won't connect, double-check your password hasn't expired. Want me to create a ticket if neither of those works?"
-   - No internet: "Let's rule out the easy stuff — is your wifi turned on and connected to the right network? If you're on wifi, try toggling it off and back on. Still nothing? I can get a ticket going for you."
-   - Password not working: "Before we create a ticket — make sure caps lock is off (it gets everyone!). If you have access to the self-service password reset portal, that's usually the fastest fix. Still stuck? I'll create a ticket right now."
-
-   End each suggestion naturally — never a canned sign-off. Something like: "If that doesn't do it, just say the word and I'll create a ticket for you."
-
-   Skip troubleshooting if: the user explicitly asked for a ticket, it's clearly a hardware failure, or they've already tried the obvious steps.
-
-3. GATHER (only if a ticket is needed): Ask only what you need. One question at a time. Stop when you have:
-   - What's happening (the problem)
-   - What's affected (software, computer, service)
-   - Rough urgency (are they blocked from working?)
-
-4. DECIDE TO CREATE: Two paths:
-   - If the user EXPLICITLY told you to create a ticket (e.g., "create a ticket for me", "make a ticket", "put in a ticket", "open a ticket"): Create it immediately. Do NOT ask "want me to go ahead?" — they already asked you to do it.
-   - If the user described a problem but did NOT ask for a ticket: Summarize what you have and ask "I can create a ticket for this. Want me to go ahead?" Then create it when they say yes.
-
-5. CREATE: When you create the ticket:
-   - title: short summary of the issue in the user's own words
-   - description: what the user told you, in their words, plus any context and troubleshooting already attempted
-   - priority: medium unless clearly urgent (blocked from working = high, security/outage = critical)
-   - ticket_type: incident for broken things, service_request for new access/equipment/software
-   - category_name: best match from the category list
-   - tags: 2-4 relevant keywords
-
-6. CONFIRM CREATION: After creating, confirm the ticket number. You may ask ONE more question if a detail is still missing, but don't interrogate.
-
---- PRIORITY GUIDELINES ---
-- "critical" = security breach, company-wide outage, data loss
-- "high" = user completely blocked from working, no workaround
-- "medium" = issue exists but user can still work (DEFAULT)
-- "low" = cosmetic, minor inconvenience, nice-to-have
-
---- TICKET TYPE GUIDELINES ---
-- "incident" = something is broken, not working, error, crash
-- "service_request" = user needs something new (access, equipment, software, permission)
-- "problem" = investigating root cause of recurring incidents
-- "change" = planned modification, update, migration
-
---- CATEGORY NAME GUIDELINES ---
-- Hardware Issues → PC, laptop, monitor, printer, peripherals, power
-- Software / Applications → app crashes, software bugs
-- Account & Access → password reset, account unlock, MFA
-- Network & Connectivity → wifi, ethernet, internet, VPN
-- Email & Communication → Outlook, email, Teams
-- Security Incident → phishing, malware, unauthorized access
-- Software Installation → need software installed
-- Phone & Mobile → mobile device, VoIP
-
---- TICKET EDITING WORKFLOW ---
-When someone asks you to update or change a ticket:
-Step 1: Call get_ticket() to fetch the current ticket details first.
-Step 2: Call update_ticket() with only the fields that need to change.
-Step 3: Summarize what changed.
-
---- COMMENT WORKFLOW ---
-When someone asks you to add a note, reply, or comment to a ticket:
-Step 1: Call add_comment() with the ticket_id and body text.
-Step 2: Use is_internal=true only when the user explicitly says "internal note" or "note to team".
-Step 3: Confirm the comment was added.
-
-IMPORTANT: All enum values must be LOWERCASE. priority: low|medium|high|critical. status: open|in_progress|waiting|resolved|closed. ticket_type: incident|service_request|problem|change.`
+    // Build guidelines from admin-editable config instead of hardcoded text
+    const guidelinesText = buildGuidelinesText(cfg.guidelines, isPortalUser)
 
     if (messages[0] && messages[0].role === 'system') {
-      // If RAG already injected, guidelines are already there — check to avoid duplication
-      if (!messages[0].content.includes('AUTONOMOUS EXECUTION RULES')) {
-        messages[0] = { role: 'system', content: messages[0].content + guidelines + adminRulesText + behaviorText }
+      // Skip if guidelines were already injected (e.g. RAG re-insertion)
+      if (!messages[0].content.includes('--- AI BEHAVIOR GUIDELINES ---')) {
+        messages[0] = { role: 'system', content: messages[0].content + guidelinesText + adminRulesText + behaviorText }
       }
     }
 
-    // Define tools based on AI type, filtered by admin config
+    // Define tools based on AI type, filtered by the appropriate admin config
     const isPortalAI = isPortalUser
     const allTools = isPortalAI ? PORTAL_TOOLS : AGENT_TOOLS
+    const activeToolConfig = isPortalAI
+      ? (cfg.portal_tools || { getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true })
+      : (cfg.tools || { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true })
     const tools = allTools.filter(t => {
       const configKey = toolNameToConfigKey[t.function.name]
-      return configKey ? cfgTools[configKey] !== false : true
+      return configKey ? activeToolConfig[configKey] !== false : true
     })
 
     // Call AI API with appropriate settings
@@ -1467,7 +1414,14 @@ IMPORTANT: All enum values must be LOWERCASE. priority: low|medium|high|critical
       const aiResponse2 = await fetch(`${apiBase}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.api_key}` },
-        body: JSON.stringify({ model: activeConfig.model, messages: messages2, temperature: parseFloat(String(activeConfig.temperature)), max_tokens: activeConfig.max_tokens })
+        body: JSON.stringify({
+          model: activeConfig.model,
+          messages: messages2,
+          tools,
+          tool_choice: 'auto',
+          temperature: parseFloat(String(activeConfig.temperature)),
+          max_tokens: activeConfig.max_tokens
+        })
       })
 
       if (aiResponse2.ok) {

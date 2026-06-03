@@ -135,16 +135,28 @@ export default async function authRoutes(fastify: FastifyInstance) {
       data: {
         user: { id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatar_url },
         token,
+        passwordResetRequired: user.password_reset_required,
       },
     });
   });
 
   fastify.get('/auth/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const result = await pool.query(
-      'SELECT id, email, name, role, avatar_url, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, role, avatar_url, password_reset_required, created_at FROM users WHERE id = $1',
       [(request.user as JwtPayload).id]
     );
-    return reply.send({ data: result.rows[0] });
+    const user = result.rows[0];
+    return reply.send({
+      data: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatar_url,
+        passwordResetRequired: user.password_reset_required,
+        created_at: user.created_at,
+      },
+    });
   });
 
   // ─── Forgot Password ─────────────────────────────────────────────────────
@@ -372,7 +384,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const state = crypto.randomBytes(32).toString('hex');
 
       // Store state in the SHARED oauth store (from oauth.ts) with mode='login'
-      oauthStates.set(state, { codeVerifier, createdAt: Date.now(), mode: 'login' });
+      oauthStates.set(state, { codeVerifier, createdAt: Date.now(), mode: 'login', provider: 'google' });
 
       // Build Google OAuth URL (user login scopes only, no admin scopes)
       const params = new URLSearchParams({
