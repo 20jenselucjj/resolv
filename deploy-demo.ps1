@@ -222,7 +222,7 @@ Write-Host "[3/7] Installing dependencies..." -ForegroundColor Yellow
 $npmOk = $false
 Write-Host "  Running npm install..." -ForegroundColor Gray
 Set-Location $repoRoot
-npm install --loglevel=error --no-optional 2>&1
+npm install --loglevel=error 2>&1
 if ($LASTEXITCODE -ne 0) {
   Write-Host "  npm install had issues. Retrying with --legacy-peer-deps..." -ForegroundColor Yellow
   npm install --loglevel=error --legacy-peer-deps 2>&1
@@ -406,7 +406,7 @@ if !PG_RUNNING! equ 0 (
 echo.
 if not exist "node_modules" (
   echo   Installing root dependencies...
-  call npm install --loglevel=error --no-optional 2>&1
+  call npm install --loglevel=error 2>&1
   if !errorlevel! neq 0 (
     echo   Retrying with --legacy-peer-deps...
     call npm install --loglevel=error --legacy-peer-deps 2>&1
@@ -426,7 +426,7 @@ for %%w in (apps\api apps\web) do (
   if not exist "%%w\node_modules" (
     echo   Installing %%w dependencies...
     pushd %%w
-    call npm install --loglevel=error --no-optional 2>&1
+    call npm install --loglevel=error 2>&1
     popd
   )
 )
