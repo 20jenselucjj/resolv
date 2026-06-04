@@ -9,7 +9,7 @@ import {
   Calendar, Edit3, Trash2, Tag, BookOpen,
   CheckCircle2, AlertCircle, Clock, Link as LinkIcon, Printer, Search,
   ChevronRight, Home, Upload, Paperclip, File, Image, Download, BrainCircuit,
-  X, Save
+  X, Save, FileText, FileImage, FileArchive, ZoomIn, ExternalLink
 } from 'lucide-react';
 
 function ConfirmModal({ open, title, message, onConfirm, onCancel, danger = true }: {
@@ -97,6 +97,8 @@ export default function ArticleDetailPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<string>('');
 
   // Inline edit state
   const [isEditing, setIsEditing] = useState(false);
@@ -140,8 +142,17 @@ export default function ArticleDetailPage() {
 
       // Fetch attachments
       try {
-        const attRes = await api.get<{ data: Attachment[] }>(`/knowledge/${data.id}/attachments`);
-        setAttachments(attRes.data || []);
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const attRes = await api.get<{ data: any[] }>(`/knowledge/${data.id}/attachments`);
+        setAttachments((attRes.data || []).map((att: any) => ({
+          id: att.id,
+          filename: att.original_name || att.filename,
+          size: att.size_bytes || att.size,
+          mime_type: att.mime_type,
+          created_at: att.created_at,
+          url: `${apiBase}/knowledge/attachments/${att.id}/download`,
+          storage_path: att.storage_path,
+        })));
       } catch {
         // ignore if endpoint doesn't exist yet
       }
@@ -305,14 +316,23 @@ export default function ArticleDetailPage() {
   };
 
   const formatFileSize = (bytes: number) => {
+    if (!bytes) return '';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith('image/')) return <Image size={16} />;
-    return <File size={16} />;
+    if (mimeType.startsWith('image/')) return <FileImage size={18} />;
+    if (mimeType === 'application/pdf') return <FileText size={18} />;
+    if (mimeType.startsWith('text/')) return <FileText size={18} />;
+    if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('tar') || mimeType.includes('7z'))
+      return <FileArchive size={18} />;
+    return <File size={18} />;
+  };
+
+  const canPreview = (mimeType: string) => {
+    return mimeType.startsWith('image/') || mimeType === 'application/pdf' || mimeType.startsWith('text/');
   };
 
   const readingTime = useMemo(() => {
@@ -887,24 +907,109 @@ export default function ArticleDetailPage() {
                       border: '1px solid var(--border)', borderRadius: 'var(--radius)',
                       fontSize: 14
                     }}>
-                      <span style={{ color: 'var(--accent)' }}>{getFileIcon(att.mime_type)}</span>
+                      {/* Preview thumbnail for images */}
+                      {att.mime_type.startsWith('image/') && (
+                        <img
+                          src={att.url}
+                          alt={att.filename}
+                          style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, cursor: 'pointer' }}
+                          onClick={() => { setPreviewUrl(att.url); setPreviewType(att.mime_type); }}
+                        />
+                      )}
+                      {!att.mime_type.startsWith('image/') && (
+                        <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{getFileIcon(att.mime_type)}</span>
+                      )}
                       <span style={{ flex: 1, color: 'var(--foreground)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {att.filename}
                       </span>
                       <span style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {formatFileSize(att.size)}
                       </span>
+                      {canPreview(att.mime_type) && (
+                        <button
+                          onClick={() => { setPreviewUrl(att.url); setPreviewType(att.mime_type); }}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4,
+                            fontSize: 13, padding: 0
+                          }}
+                        >
+                          <ZoomIn size={14} /> Preview
+                        </button>
+                      )}
                       <a
                         href={att.url}
                         download={att.filename}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, textDecoration: 'none' }}
+                        style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, textDecoration: 'none' }}
                       >
-                        <Download size={14} /> Download
+                        <Download size={14} />
                       </a>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Preview lightbox */}
+              {previewUrl && (
+                <div
+                  style={{
+                    position: 'fixed', inset: 0, zIndex: 10000,
+                    background: 'rgba(0,0,0,0.85)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    padding: 40, cursor: 'pointer',
+                  }}
+                  onClick={() => { setPreviewUrl(null); setPreviewType(''); }}
+                >
+                  <button
+                    onClick={() => { setPreviewUrl(null); setPreviewType(''); }}
+                    style={{
+                      position: 'absolute', top: 20, right: 20,
+                      background: 'rgba(255,255,255,0.15)', border: 'none',
+                      color: '#fff', width: 40, height: 40, borderRadius: '50%',
+                      fontSize: 22, cursor: 'pointer', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <X size={22} />
+                  </button>
+                  {previewType.startsWith('image/') ? (
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
+                      onClick={e => e.stopPropagation()}
+                    />
+                  ) : previewType === 'application/pdf' ? (
+                    <iframe
+                      src={previewUrl}
+                      style={{ width: '90vw', height: '90vh', border: 'none', borderRadius: 8 }}
+                      title="PDF Preview"
+                    />
+                  ) : (
+                    <iframe
+                      src={previewUrl}
+                      style={{ width: '90vw', height: '90vh', border: 'none', borderRadius: 8 }}
+                      title="File Preview"
+                    />
+                  )}
+                  <a
+                    href={previewUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      position: 'absolute', bottom: 24,
+                      background: 'var(--accent)', color: '#fff',
+                      padding: '12px 24px', borderRadius: 8,
+                      textDecoration: 'none', fontSize: 15, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Download size={18} /> Download
+                  </a>
                 </div>
               )}
             </div>

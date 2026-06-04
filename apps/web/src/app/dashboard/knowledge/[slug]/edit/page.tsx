@@ -93,8 +93,16 @@ export default function EditArticlePage() {
 
   const fetchAttachments = useCallback(async (id: string) => {
     try {
-      const res = await api.get<{ data: Attachment[] }>(`/knowledge/${id}/attachments`);
-      setAttachments(res.data || []);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await api.get<{ data: any[] }>(`/knowledge/${id}/attachments`);
+      setAttachments((res.data || []).map((att: any) => ({
+        id: att.id,
+        filename: att.original_name || att.filename,
+        size: att.size_bytes || att.size,
+        mime_type: att.mime_type,
+        url: `${apiBase}/knowledge/attachments/${att.id}/download`,
+        created_at: att.created_at,
+      })));
     } catch {
       // silently ignore
     }
