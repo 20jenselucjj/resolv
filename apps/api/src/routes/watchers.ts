@@ -35,13 +35,12 @@ export default async function watcherRoutes(fastify: FastifyInstance) {
 
     const user = request.user as any;
 
-    // Verify ticket exists
-    const ticket = await pool.query('SELECT id FROM tickets WHERE id = $1', [id]);
-    if (ticket.rows.length === 0) return reply.status(404).send({ error: 'Ticket not found' });
+    // Verify ticket exists and get ticket info for permission check
+    const ticketResult = await pool.query('SELECT id, created_by_id FROM tickets WHERE id = $1', [id]);
+    if (ticketResult.rows.length === 0) return reply.status(404).send({ error: 'Ticket not found' });
 
     // Only agents/admins can add watchers (or the ticket creator)
-    const ticketCheck = await pool.query('SELECT created_by_id FROM tickets WHERE id = $1', [id]);
-    if (user.role === 'user' && ticketCheck.rows[0]?.created_by_id !== user.id) {
+    if (user.role === 'user' && ticketResult.rows[0].created_by_id !== user.id) {
       return reply.status(403).send({ error: 'Only the ticket creator or agents can add watchers' });
     }
 

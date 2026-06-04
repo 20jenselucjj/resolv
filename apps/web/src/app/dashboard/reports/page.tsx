@@ -236,108 +236,123 @@ export default function ReportsPage() {
 
   // ── Export functions ────────────────────────────────────────────────────────
   const generateSectionCSV = useCallback((section: string): string | null => {
-    if (section === 'tickets' || section === 'overview') {
-      if (filteredTickets.length === 0) return null;
-      const headers = ['ID','#','Title','Status','Priority','Type','Category','Created','Updated','Assignee','SLA Breached','Due Date'];
-      const rows = filteredTickets.map(t => [
-        t.id, t.number, `"${t.title.replace(/"/g,'""')}"`, t.status, t.priority,
-        t.ticket_type, t.category_name||'', t.created_at, t.updated_at,
-        t.assigned_to_name||'Unassigned', t.sla_breached?'Yes':'No', t.due_date||'',
-      ]);
-      return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    }
-    if (section === 'sla') {
-      if (filteredTickets.length === 0) return null;
-      const breached = filteredTickets.filter(t => t.sla_breached);
-      const lines = [
-        `SLA Compliance,,${slaStats.compliance}%`,
-        `Total Tickets,,${total}`,
-        `SLA Breaches,,${slaStats.breached}`,
-        `At Risk,,${adminStats?.sla?.at_risk_count ?? '—'}`,
-        `Avg Resolution,,${resolutionStats.formatted}`,
-        '',
-        'Breached Tickets',
-        '#,Title,Priority,Assignee,Due Date',
-        ...breached.map(t => [
-          t.number, `"${t.title.replace(/"/g,'""')}"`, t.priority,
-          t.assigned_to_name||'Unassigned', t.due_date||'',
-        ].join(',')),
-      ];
-      return lines.join('\n');
-    }
-    if (section === 'performance') {
-      if (agentPerformance.length === 0) return null;
-      const headers = ['Agent','Handled','Resolved','Resolution Rate','Avg Time (h)','SLA Breaches','Status'];
-      const rows = agentPerformance.map(a => {
-        const avgHrs = a.resolved ? a.totalResTime/a.resolved/3600000 : 0;
-        const resRate = a.count ? Math.round(a.resolved/a.count*100) : 0;
-        const status = a.breaches===0 && a.resolved>0 ? 'Good' : a.breaches>0 ? 'Review' : 'Pending';
-        return [a.name, a.count, a.resolved, `${resRate}%`, avgHrs.toFixed(1), a.breaches, status];
-      });
-      return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    }
-    if (section === 'assets' && assetStats) {
-      const lines = [
-        `Total Assets,,${assetStats.total}`,
-        '',
-        'By Status',
-        'Status,Count',
-        ...assetStats.byStatus.map(s => `${s.status},${s.count}`),
-        '',
-        'By Type',
-        'Type,Count',
-        ...assetStats.byType.map(t => `${t.asset_type},${t.count}`),
-      ];
-      return lines.join('\n');
-    }
-    if (section === 'knowledge' && knowledgeStats) {
-      const lines = [
-        `Total Articles,,${knowledgeStats.total}`,
-        '',
-        'By Status',
-        'Status,Count',
-        ...knowledgeStats.byStatus.map(s => `${s.status},${s.count}`),
-        '',
-        'Top Viewed',
-        'Title,Views,Helpful,Not Helpful',
-        ...knowledgeStats.topViewed.map(v => `"${v.title.replace(/"/g,'""')}",${v.views},${v.helpful_count},${v.not_helpful_count}`),
-      ];
-      if (knowledgeStats.byCategory.length > 0) {
-        lines.push('', 'By Category', 'Category,Count');
-        lines.push(...knowledgeStats.byCategory.map(c => `${c.category||'Uncategorized'},${c.count}`));
-      }
-      return lines.join('\n');
-    }
-    if (section === 'ai' && aiAnalytics) {
-      const { summary } = aiAnalytics;
-      const lines = [
-        `Total Queries,,${summary.total_queries}`,
-        `Avg Confidence,,${(summary.avg_confidence*100).toFixed(1)}%`,
-        `Flagged for Review,,${summary.flagged_count}`,
-        `Active Sources,,${summary.active_sources}`,
-        `Total Sources,,${summary.total_sources}`,
-      ];
-      if (aiAnalytics.recent_queries.length > 0) {
-        lines.push('', 'Recent Queries', 'Query,User,Confidence,Flagged');
-        lines.push(...aiAnalytics.recent_queries.slice(0, 20).map(q =>
-          `"${q.query.replace(/"/g,'""')}",${q.user_name||'Unknown'},${(q.confidence_score*100).toFixed(0)}%,${q.flagged_for_review?'Yes':'No'}`
-        ));
-      }
-      return lines.join('\n');
-    }
-    if (section === 'portal') {
-      const srCount = filteredTickets.filter(t => t.ticket_type === 'service_request').length;
-      const selfServicePct = total ? Math.round((srCount/total)*100) : 0;
-      const lines = [
-        `Total Users,,${adminStats?.users?.total ?? 0}`,
-        `Active Users,,${adminStats?.users?.active_count ?? 0}`,
-        `Service Requests,,${srCount}`,
-        `Self-Service Rate,,${selfServicePct}%`,
-        `Total Tickets,,${total}`,
-      ];
-      return lines.join('\n');
-    }
-    return null;
+    const generators: Record<string, () => string | null> = {
+      tickets: () => {
+        if (filteredTickets.length === 0) return null;
+        const headers = ['ID','#','Title','Status','Priority','Type','Category','Created','Updated','Assignee','SLA Breached','Due Date'];
+        const rows = filteredTickets.map(t => [
+          t.id, t.number, `"${t.title.replace(/"/g,'""')}"`, t.status, t.priority,
+          t.ticket_type, t.category_name||'', t.created_at, t.updated_at,
+          t.assigned_to_name||'Unassigned', t.sla_breached?'Yes':'No', t.due_date||'',
+        ]);
+        return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      },
+      overview: () => {
+        if (filteredTickets.length === 0) return null;
+        const headers = ['ID','#','Title','Status','Priority','Type','Category','Created','Updated','Assignee','SLA Breached','Due Date'];
+        const rows = filteredTickets.map(t => [
+          t.id, t.number, `"${t.title.replace(/"/g,'""')}"`, t.status, t.priority,
+          t.ticket_type, t.category_name||'', t.created_at, t.updated_at,
+          t.assigned_to_name||'Unassigned', t.sla_breached?'Yes':'No', t.due_date||'',
+        ]);
+        return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      },
+      sla: () => {
+        if (filteredTickets.length === 0) return null;
+        const breached = filteredTickets.filter(t => t.sla_breached);
+        const lines = [
+          `SLA Compliance,,${slaStats.compliance}%`,
+          `Total Tickets,,${total}`,
+          `SLA Breaches,,${slaStats.breached}`,
+          `At Risk,,${adminStats?.sla?.at_risk_count ?? '—'}`,
+          `Avg Resolution,,${resolutionStats.formatted}`,
+          '',
+          'Breached Tickets',
+          '#,Title,Priority,Assignee,Due Date',
+          ...breached.map(t => [
+            t.number, `"${t.title.replace(/"/g,'""')}"`, t.priority,
+            t.assigned_to_name||'Unassigned', t.due_date||'',
+          ].join(',')),
+        ];
+        return lines.join('\n');
+      },
+      performance: () => {
+        if (agentPerformance.length === 0) return null;
+        const headers = ['Agent','Handled','Resolved','Resolution Rate','Avg Time (h)','SLA Breaches','Status'];
+        const rows = agentPerformance.map(a => {
+          const avgHrs = a.resolved ? a.totalResTime/a.resolved/3600000 : 0;
+          const resRate = a.count ? Math.round(a.resolved/a.count*100) : 0;
+          const status = a.breaches===0 && a.resolved>0 ? 'Good' : a.breaches>0 ? 'Review' : 'Pending';
+          return [a.name, a.count, a.resolved, `${resRate}%`, avgHrs.toFixed(1), a.breaches, status];
+        });
+        return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      },
+      assets: () => {
+        if (!assetStats) return null;
+        const lines = [
+          `Total Assets,,${assetStats.total}`,
+          '',
+          'By Status',
+          'Status,Count',
+          ...assetStats.byStatus.map(s => `${s.status},${s.count}`),
+          '',
+          'By Type',
+          'Type,Count',
+          ...assetStats.byType.map(t => `${t.asset_type},${t.count}`),
+        ];
+        return lines.join('\n');
+      },
+      knowledge: () => {
+        if (!knowledgeStats) return null;
+        const lines = [
+          `Total Articles,,${knowledgeStats.total}`,
+          '',
+          'By Status',
+          'Status,Count',
+          ...knowledgeStats.byStatus.map(s => `${s.status},${s.count}`),
+          '',
+          'Top Viewed',
+          'Title,Views,Helpful,Not Helpful',
+          ...knowledgeStats.topViewed.map(v => `"${v.title.replace(/"/g,'""')}",${v.views},${v.helpful_count},${v.not_helpful_count}`),
+        ];
+        if (knowledgeStats.byCategory.length > 0) {
+          lines.push('', 'By Category', 'Category,Count');
+          lines.push(...knowledgeStats.byCategory.map(c => `${c.category||'Uncategorized'},${c.count}`));
+        }
+        return lines.join('\n');
+      },
+      ai: () => {
+        if (!aiAnalytics) return null;
+        const { summary } = aiAnalytics;
+        const lines = [
+          `Total Queries,,${summary.total_queries}`,
+          `Avg Confidence,,${(summary.avg_confidence*100).toFixed(1)}%`,
+          `Flagged for Review,,${summary.flagged_count}`,
+          `Active Sources,,${summary.active_sources}`,
+          `Total Sources,,${summary.total_sources}`,
+        ];
+        if (aiAnalytics.recent_queries.length > 0) {
+          lines.push('', 'Recent Queries', 'Query,User,Confidence,Flagged');
+          lines.push(...aiAnalytics.recent_queries.slice(0, 20).map(q =>
+            `"${q.query.replace(/"/g,'""')}",${q.user_name||'Unknown'},${(q.confidence_score*100).toFixed(0)}%,${q.flagged_for_review?'Yes':'No'}`
+          ));
+        }
+        return lines.join('\n');
+      },
+      portal: () => {
+        const srCount = filteredTickets.filter(t => t.ticket_type === 'service_request').length;
+        const selfServicePct = total ? Math.round((srCount/total)*100) : 0;
+        const lines = [
+          `Total Users,,${adminStats?.users?.total ?? 0}`,
+          `Active Users,,${adminStats?.users?.active_count ?? 0}`,
+          `Service Requests,,${srCount}`,
+          `Self-Service Rate,,${selfServicePct}%`,
+          `Total Tickets,,${total}`,
+        ];
+        return lines.join('\n');
+      },
+    };
+    return generators[section]?.() ?? null;
   }, [filteredTickets, agentPerformance, assetStats, knowledgeStats, aiAnalytics, adminStats, slaStats, total, resolutionStats]);
 
   const exportSectionCSV = useCallback((section: string) => {

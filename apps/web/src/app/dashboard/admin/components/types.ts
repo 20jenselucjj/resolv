@@ -43,6 +43,10 @@ export interface UserProfile {
   department?: string;
   is_active: boolean;
   avatarUrl?: string;
+  source?: string;        // 'manual' | 'google_workspace' | 'azure_ad' | 'ldap' | 'sso'
+  locked?: boolean;
+  locked_at?: string;
+  locked_reason?: string;
 }
 
 export interface Category {
@@ -126,6 +130,11 @@ export interface AIConfig {
     createTickets: boolean;
     getMyTickets: boolean;
     searchKnowledge: boolean;
+    searchTickets: boolean;
+    addAttachments: boolean;
+    searchUsers: boolean;
+    addComments: boolean;
+    getStats: boolean;
   };
   portal_behavior?: {
     responseLength: 'short' | 'medium' | 'long';
@@ -142,6 +151,10 @@ export interface AIConfig {
     getMyTickets: boolean;
     searchKnowledge: boolean;
     getStats: boolean;
+    updateTickets: boolean;
+    addComments: boolean;
+    searchUsers: boolean;
+    addAttachments: boolean;
   };
   // Behavior settings
   behavior?: {
@@ -172,6 +185,7 @@ export interface AiGuidelinesSection {
   commentWorkflow: string;
   enumRule?: string;
   hallucinationGuard?: string;
+  toolUsageRules?: string;
 }
 
 export interface TimeSeriesPoint {

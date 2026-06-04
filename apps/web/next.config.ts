@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+let nextConfig: NextConfig = {
   // Compress responses with gzip
   compress: true,
 
@@ -19,7 +19,6 @@ const nextConfig: NextConfig = {
       'lucide-react',
       'date-fns',
       'cmdk',
-      '@uiw/react-md-editor',
     ],
   },
 
@@ -39,5 +38,12 @@ const nextConfig: NextConfig = {
     ];
   },
 };
+
+// Bundle analyzer (run with: ANALYZE=true npm run build)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const withBundleAnalyzer = require('@next/bundle-analyzer');
+if (process.env.ANALYZE === 'true') {
+  nextConfig = withBundleAnalyzer({ enabled: true })(nextConfig);
+}
 
 export default nextConfig;

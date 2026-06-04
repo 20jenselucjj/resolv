@@ -133,7 +133,7 @@ export async function dispatchNotifications(event: NotificationEvent): Promise<v
 
 // ─── Build email variables ──────────────────────────────────────────────────
 
-async function buildEmailVariables(event: NotificationEvent): Promise<Record<string, any>> {
+async function buildEmailVariables(event: NotificationEvent): Promise<Record<string, unknown>> {
   const webUrl = process.env.WEB_URL || 'http://localhost:3000';
 
   // Look up requestor name
@@ -297,13 +297,13 @@ function getTemplateNameForEvent(type: NotificationEventType): string {
 
 async function sendStandardEventEmail(
   event: NotificationEvent,
-  emailVars: Record<string, any>,
+  emailVars: Record<string, unknown>,
   recipients: Recipient[]
 ): Promise<void> {
   const templateName = getTemplateNameForEvent(event.type);
 
   for (const recipient of recipients) {
-    const vars: Record<string, any> = { ...emailVars, user_name: recipient.name };
+    const vars: Record<string, unknown> = { ...emailVars, user_name: recipient.name };
 
     // For resolved/closed, add close_notes
     if (event.type === 'ticket_resolved' || event.type === 'ticket_closed') {
@@ -325,7 +325,7 @@ async function sendStandardEventEmail(
 
 async function fireMatchingRules(
   event: NotificationEvent,
-  emailVars: Record<string, any>,
+  emailVars: Record<string, unknown>,
   recipients: Recipient[]
 ): Promise<void> {
   try {

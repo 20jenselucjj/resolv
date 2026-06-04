@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import { useStore, Ticket, Category, Comment, User } from '@/lib/store';
 import { formatDate, formatDateTime } from '@/lib/date-utils';
 import { connectSocket } from '@/lib/socket';
@@ -127,7 +127,7 @@ export default function TicketDetailPage() {
       const formData = new FormData();
       formData.append('file', file);
       try {
-        const token = localStorage.getItem('resolv_token');
+        const token = getToken();
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
         const res = await fetch(`${baseUrl}/tickets/${id}/attachments`, {
           method: 'POST',
@@ -272,7 +272,7 @@ export default function TicketDetailPage() {
     formData.append('file', file);
     
     try {
-      const token = localStorage.getItem('resolv_token');
+      const token = getToken();
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
       const res = await fetch(`${baseUrl}/tickets/${id}/attachments`, {
         method: 'POST',
@@ -291,6 +291,23 @@ export default function TicketDetailPage() {
       setUploading(false);
       e.target.value = '';
     }
+  }
+
+  async function downloadAttachment(id: string, filename: string) {
+    const token = getToken();
+    if (!token) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const res = await fetch(`${apiUrl}/attachments/${id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleDeleteAttachment(attachmentId: string) {
@@ -549,9 +566,8 @@ export default function TicketDetailPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
                       <a
-                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/attachments/${a.id}/download?token=${localStorage.getItem('resolv_token')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href="#"
+                        onClick={(e) => { e.preventDefault(); downloadAttachment(a.id, a.original_name || 'download'); }}
                         className="btn btn-ghost btn-icon btn-sm"
                         title="Download"
                       >
@@ -772,9 +788,8 @@ export default function TicketDetailPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
                         <a
-                          href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/attachments/${a.id}/download?token=${localStorage.getItem('resolv_token')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href="#"
+                          onClick={(e) => { e.preventDefault(); downloadAttachment(a.id, a.original_name || 'download'); }}
                           className="btn btn-ghost btn-icon btn-sm"
                           title="Download"
                         >

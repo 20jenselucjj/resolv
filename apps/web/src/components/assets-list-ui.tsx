@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Monitor } from 'lucide-react';
+import Image from 'next/image';
 
 export function Avatar({ name, avatarUrl }: { name?: string | null; avatarUrl?: string | null }) {
   const initial = name?.trim()?.[0]?.toUpperCase() || '?';
@@ -18,10 +19,11 @@ export function Avatar({ name, avatarUrl }: { name?: string | null; avatarUrl?: 
           flexShrink: 0
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={avatarUrl}
           alt={name || 'Owner'}
+          width={100}
+          height={100}
           style={{
             width: '100%',
             height: '100%',

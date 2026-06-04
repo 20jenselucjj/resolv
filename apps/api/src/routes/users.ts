@@ -27,12 +27,18 @@ const changePasswordSchema = z.object({
 });
 
 export default async function userRoutes(fastify: FastifyInstance) {
-  // 1. GET /users - List all users (authenticated)
+  // 1. GET /users - List all users (authenticated, paginated)
   fastify.get('/users', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { search, role, is_active } = request.query as { search?: string; role?: string; is_active?: string };
+    const queryParams = request.query as { search?: string; role?: string; is_active?: string; page?: string; limit?: string };
+    const { search, role, is_active } = queryParams;
+    const page = Math.max(1, parseInt(queryParams.page || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(queryParams.limit || '50')));
+    const offset = (page - 1) * limit;
     
-    let query = `
-      SELECT id, email, name, role, avatar_url, department, phone, is_active, last_login_at, created_at 
+    // Count query
+    let countQuery = 'SELECT COUNT(*) FROM users WHERE 1=1';
+    let dataQuery = `
+      SELECT id, email, name, role, avatar_url, department, phone, is_active, last_login_at, created_at, source, locked, locked_at, locked_reason 
       FROM users 
       WHERE 1=1
     `;
@@ -40,23 +46,39 @@ export default async function userRoutes(fastify: FastifyInstance) {
     
     if (search) {
       params.push(`%${search}%`);
-      query += ` AND (name ILIKE $${params.length} OR email ILIKE $${params.length})`;
+      countQuery += ` AND (name ILIKE $${params.length} OR email ILIKE $${params.length})`;
+      dataQuery += ` AND (name ILIKE $${params.length} OR email ILIKE $${params.length})`;
     }
     
     if (role) {
       params.push(role);
-      query += ` AND role = $${params.length}`;
+      countQuery += ` AND role = $${params.length}`;
+      dataQuery += ` AND role = $${params.length}`;
     }
     
     if (is_active !== undefined) {
       params.push(is_active === 'true');
-      query += ` AND is_active = $${params.length}`;
+      countQuery += ` AND is_active = $${params.length}`;
+      dataQuery += ` AND is_active = $${params.length}`;
     }
     
-    query += ' ORDER BY name ASC';
+    dataQuery += ' ORDER BY name ASC';
     
-    const result = await pool.query(query, params);
-    return reply.send({ data: result.rows });
+    // Run count and data in parallel
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(countQuery, params),
+      pool.query(`${dataQuery} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset]),
+    ]);
+    
+    return reply.send({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+      },
+    });
   });
 
   // 2. GET /users/:id - Get single user with ticket stats
@@ -64,7 +86,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     
     const userResult = await pool.query(
-      'SELECT id, email, name, role, avatar_url, department, phone, is_active, last_login_at, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, role, avatar_url, department, phone, is_active, last_login_at, created_at, source, locked, locked_at, locked_reason FROM users WHERE id = $1',
       [id]
     );
     
@@ -123,7 +145,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
 
     try {
       const result = await pool.query(
-        `UPDATE users SET ${setClauses.join(', ')} WHERE id = $1 RETURNING id, email, name, role, avatar_url, department, phone, is_active, created_at`,
+        `UPDATE users SET ${setClauses.join(', ')} WHERE id = $1 RETURNING id, email, name, role, avatar_url, department, phone, is_active, created_at, source, locked`,
         [id, ...values]
       );
       
@@ -193,6 +215,56 @@ export default async function userRoutes(fastify: FastifyInstance) {
     return reply.send({ tempPassword });
   });
 
+  // POST /users/:id/lock - Admin only
+  fastify.post('/users/:id/lock', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const currentUser = request.user as JwtPayload;
+    const { reason } = z.object({ reason: z.string().max(500).optional() }).parse(request.body || {});
+
+    // Cannot lock yourself
+    if (currentUser.id === id) {
+      return reply.status(400).send({ error: 'Cannot lock your own account' });
+    }
+
+    const result = await pool.query(
+      'UPDATE users SET locked = true, locked_by = $1, locked_at = NOW(), locked_reason = $2 WHERE id = $3 RETURNING id',
+      [currentUser.id, reason || null, id]
+    );
+
+    if (result.rowCount === 0) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [currentUser.id, 'lock_user', 'users', id, JSON.stringify({ reason: reason || null })]
+    );
+
+    return reply.send({ message: 'User locked successfully' });
+  });
+
+  // POST /users/:id/unlock - Admin only
+  fastify.post('/users/:id/unlock', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const currentUser = request.user as JwtPayload;
+
+    const result = await pool.query(
+      'UPDATE users SET locked = false, locked_by = NULL, locked_at = NULL, locked_reason = NULL WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    await pool.query(
+      'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
+      [currentUser.id, 'unlock_user', 'users', id, null]
+    );
+
+    return reply.send({ message: 'User unlocked successfully' });
+  });
+
   // 5. DELETE /users/:id - Admin only (hard delete)
   fastify.delete('/users/:id', { preHandler: [fastify.requireRole(['admin'])] }, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -248,27 +320,45 @@ export default async function userRoutes(fastify: FastifyInstance) {
   // 7. GET /users/:id/tickets
   fastify.get('/users/:id/tickets', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { type, status } = request.query as { type?: 'created' | 'assigned'; status?: string };
+    const queryParams = request.query as { type?: 'created' | 'assigned'; status?: string; page?: string; limit?: string };
+    const { type, status } = queryParams;
+    const page = Math.max(1, parseInt(queryParams.page || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(queryParams.limit || '20')));
+    const offset = (page - 1) * limit;
     
-    let query = 'SELECT * FROM tickets WHERE ';
+    let whereClause = '';
     const params: any[] = [];
     
     if (type === 'assigned') {
       params.push(id);
-      query += `assigned_to_id = $${params.length}`;
+      whereClause += `assigned_to_id = $${params.length}`;
     } else {
       params.push(id);
-      query += `created_by_id = $${params.length}`;
+      whereClause += `created_by_id = $${params.length}`;
     }
     
     if (status) {
       params.push(status);
-      query += ` AND status = $${params.length}`;
+      whereClause += ` AND status = $${params.length}`;
     }
     
-    query += ' ORDER BY created_at DESC';
+    // Count and data in parallel
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM tickets WHERE ${whereClause}`, params),
+      pool.query(
+        `SELECT * FROM tickets WHERE ${whereClause} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      ),
+    ]);
     
-    const result = await pool.query(query, params);
-    return reply.send({ data: result.rows });
+    return reply.send({
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total: parseInt(countResult.rows[0].count),
+        totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit),
+      },
+    });
   });
 }

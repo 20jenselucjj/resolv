@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import {
   Upload, MessageSquare, Settings, FlaskConical, BarChart3
 } from 'lucide-react';
@@ -137,7 +137,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
 
       setUploading(true);
       try {
-        const token = localStorage.getItem('resolv_token');
+        const token = getToken();
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('name', sourceForm.name.trim());

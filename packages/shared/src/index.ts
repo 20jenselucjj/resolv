@@ -109,7 +109,7 @@ export interface AssetHardware {
   disk_total_gb?: number;
   disk_used_gb?: number;
   disk_free_gb?: number;
-  disks: any[];
+  disks: { device?: string; mountpoint?: string; total?: number; used?: number }[];
   updated_at: string;
 }
 

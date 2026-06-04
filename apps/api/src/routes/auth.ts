@@ -53,6 +53,32 @@ function clearAttempts(ip: string) {
   loginAttempts.delete(ip);
 }
 
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (!record || now > record.resetAt) {
+    loginAttempts.set(ip, { count: 0, resetAt: now + WINDOW_MS });
+    return false;
+  }
+  return record.count >= MAX_ATTEMPTS;
+}
+
+function isSafeRedirectOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  const allowedOrigins = [
+    process.env.WEB_URL,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ].filter(Boolean) as string[];
+  
+  if (allowedOrigins.includes(origin)) return true;
+  
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+  
+  return false;
+}
+
 const registerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
@@ -79,7 +105,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     );
 
     const user = result.rows[0];
-    const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name });
+    const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, { expiresIn: '24h' });
 
     return reply.status(201).send({ data: { user, token } });
   });
@@ -126,6 +152,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Account is deactivated. Please contact your administrator.' });
     }
 
+    if (user.locked) {
+      recordFailedAttempt(ip);
+      return reply.status(403).send({ error: 'Account is locked. Please contact your administrator.' });
+    }
+
     const valid = await bcrypt.compare(body.password, user.password_hash);
 
     if (!valid) {
@@ -141,19 +172,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
       email: user.email,
       role: user.role,
       name: user.name,
-    });
+    }, { expiresIn: '24h' });
 
-    let refreshToken: string | undefined;
-    if (body.rememberMe) {
-      // Generate refresh token (valid for 30 days)
-      refreshToken = crypto.randomBytes(40).toString('hex');
-      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    // Always generate a refresh token (30-day expiry) so sessions survive page refreshes
+    const refreshToken = crypto.randomBytes(40).toString('hex');
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-      await pool.query(
-        'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-        [user.id, refreshToken, expiresAt]
-      );
-    }
+    await pool.query(
+      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, refreshToken, expiresAt]
+    );
 
     clearAttempts(ip);
 
@@ -198,13 +226,20 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Account is deactivated' });
     }
 
+    // Check if user is locked
+    const lockCheck = await pool.query('SELECT locked FROM users WHERE id = $1', [tokenData.user_id]);
+    if (lockCheck.rows[0]?.locked) {
+      await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [tokenData.user_id]);
+      return reply.status(403).send({ error: 'Account is locked' });
+    }
+
     // Issue new access token (short-lived: 24 hours)
     const newToken = fastify.jwt.sign({
       id: tokenData.user_id,
       email: tokenData.email,
       role: tokenData.role,
       name: tokenData.name,
-    });
+    }, { expiresIn: '24h' });
 
     return reply.send({
       data: {
@@ -262,6 +297,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post('/auth/forgot-password', async (request, reply) => {
     try {
+      const ip = request.ip || 'unknown';
+      if (isRateLimited(ip)) {
+        return reply.status(429).send({ error: 'Too many requests. Please try again in 15 minutes.' });
+      }
+
       const { email } = z.object({ email: z.string().email() }).parse(request.body);
 
       // Check if email exists (for internal logging only)
@@ -277,7 +317,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const host = request.headers.host || request.hostname;
         const resetLink = `${protocol}://${host}/reset-password?token=${token}`;
         fastify.log.info(`Password reset link for ${email}: ${resetLink}`);
-        console.log(`\n🔐 PASSWORD RESET LINK (for ${email}):\n   ${resetLink}\n`);
+        clearAttempts(ip);
       }
 
       // Always return the same message regardless of whether email exists
@@ -435,7 +475,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       // Block SSO login if in password_only mode
       const loginMode = await getLoginMode();
       if (loginMode === 'password_only') {
-        return reply.redirect(302, `${request.headers.origin || 'http://localhost:3000'}/login?error=sso_disabled`);
+        return reply.redirect(`${isSafeRedirectOrigin(request.headers.origin) ? request.headers.origin : (process.env.WEB_URL || 'http://localhost:3000')}/login?error=sso_disabled`, 302);
       }
 
       const configResult = await pool.query(
@@ -443,19 +483,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
       );
 
       if (configResult.rows.length === 0) {
-        return reply.redirect(302, `${request.headers.origin || 'http://localhost:3000'}/login?error=sso_not_configured`);
+        return reply.redirect(`${isSafeRedirectOrigin(request.headers.origin) ? request.headers.origin : (process.env.WEB_URL || 'http://localhost:3000')}/login?error=sso_not_configured`, 302);
       }
 
       let config: any;
       try {
         config = JSON.parse(configResult.rows[0].value);
       } catch {
-        return reply.redirect(302, `${request.headers.origin || 'http://localhost:3000'}/login?error=sso_config_error`);
+        return reply.redirect(`${isSafeRedirectOrigin(request.headers.origin) ? request.headers.origin : (process.env.WEB_URL || 'http://localhost:3000')}/login?error=sso_config_error`, 302);
       }
 
       const clientId = config.clientId;
       if (!clientId) {
-        return reply.redirect(302, `${request.headers.origin || 'http://localhost:3000'}/login?error=sso_not_configured`);
+        return reply.redirect(`${isSafeRedirectOrigin(request.headers.origin) ? request.headers.origin : (process.env.WEB_URL || 'http://localhost:3000')}/login?error=sso_not_configured`, 302);
       }
 
       const host = request.headers.host || request.hostname;
@@ -490,10 +530,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
 
       const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-      return reply.redirect(302, authorizeUrl);
+      return reply.redirect(authorizeUrl, 302);
     } catch (err: any) {
       fastify.log.error(err);
-      return reply.redirect(302, `${request.headers.origin || 'http://localhost:3000'}/login?error=sso_error`);
+      return reply.redirect(`${isSafeRedirectOrigin(request.headers.origin) ? request.headers.origin : (process.env.WEB_URL || 'http://localhost:3000')}/login?error=sso_error`, 302);
     }
   });
 }

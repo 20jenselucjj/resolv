@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { API_BASE } from '@/lib/api';
+import { API_BASE, getToken, setToken, clearAuth } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -107,7 +107,7 @@ interface AppState {
 
 export const useStore = create<AppState>((set) => ({
   user: null,
-  token: typeof window !== 'undefined' ? localStorage.getItem('resolv_token') : null,
+  token: typeof window !== 'undefined' ? getToken() : null,
   tickets: [],
   notifications: [],
   unreadCount: 0,
@@ -116,8 +116,7 @@ export const useStore = create<AppState>((set) => ({
   density: typeof window !== 'undefined' ? (localStorage.getItem('resolv_density') as 'compact' | 'spacious') || 'spacious' : 'spacious',
   setUser: (user) => set({ user }),
   setToken: (token) => {
-    if (token) localStorage.setItem('resolv_token', token);
-    else localStorage.removeItem('resolv_token');
+    setToken(token);
     set({ token });
   },
   setTickets: (tickets) => set({ tickets }),
@@ -148,7 +147,7 @@ export const useStore = create<AppState>((set) => ({
       };
     });
     // Persist to API (fire and forget)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('resolv_token') : null;
+    const token = getToken();
     if (token) {
       fetch(`${API_BASE}/notifications/${id}/read`, {
         method: 'POST',
@@ -168,8 +167,7 @@ export const useStore = create<AppState>((set) => ({
     set({ density });
   },
   logout: () => {
-    localStorage.removeItem('resolv_token');
-    localStorage.removeItem('resolv_refresh_token');
+    clearAuth();
     localStorage.removeItem('resolv_remember_me');
     localStorage.removeItem('resolv_remembered_email');
     set({ user: null, token: null, tickets: [], notifications: [], unreadCount: 0, categories: [] });

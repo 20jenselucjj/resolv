@@ -627,12 +627,19 @@ export default async function assetRoutes(fastify: FastifyInstance) {
   fastify.post('/assets/apply-rules/all', { preHandler: [fastify.authenticate, fastify.requireRole(['admin'])] }, async (request, reply) => {
     const { rows } = await pool.query('SELECT * FROM assets');
     let applied = 0;
-    for (const asset of rows) {
-      const oldGroupId = asset.asset_group_id;
-      await applyAutoJoinRules(asset.id, asset);
-      const { rows: updated } = await pool.query('SELECT asset_group_id FROM assets WHERE id = $1', [asset.id]);
-      if (updated[0]?.asset_group_id !== oldGroupId) applied++;
+
+    // Process in chunks of 50 to avoid overwhelming DB
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE);
+      for (const asset of chunk) {
+        const oldGroupId = asset.asset_group_id;
+        await applyAutoJoinRules(asset.id, asset);
+        const { rows: updated } = await pool.query('SELECT asset_group_id FROM assets WHERE id = $1', [asset.id]);
+        if (updated[0]?.asset_group_id !== oldGroupId) applied++;
+      }
     }
+
     return reply.send({ data: { success: true, message: `Rules applied to ${rows.length} assets, ${applied} reassigned` } });
   });
 
@@ -851,25 +858,69 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       // Mark all existing sessions as not current for this asset
       await pool.query(`UPDATE asset_users SET is_current=false WHERE asset_id=$1`, [assetId]);
 
-      for (const u of humanSessions) {
-        if (!u.username) continue;
+      // Batch resolve user matching — collect all usernames, query once
+      const usernames: string[] = humanSessions
+        .map((u: any) => u.username)
+        .filter((n: string | undefined): n is string => !!n);
+      const uniqueUsernames = [...new Set(usernames)];
+      const matchedMap = new Map<string, string | null>();
 
-        const matchedUser = await matchWindowsUser(u.username);
-
-        // Insert the user session record
-        await pool.query(`
-          INSERT INTO asset_users (asset_id, username, domain, user_id, is_current, logged_in_at, session_type, session_host)
-          VALUES ($1,$2,$3,$4,true,$5,$6,$7)
-        `, [
-          assetId,
-          u.username,
-          u.domain || null,
-          matchedUser?.id || null,
-          u.logged_in_at ? new Date(u.logged_in_at) : new Date(),
-          u.session_type || null,
-          u.session_host || null,
-        ]);
+      if (uniqueUsernames.length > 0) {
+        // Match any of them: windows_username, email, or email local-part
+        const matchResult = await pool.query(
+          `SELECT id, windows_username, email FROM users WHERE is_active=true AND (
+            windows_username = ANY($1) OR LOWER(email) = ANY($1)
+          )`,
+          [uniqueUsernames]
+        );
+        for (const row of matchResult.rows) {
+          const rowId: string = row.id;
+          const rowWinUser: string | null = row.windows_username ?? null;
+          const rowEmail: string = (row.email ?? '').toLowerCase();
+          for (const u of uniqueUsernames) {
+            if (!matchedMap.has(u) && (rowWinUser === u || rowEmail === u.toLowerCase())) {
+              matchedMap.set(u, rowId);
+            }
+          }
+        }
+        // Local-part matching for leftovers
+        const unmatched = uniqueUsernames.filter(u => !matchedMap.has(u) && !u.includes('@'));
+        if (unmatched.length > 0) {
+          const localResult = await pool.query(
+            `SELECT id, email FROM users WHERE is_active=true AND LOWER(email) LIKE ANY($1)`,
+            [unmatched.map(u => `${u.toLowerCase()}@%`)]
+          );
+          for (const row of localResult.rows) {
+            const rowId: string = row.id;
+            const localPart: string = (row.email ?? '').split('@')[0].toLowerCase();
+            for (const u of unmatched) {
+              if (!matchedMap.has(u) && u.toLowerCase() === localPart) {
+                matchedMap.set(u, rowId);
+                break;
+              }
+            }
+          }
+        }
       }
+
+      // Batch insert all sessions
+      const values: any[] = [];
+      const placeholders: string[] = [];
+      humanSessions.forEach((u: Record<string, any>, i) => {
+        const base = i * 7;
+        placeholders.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4},true,$${base + 5},$${base + 6},$${base + 7})`);
+        const username = u.username || '';
+        const domain = u.domain || null;
+        const matchedUserId = matchedMap.get(username) || null;
+        const loggedInAt = u.logged_in_at ? new Date(u.logged_in_at) : new Date();
+        const sessionType = u.session_type || null;
+        const sessionHost = u.session_host || null;
+        values.push(assetId, username, domain, matchedUserId, loggedInAt, sessionType, sessionHost);
+      });
+      await pool.query(
+        `INSERT INTO asset_users (asset_id, username, domain, user_id, is_current, logged_in_at, session_type, session_host) VALUES ${placeholders.join(',')}`,
+        values
+      );
     }
 
     // Log check-in activity with richer detail

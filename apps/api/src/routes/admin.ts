@@ -602,6 +602,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       since = '100 years';
     }
 
+    const VALID_DATE_TRUNCS = ['day', 'week', 'month'] as const;
+    const VALID_SINCE = ['7 days', '30 days', '90 days', '100 years'] as const;
+    if (!VALID_DATE_TRUNCS.includes(dateTrunc as any) || !VALID_SINCE.includes(since as any)) {
+      return reply.status(400).send({ error: 'Invalid range parameter' });
+    }
+
     const ticketsResult = await pool.query(
       `SELECT date_trunc('${dateTrunc}', created_at) as date,
               COUNT(*) as created,
@@ -791,6 +797,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       since = '90 days';
     } else {
       since = '7 days';
+    }
+
+    const VALID_SINCE = ['7 days', '30 days', '90 days'] as const;
+    if (!VALID_SINCE.includes(since as any)) {
+      return reply.status(400).send({ error: 'Invalid range parameter' });
     }
 
     const result = await pool.query(

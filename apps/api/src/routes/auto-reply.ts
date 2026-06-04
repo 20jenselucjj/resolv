@@ -218,6 +218,20 @@ export async function triggerAutoReplies(
 
     const webUrl = process.env.WEB_URL || 'http://localhost:3000';
 
+    // Pre-fetch ticket data and category name once for all rules
+    let ticketFull: any = null;
+    let categoryNameMap = new Map<string, string>();
+    try {
+      const tResult = await pool.query('SELECT created_at, due_date, category_id, description FROM tickets WHERE id = $1', [ticket.id]);
+      if (tResult.rows.length > 0) ticketFull = tResult.rows[0];
+      if (ticketFull?.category_id) {
+        const catResult = await pool.query('SELECT id, name FROM categories');
+        for (const row of catResult.rows) {
+          categoryNameMap.set(row.id, row.name);
+        }
+      }
+    } catch { /* optional */ }
+
     for (const rule of rules) {
       const conditions = rule.conditions || {};
 
@@ -244,19 +258,10 @@ export async function triggerAutoReplies(
       }
 
       // Build template variables
-      // Look up additional ticket fields for email templates
-      let ticketFull: any = null;
-      try {
-        const tResult = await pool.query('SELECT created_at, due_date, category_id, description FROM tickets WHERE id = $1', [ticket.id]);
-        if (tResult.rows.length > 0) ticketFull = tResult.rows[0];
-      } catch { /* optional */ }
-
+      // Use the pre-fetched ticket data and category name
       let arCategoryName = 'None';
       if (ticketFull?.category_id) {
-        try {
-          const c = await pool.query('SELECT name FROM categories WHERE id = $1', [ticketFull.category_id]);
-          if (c.rows.length > 0) arCategoryName = c.rows[0].name;
-        } catch { /* optional */ }
+        arCategoryName = categoryNameMap.get(ticketFull.category_id) || 'None';
       }
 
       const variables = {

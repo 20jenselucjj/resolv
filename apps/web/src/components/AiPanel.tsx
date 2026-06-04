@@ -1,8 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import {
   Sparkles, X, Trash2, Send, Plus,
   User as UserIcon, Check, Loader2, Paperclip,
@@ -119,7 +120,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const token = localStorage.getItem('resolv_token');
+        const token = getToken();
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
         const res = await fetch(`${baseUrl}/ai/upload`, {
           method: 'POST',
@@ -157,9 +158,17 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const fetchMessages = async (sessionId: string) => {
     try {
       const res = await api.get<{ data: Message[] }>(`/ai/sessions/${sessionId}/messages`);
-      // Filter out raw tool-result messages (role='tool') that contain internal JSON,
-      // preventing them from leaking into the visible chat UI as assistant bubbles.
-      setMessages((res?.data || []).filter(m => m.role !== 'tool'));
+      // Filter out:
+      // 1. Raw tool-result messages (role='tool') that contain internal JSON
+      // 2. Intermediate assistant messages with tool_calls (these are not final responses)
+      // Only show the final assistant responses to the user
+      setMessages((res?.data || []).filter(m => {
+        if (m.role === 'tool') return false;
+        // Skip assistant messages that have tool_calls (intermediate steps)
+        // These are followed by a final assistant message without tool_calls
+        if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) return false;
+        return true;
+      }));
     } catch (err) {
       console.error('Failed to fetch messages:', err);
     }
@@ -321,7 +330,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = localStorage.getItem('resolv_token');
+      const token = getToken();
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
       const res = await fetch(`${baseUrl}/ai/upload`, {
         method: 'POST',
@@ -600,7 +609,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                                 background: 'rgba(0,0,0,0.1)', flexShrink: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
                               }}>
-                                {user?.avatarUrl ? <img src={user.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="User" /> : <UserIcon size={14} color="var(--text-muted)" />}
+                                {user?.avatarUrl ? <Image src={user.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="User" width={28} height={28} /> : <UserIcon size={14} color="var(--text-muted)" />}
                               </div>
                             </div>
                             {msg.created_at && (

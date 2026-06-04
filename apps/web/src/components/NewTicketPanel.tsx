@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useStore, Category, User, Ticket } from '@/lib/store';
-import { api, API_BASE } from '@/lib/api';
+import { api, API_BASE, getToken } from '@/lib/api';
 import {
   X, Maximize2, Minimize2, AlertTriangle, Sparkles, CheckCircle,
   Paperclip, UploadCloud, Loader2, FileText, Trash2
@@ -223,7 +223,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
       // Upload attached files
       if (attachedFiles.length > 0) {
         setUploadingFiles(true);
-        const token = localStorage.getItem('resolv_token') || localStorage.getItem('token');
+        const token = getToken();
         const apiBase = API_BASE || 'http://localhost:3001/api';
         for (const file of attachedFiles) {
           const formData = new FormData();

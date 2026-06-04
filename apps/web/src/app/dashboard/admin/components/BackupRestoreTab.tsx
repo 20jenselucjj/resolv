@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Database, Download, Upload, AlertTriangle } from 'lucide-react';
+import { getToken } from '@/lib/api';
 
 export function BackupRestoreTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
   const [backingUp, setBackingUp] = useState(false);
@@ -9,7 +10,7 @@ export function BackupRestoreTab({ showAlert }: { showAlert: (m: string, t?: 'su
   const handleBackup = async () => {
     setBackingUp(true);
     try {
-      const token = localStorage.getItem('resolv_token');
+      const token = getToken();
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
       const res = await fetch(`${baseUrl}/admin/backup`, {
         method: 'POST',

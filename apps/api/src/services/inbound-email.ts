@@ -187,7 +187,7 @@ export function stripQuotedReply(body: string): string {
  * Find ticket number by examining email References / In-Reply-To headers
  * against our email_log. Handles replies to notification emails.
  */
-function getReferences(parsed: any): string[] {
+function getReferences(parsed: { references?: string[]; messageId?: string; headers?: { name: string; value: string }[] }): string[] {
   const refs: string[] = [];
   const inReplyTo = parsed.inReplyTo;
   const references = parsed.references;
@@ -197,7 +197,7 @@ function getReferences(parsed: any): string[] {
   return refs.filter(Boolean);
 }
 
-async function findTicketByReferences(parsed: any): Promise<number | null> {
+async function findTicketByReferences(parsed: { references?: string[]; messageId?: string }): Promise<number | null> {
   const refIds = getReferences(parsed);
   if (refIds.length === 0) return null;
 
@@ -338,7 +338,7 @@ async function saveEmailAttachments(
 /**
  * Extract attachments from a parsed email (mailparser result).
  */
-function extractAttachments(parsed: any): AttachmentInfo[] {
+function extractAttachments(parsed: { parts?: { filename?: string; mimeType?: string; body?: { attachmentId?: string; size?: number }; parts?: any[] }[] }): AttachmentInfo[] {
   const attachments = parsed.attachments || [];
   return attachments.map((att: any) => ({
     filename: att.filename || 'attachment',

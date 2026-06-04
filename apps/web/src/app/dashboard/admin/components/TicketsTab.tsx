@@ -6,7 +6,7 @@ import { WorkflowTab } from './WorkflowTab';
 import { TicketStatusesTab } from './TicketStatusesTab';
 import type { Category } from './types';
 
-const SUB_TABS = ['All', 'Categories', 'Workflow', 'Statuses'] as const;
+const SUB_TABS = ['Categories', 'Workflow', 'Statuses'] as const;
 type SubTab = typeof SUB_TABS[number];
 
 export function TicketsTab({
@@ -21,7 +21,7 @@ export function TicketsTab({
   onRefreshCategories: () => void;
 }) {
   const [subTab, setSubTab] = useState<SubTab>(() => {
-    try { return (localStorage.getItem('resolv_tickets_tab') as SubTab) || 'All' } catch { return 'All' }
+    try { return (localStorage.getItem('resolv_tickets_tab') as SubTab) || 'Categories' } catch { return 'Categories' }
   });
 
   useEffect(() => { localStorage.setItem('resolv_tickets_tab', subTab) }, [subTab]);
@@ -71,26 +71,6 @@ export function TicketsTab({
         ))}
       </div>
 
-      {/* All view — Categories + Workflow side by side, Statuses full width */}
-      {subTab === 'All' && (
-        <>
-          <div className="tickets-tab-grid">
-            <CategoriesTab
-              categories={categories}
-              onRefresh={onRefreshCategories}
-              showAlert={showAlert}
-              setConfirmModal={setConfirmModal}
-            />
-            <WorkflowTab
-              showAlert={showAlert}
-              setConfirmModal={setConfirmModal}
-            />
-          </div>
-          <TicketStatusesTab showAlert={showAlert} />
-        </>
-      )}
-
-      {/* Individual sub-tab views */}
       {subTab === 'Categories' && (
         <CategoriesTab
           categories={categories}

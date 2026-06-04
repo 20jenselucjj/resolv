@@ -233,7 +233,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       });
 
       const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-      return reply.redirect(302, authorizeUrl);
+      return reply.redirect(authorizeUrl);
     } catch (err: any) {
       fastify.log.error(err);
       return reply.status(500).send({ error: 'Failed to initiate OAuth flow.' });
@@ -252,7 +252,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         const loginState = query.state ? oauthStates.get(query.state) : undefined;
         if (loginState?.mode === 'login') {
           oauthStates.delete(query.state!);
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_denied`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_denied`);
         }
         return reply.status(400).send({ error: `OAuth error: ${query.error}` });
       }
@@ -274,7 +274,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       );
       if (configResult.rows.length === 0) {
         if (storedState.mode === 'login') {
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_not_configured`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_not_configured`);
         }
         return reply.status(400).send({ error: 'Directory sync not configured.' });
       }
@@ -284,7 +284,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         config = JSON.parse(configResult.rows[0].value);
       } catch {
         if (storedState.mode === 'login') {
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_config_error`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_config_error`);
         }
         return reply.status(400).send({ error: 'Invalid directory sync configuration.' });
       }
@@ -293,7 +293,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       const clientSecret = config.clientSecret;
       if (!clientId || !clientSecret) {
         if (storedState.mode === 'login') {
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_not_configured`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_not_configured`);
         }
         return reply.status(400).send({ error: 'OAuth client credentials not configured.' });
       }
@@ -317,7 +317,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
           const googleError = tokenResponse.error;
           const googleDesc = tokenResponse.error_description || '';
           // Pass the actual Google error to the frontend for better diagnostics
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_token_failed&error_detail=${encodeURIComponent(googleError + (googleDesc ? ': ' + googleDesc : ''))}`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_token_failed&error_detail=${encodeURIComponent(googleError + (googleDesc ? ': ' + googleDesc : ''))}`);
         }
         return reply.status(400).send({ error: `Token exchange failed: ${tokenResponse.error_description || tokenResponse.error}` });
       }
@@ -326,7 +326,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       if (storedState.mode === 'login') {
         const idToken = tokenResponse.id_token;
         if (!idToken) {
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_no_id_token`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_no_id_token`);
         }
 
         // Decode JWT payload
@@ -338,12 +338,12 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         const name = profile.name || profile.given_name || email?.split('@')[0] || 'User';
 
         if (!email) {
-          return reply.redirect(302, `${frontendOrigin}/login?error=sso_no_email`);
+          return reply.redirect(`${frontendOrigin}/login?error=sso_no_email`);
         }
 
         // Find or create user
         const { rows: existing } = await pool.query(
-          'SELECT id, email, name, role, avatar_url, is_active FROM users WHERE LOWER(email) = LOWER($1)',
+          'SELECT id, email, name, role, avatar_url, is_active, locked FROM users WHERE LOWER(email) = LOWER($1)',
           [email]
         );
 
@@ -351,7 +351,10 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         if (existing.length > 0) {
           user = existing[0];
           if (!user.is_active) {
-            return reply.redirect(302, `${frontendOrigin}/login?error=sso_account_disabled`);
+            return reply.redirect(`${frontendOrigin}/login?error=sso_account_disabled`);
+          }
+          if (user.locked) {
+            return reply.redirect(`${frontendOrigin}/login?error=sso_account_locked`);
           }
           await pool.query(
             'UPDATE users SET last_login_at = NOW(), name = $1 WHERE id = $2',
@@ -376,7 +379,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
           name: user.name,
         });
 
-        return reply.redirect(302, `${frontendOrigin}/login?token=${token}`);
+        return reply.redirect(`${frontendOrigin}/login?token=${token}`);
       }
 
       // ─── Sync mode: store tokens and mark config as connected ───────────
@@ -442,7 +445,7 @@ if (window.opener) {
         if (query.state) {
           const stored = oauthStates.get(query.state);
           if (stored?.mode === 'login') {
-            return reply.redirect(302, `${frontendOrigin}/login?error=sso_error`);
+            return reply.redirect(`${frontendOrigin}/login?error=sso_error`);
           }
         }
       } catch { /* ignore */ }
@@ -502,7 +505,7 @@ if (window.opener) {
           prompt: 'consent',
         });
         const authorizeUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
-        return reply.redirect(302, authorizeUrl);
+        return reply.redirect(authorizeUrl);
       } else {
         // Google
         const params = new URLSearchParams({
@@ -517,7 +520,7 @@ if (window.opener) {
           prompt: 'consent',
         });
         const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-        return reply.redirect(302, authorizeUrl);
+        return reply.redirect(authorizeUrl);
       }
     } catch (err: any) {
       fastify.log.error(err);
@@ -532,7 +535,7 @@ if (window.opener) {
       const frontendOrigin = process.env.WEB_URL || 'http://localhost:3000';
 
       if (query.error) {
-        return reply.redirect(302, `${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=${encodeURIComponent(query.error)}`);
+        return reply.redirect(`${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=${encodeURIComponent(query.error)}`);
       }
 
       if (!query.code || !query.state) {
@@ -595,11 +598,11 @@ if (window.opener) {
       const tokenResponse = await httpsPost(tokenEndpoint, tokenBody);
 
       if (tokenResponse.error) {
-        return reply.redirect(302, `${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=${encodeURIComponent(tokenResponse.error_description || tokenResponse.error)}`);
+        return reply.redirect(`${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=${encodeURIComponent(tokenResponse.error_description || tokenResponse.error)}`);
       }
 
       if (!tokenResponse.refresh_token) {
-        return reply.redirect(302, `${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=no_refresh_token`);
+        return reply.redirect(`${frontendOrigin}/dashboard/admin?tab=settings&oauth_error=no_refresh_token`);
       }
 
       const expiryDate = new Date(Date.now() + (tokenResponse.expires_in || 3600) * 1000).toISOString();

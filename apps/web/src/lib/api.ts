@@ -2,16 +2,33 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export const API_BASE = API_URL;
 
-function getToken() {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('resolv_token');
+// In-memory token — NOT persisted to localStorage (XSS-safe)
+let currentToken: string | null = null;
+
+export function getToken(): string | null {
+  return currentToken;
+}
+
+export function setToken(token: string | null) {
+  currentToken = token;
+  if (token && typeof window !== 'undefined') {
+    localStorage.setItem('resolv_token_ts', String(Date.now()));
+  }
+}
+
+export function clearAuth() {
+  currentToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('resolv_refresh_token');
+    localStorage.removeItem('resolv_token_ts');
+  }
 }
 
 let isRefreshing = false;
 let refreshPromise: Promise<string> | null = null;
 
 async function refreshAccessToken(): Promise<string> {
-  const refreshToken = localStorage.getItem('resolv_refresh_token');
+  const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('resolv_refresh_token') : null;
   if (!refreshToken) {
     throw new Error('No refresh token');
   }
@@ -24,12 +41,12 @@ async function refreshAccessToken(): Promise<string> {
 
   if (!res.ok) {
     localStorage.removeItem('resolv_refresh_token');
-    localStorage.removeItem('resolv_token');
+    currentToken = null;
     throw new Error('Refresh failed');
   }
 
   const data = await res.json();
-  localStorage.setItem('resolv_token', data.data.token);
+  currentToken = data.data.token;
   return data.data.token;
 }
 
@@ -94,8 +111,7 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 1):
             },
           }, 0); // No more retries to avoid loops
         } catch {
-          localStorage.removeItem('resolv_refresh_token');
-          localStorage.removeItem('resolv_token');
+          clearAuth();
           if (typeof window !== 'undefined') {
             window.location.href = '/login';
           }
@@ -138,6 +154,9 @@ async function request<T>(path: string, options: RequestInit = {}, retries = 1):
     clearTimeout(timeoutId);
   }
 }
+
+// Exported so dashboard layout can auto-refresh on cold page loads
+export { refreshAccessToken };
 
 export const api = {
   get: <T>(path: string) => request<T>(path),

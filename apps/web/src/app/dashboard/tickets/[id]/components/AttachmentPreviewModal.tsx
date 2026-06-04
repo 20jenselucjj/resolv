@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { X, Download, FileText, AlertTriangle } from 'lucide-react';
+import { getToken, API_BASE as apiBase } from '@/lib/api';
 import { formatSize } from './helpers';
 
 interface AttachmentPreviewModalProps {
@@ -38,10 +39,41 @@ function isViewable(mime: string, filename: string): 'image' | 'pdf' | 'text' | 
 
 export function AttachmentPreviewModal({ attachment, onClose }: AttachmentPreviewModalProps) {
   const viewType = isViewable(attachment.mime_type, attachment.original_name || attachment.filename);
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('resolv_token') : null;
-  const viewUrl = `${apiBase}/attachments/${attachment.id}/view?token=${token}`;
-  const downloadUrl = `${apiBase}/attachments/${attachment.id}/download?token=${token}`;
+  const [viewUrl, setViewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token || !attachment?.id) return;
+    let objectUrl: string | null = null;
+    fetch(`${apiBase}/attachments/${attachment.id}/view`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        objectUrl = URL.createObjectURL(blob);
+        setViewUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [attachment?.id]);
+
+  async function handleDownload() {
+    const token = getToken();
+    if (!token) return;
+    const res = await fetch(`${apiBase}/attachments/${attachment.id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = attachment.original_name || 'download';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // Close on Escape
   useEffect(() => {
@@ -82,7 +114,8 @@ export function AttachmentPreviewModal({ attachment, onClose }: AttachmentPrevie
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <a
-              href={downloadUrl}
+              href="#"
+              onClick={(e) => { e.preventDefault(); handleDownload(); }}
               className="btn btn-ghost btn-icon btn-sm"
               title="Download"
               style={{ textDecoration: 'none' }}
@@ -97,38 +130,36 @@ export function AttachmentPreviewModal({ attachment, onClose }: AttachmentPrevie
 
         {/* Content */}
         <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
-          {viewType === 'image' && (
+          {viewUrl === null && viewType ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading preview...</div>
+          ) : viewType === 'image' ? (
             <img
-              src={viewUrl}
+              src={viewUrl!}
               alt={attachment.original_name}
               style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 'var(--radius-md)' }}
             />
-          )}
-          {viewType === 'pdf' && (
+          ) : viewType === 'pdf' ? (
             <iframe
-              src={viewUrl}
+              src={viewUrl!}
               style={{ width: '100%', height: '70vh', border: 'none', borderRadius: 'var(--radius-md)' }}
               title={attachment.original_name}
             />
-          )}
-          {viewType === 'text' && (
-            <TextPreview url={viewUrl} />
-          )}
-          {viewType === 'audio' && (
+          ) : viewType === 'text' ? (
+            <TextPreview url={viewUrl!} />
+          ) : viewType === 'audio' ? (
             <div style={{ width: '100%', maxWidth: 500, textAlign: 'center' }}>
-              <audio controls src={viewUrl} style={{ width: '100%' }} />
+              <audio controls src={viewUrl!} style={{ width: '100%' }} />
             </div>
-          )}
-          {viewType === 'video' && (
-            <video controls src={viewUrl} style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 'var(--radius-md)' }} />
-          )}
-          {!viewType && (
+          ) : viewType === 'video' ? (
+            <video controls src={viewUrl!} style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: 'var(--radius-md)' }} />
+          ) : (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
               <FileText size={48} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.4 }} />
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Preview not available</div>
               <div style={{ fontSize: 13, marginTop: 4 }}>This file type cannot be previewed inline.</div>
               <a
-                href={downloadUrl}
+                href="#"
+                onClick={(e) => { e.preventDefault(); handleDownload(); }}
                 className="btn btn-primary"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 16, textDecoration: 'none' }}
               >

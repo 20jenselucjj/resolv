@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { api } from '@/lib/api';
+import { api, getToken, setToken } from '@/lib/api';
 import { useStore, User } from '@/lib/store';
 import { AlertTriangle, Eye, EyeOff, Building2, X } from 'lucide-react';
 
@@ -97,7 +97,7 @@ function LoginForm() {
     if (cancelled === 'true') return;
 
     // Check if we already have a valid token (user just logged out or session expired)
-    const existingToken = localStorage.getItem('resolv_token');
+    const existingToken = getToken();
     if (existingToken) {
       // Token exists but might be expired — try it first
       return;
@@ -135,7 +135,6 @@ function LoginForm() {
 
     if (token) {
       // Store the token and redirect — the /auth/me call will populate user data
-      localStorage.setItem('resolv_token', token);
       setToken(token);
       // Fetch user data with the new token
       api.get<{ data: User }>('/auth/me')

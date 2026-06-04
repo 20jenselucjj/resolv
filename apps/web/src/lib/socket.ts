@@ -1,3 +1,4 @@
+import { getToken } from '@/lib/api';
 import { io, Socket } from 'socket.io-client';
 
 const inferredWsUrl = (() => {
@@ -29,7 +30,7 @@ function buildSocket(): Socket {
     withCredentials: false,
     auth: (cb) => {
       if (typeof window === 'undefined') return cb({});
-      const token = localStorage.getItem('resolv_token');
+      const token = getToken();
       cb(token ? { token } : {});
     },
   });

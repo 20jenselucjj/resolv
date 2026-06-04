@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
+import { getCached, setCache, clearCache } from '../lib/cache';
 
 const categorySchema = z.object({
   name: z.string().min(1),
@@ -14,9 +15,13 @@ const updateCategorySchema = categorySchema.partial();
 export default async function categoryRoutes(fastify: FastifyInstance) {
   // GET /categories - list all active categories (authenticated)
   fastify.get('/categories', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const cached = getCached<any[]>('categories:all');
+    if (cached) return reply.send({ data: cached });
+
     const result = await pool.query(
       'SELECT * FROM categories WHERE is_active = true ORDER BY name ASC'
     );
+    setCache('categories:all', result.rows);
     return reply.send({ data: result.rows });
   });
 
@@ -29,6 +34,7 @@ export default async function categoryRoutes(fastify: FastifyInstance) {
        RETURNING *`,
       [body.name, body.description || null, body.color || null, body.icon || null]
     );
+    clearCache('categories');
     return reply.status(201).send({ data: result.rows[0] });
   });
 
@@ -54,6 +60,7 @@ export default async function categoryRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Category not found' });
     }
 
+    clearCache('categories');
     return reply.send({ data: result.rows[0] });
   });
 
@@ -69,6 +76,7 @@ export default async function categoryRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Category not found' });
     }
 
+    clearCache('categories');
     return reply.send({ message: 'Category deactivated successfully' });
   });
 }

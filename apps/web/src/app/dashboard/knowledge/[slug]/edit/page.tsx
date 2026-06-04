@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api, API_BASE } from '@/lib/api';
+import { api, API_BASE, getToken } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import {
   ArrowLeft, AlertTriangle, Tag, FileText,
@@ -119,7 +119,7 @@ export default function EditArticlePage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = typeof window !== 'undefined' ? (localStorage.getItem('resolv_token') || localStorage.getItem('token')) : null;
+      const token = typeof window !== 'undefined' ? getToken() : null;
       const res = await fetch(`${API_BASE}/knowledge/${articleId}/attachments`, {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},

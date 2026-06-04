@@ -17,8 +17,8 @@ import {
 import { DirectorySyncTab } from './DirectorySyncTab';
 import { AITrainingTab } from './AITrainingTab';
 import {
-  OverviewTab, UsersTab, CategoriesTab, SLAPoliciesTab,
-  SettingsTab, RolesTab, AutomationTab, WorkingHoursTab, AuditLogTab,
+  OverviewTab, UsersTab,
+  SettingsTab, RolesTab, AutomationTab, AuditLogTab,
   IntegrationsTab, PortalCustomizationTab, AIConfigTab,
   TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
   WorkflowTab, BackupRestoreTab,
@@ -32,6 +32,32 @@ import type {
 import type { AutomationRule } from './components/types';
 
 const EmailIcon = Mail;
+
+function inferSettingType(value: string): 'string' | 'number' | 'boolean' {
+  if (value === 'true' || value === 'false') return 'boolean';
+  if (!isNaN(Number(value)) && value !== '') return 'number';
+  return 'string';
+}
+
+function inferSettingGroup(key: string): string {
+  if (key.includes('smtp') || key.includes('email') || key.includes('mail')) return 'Email / Notifications';
+  if (key.includes('auth') || key.includes('security') || key.includes('password') || key.includes('session')) return 'Security';
+  if (key.includes('slack') || key.includes('webhook') || key.includes('integration')) return 'Integrations';
+  if (key.includes('sla') || key.includes('ticket') || key.includes('auto')) return 'Ticket Settings';
+  return 'General';
+}
+
+const TAB_SUBTITLES: Record<string, string> = {
+  overview: 'System monitoring, statistics, and recent activity overview',
+  users: 'Manage user accounts, departments, and active statuses',
+  roles: 'Define security roles, access permissions, and privileges',
+  'directory-sync': 'Sync users and groups from your identity provider to automatically provision and manage accounts.',
+  tickets: 'Configure ticket categories, workflow transitions, and status labels',
+  'sla-hours': 'Set Service Level Agreement targets, business hours, and holiday calendars',
+  automation: 'Create workflow triggers, automated actions, and conditions',
+  email: 'Configure outbound email, inbound email, templates, auto replies, and view email logs',
+  ai: 'Configure the AI assistant and manage knowledge training sources',
+};
 
 export default function AdminPage() {
   const { user } = useStore();
@@ -196,20 +222,7 @@ export default function AdminPage() {
     return null;
   }, [activeTab, navGroups]);
 
-  const getTabSubtitle = (id: string) => {
-    switch (id) {
-      case 'overview': return 'System monitoring, statistics, and recent activity overview';
-      case 'users': return 'Manage user accounts, departments, and active statuses';
-      case 'roles': return 'Define security roles, access permissions, and privileges';
-      case 'directory-sync': return 'Sync users and groups from your identity provider to automatically provision and manage accounts.';
-      case 'tickets': return 'Configure ticket categories, workflow transitions, and status labels';
-      case 'sla-hours': return 'Set Service Level Agreement targets, business hours, and holiday calendars';
-      case 'automation': return 'Create workflow triggers, automated actions, and conditions';
-      case 'email': return 'Configure outbound email, inbound email, templates, auto replies, and view email logs';
-      case 'ai': return 'Configure the AI assistant and manage knowledge training sources';
-      default: return 'Manage system configuration and administrative policies';
-    }
-  };
+  const getTabSubtitle = (id: string) => TAB_SUBTITLES[id] || 'Manage system configuration and administrative policies';
 
   const showAlert = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setAlert({ message, type });
@@ -234,18 +247,13 @@ export default function AdminPage() {
         setSLAPolicies(res.data);
       } else if (tab === 'settings') {
         const res = await api.get<{ data: Record<string, string> }>('/admin/settings');
-        const settingsArray: AdminSetting[] = Object.entries(res.data || {}).map(([key, value]) => {
-          const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-          let type: 'string' | 'number' | 'boolean' = 'string';
-          let group = 'General';
-          if (value === 'true' || value === 'false') type = 'boolean';
-          else if (!isNaN(Number(value)) && value !== '') type = 'number';
-          if (key.includes('smtp') || key.includes('email') || key.includes('mail')) group = 'Email / Notifications';
-          else if (key.includes('auth') || key.includes('security') || key.includes('password') || key.includes('session')) group = 'Security';
-          else if (key.includes('slack') || key.includes('webhook') || key.includes('integration')) group = 'Integrations';
-          else if (key.includes('sla') || key.includes('ticket') || key.includes('auto')) group = 'Ticket Settings';
-          return { key, value: value ?? '', label, type, group };
-        });
+        const settingsArray: AdminSetting[] = Object.entries(res.data || {}).map(([key, value]) => ({
+          key,
+          value: value ?? '',
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          type: inferSettingType(value ?? ''),
+          group: inferSettingGroup(key),
+        }));
         setSettings(settingsArray);
       } else if (tab === 'asset-groups') {
         const res = await api.get<{ data: any[] }>('/asset-groups');

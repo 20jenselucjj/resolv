@@ -267,7 +267,7 @@ function buildRawMessage(from: string, fromName: string, to: string, toName: str
 /**
  * Make an HTTPS POST to the Gmail API with JSON body.
  */
-function gmailApiPost(path: string, token: string, body: any): Promise<any> {
+function gmailApiPost(path: string, token: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const url = new URL(`${GMAIL_API_BASE}${path}`);
   const payload = JSON.stringify(body);
 

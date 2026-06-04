@@ -27,6 +27,7 @@ const GUIDELINE_SECTIONS: GuidelineSectionDef[] = [
   { key: 'commentWorkflow', label: 'Comment Workflow', description: 'How to handle adding comments to tickets', forRole: 'both' },
   { key: 'enumRule', label: 'Enum Values Rule', description: 'Casing requirements for enum fields', forRole: 'agent' },
   { key: 'hallucinationGuard', label: 'Hallucination Guard', description: 'Rules to prevent fabricating ticket data', forRole: 'agent' },
+  { key: 'toolUsageRules', label: 'Tool Usage Rules', description: 'When and how the AI must use tools for factual queries', forRole: 'both' },
 ];
 
 // ─── Reusable subsection header ─────────────────────────────────────────
@@ -89,6 +90,7 @@ function GroupedToolsGrid({ tools, onChange, color, showAll }: { tools: Record<s
         { key: 'createTickets', label: 'Create Tickets', desc: 'Create new support tickets' },
         { key: 'updateTickets', label: 'Update Tickets', desc: 'Modify status, priority, assignment, and fields' },
         { key: 'addComments', label: 'Add Comments', desc: 'Add public replies or internal notes' },
+        { key: 'addAttachments', label: 'Add Attachments', desc: 'Attach uploaded files to existing tickets' },
       ]
     },
     {
@@ -122,6 +124,8 @@ function GroupedToolsGrid({ tools, onChange, color, showAll }: { tools: Record<s
         { key: 'getTicketDetails', label: 'Get Ticket Details', desc: 'View full ticket info' },
         { key: 'createTickets', label: 'Create Tickets', desc: 'Create new support tickets' },
         { key: 'addComments', label: 'Add Comments', desc: 'Add replies to your tickets' },
+        { key: 'searchTickets', label: 'Search Tickets', desc: 'Search your own tickets by keyword or status' },
+        { key: 'addAttachments', label: 'Add Attachments', desc: 'Attach uploaded files to tickets' },
       ]
     },
     {
@@ -140,6 +144,12 @@ function GroupedToolsGrid({ tools, onChange, color, showAll }: { tools: Record<s
       label: 'My Tickets', icon: '\u{1F3AB}',
       items: [
         { key: 'getMyTickets', label: 'My Tickets', desc: 'View your tickets' },
+      ]
+    },
+    {
+      label: 'Analytics', icon: '\u{1F4CA}',
+      items: [
+        { key: 'getStats', label: 'Get Statistics', desc: 'View your ticket counts, SLA status, and metrics' },
       ]
     },
   ];
@@ -192,16 +202,16 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
   useEffect(() => { localStorage.setItem('resolv_ai_config_section', activeSection) }, [activeSection]);
 
   // Agent tools & behavior
-  const [tools, setTools] = useState({ searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true });
+  const [tools, setTools] = useState({ searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true, addAttachments: true });
   const [behavior, setBehavior] = useState({ responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 });
 
   // Portal tools & behavior (separate!)
-  const [portalTools, setPortalTools] = useState({ getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true, addComments: true, searchUsers: true });
+  const [portalTools, setPortalTools] = useState({ getTicketDetails: true, createTickets: true, getMyTickets: true, searchKnowledge: true, addComments: true, searchUsers: true, searchTickets: true, addAttachments: true, getStats: true });
   const [portalBehavior, setPortalBehavior] = useState({ responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 });
   // Guidelines
   const [guidelines, setGuidelines] = useState<{ agent: AiGuidelinesSection; portal: AiGuidelinesSection }>({
-    agent: { ticketLookup: '', autonomousExecution: '', conversationalTone: '', ticketCreationWorkflow: '', priorityGuidelines: '', ticketTypeGuidelines: '', categoryGuidelines: '', ticketEditingWorkflow: '', commentWorkflow: '', enumRule: '', hallucinationGuard: '' },
-    portal: { ticketLookup: '', conversationalTone: '', ticketCreationWorkflow: '', commentWorkflow: '' },
+    agent: { ticketLookup: '', autonomousExecution: '', conversationalTone: '', ticketCreationWorkflow: '', priorityGuidelines: '', ticketTypeGuidelines: '', categoryGuidelines: '', ticketEditingWorkflow: '', commentWorkflow: '', enumRule: '', hallucinationGuard: '', toolUsageRules: '' },
+    portal: { ticketLookup: '', conversationalTone: '', ticketCreationWorkflow: '', commentWorkflow: '', toolUsageRules: '' },
   });
   const [guidelinesSubTab, setGuidelinesSubTab] = useState<'agent' | 'portal'>(() => {
     try { return (localStorage.getItem('resolv_ai_guidelines_subtab') as 'agent' | 'portal') || 'agent' } catch { return 'agent' }
@@ -454,7 +464,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
                 <div style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                   <SubHeader icon={<Plug size={14} color="#10b981" />} label="Enabled Tools" badge="Portal" color="#10b981" />
                   <GroupedToolsGrid tools={portalTools} onChange={setPortalTools} color="#10b981" />
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>Portal AI has a subset of tools appropriate for self-service users. Search Tickets and Get Statistics are agent-only.</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>Portal AI has a subset of tools appropriate for self-service users. Search Tickets is scoped to the user's own tickets. Get Statistics is agent-only.</p>
                 </div>
 
               </>

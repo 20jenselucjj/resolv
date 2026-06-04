@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import {
   ArrowLeft, Eye, ThumbsUp, ThumbsDown, 
@@ -145,7 +145,7 @@ export default function ArticleDetailPage() {
       // Fetch attachments
       try {
         const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('resolv_token') || localStorage.getItem('token')) : null;
+        const token = typeof window !== 'undefined' ? getToken() : null;
         const tokenParam = token ? `?token=${token}` : '';
         const attRes = await api.get<{ data: any[] }>(`/knowledge/${data.id}/attachments`);
         setAttachments((attRes.data || []).map((att: any) => ({
@@ -284,7 +284,7 @@ export default function ArticleDetailPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = typeof window !== 'undefined' ? (localStorage.getItem('resolv_token') || localStorage.getItem('token')) : null;
+      const token = typeof window !== 'undefined' ? getToken() : null;
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
       const res = await fetch(`${apiBase}/knowledge/${article.id}/attachments`, {
         method: 'POST',

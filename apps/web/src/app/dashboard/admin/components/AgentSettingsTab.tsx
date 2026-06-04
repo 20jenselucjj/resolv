@@ -5,7 +5,7 @@ import {
   Download, Eye, EyeOff, Copy, RefreshCw, Monitor, Wifi, WifiOff,
   HelpCircle, Terminal, Server, ChevronRight, CheckCircle, AlertTriangle
 } from 'lucide-react';
-import { api, API_BASE } from '@/lib/api';
+import { api, API_BASE, getToken } from '@/lib/api';
 
 interface AgentStats {
   total: number;
@@ -34,7 +34,7 @@ export function AgentSettingsTab({ showAlert }: {
   const handleDownload = useCallback(async () => {
     setDownloading(true);
     try {
-      const token = localStorage.getItem('resolv_token');
+      const token = getToken();
       const res = await fetch(`${API_BASE}/assets/agent/download`, {
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -60,6 +60,9 @@ export function Badge({ children, variant = 'default' }: { children: React.React
     medium: { background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' },
     high: { background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)' },
     critical: { background: 'var(--critical-bg)', color: 'var(--critical)', border: '1px solid var(--critical-border)' },
+    locked: { background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger-border)' },
+    sso: { background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' },
+    password: { background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' },
     default: { background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' },
   };
 

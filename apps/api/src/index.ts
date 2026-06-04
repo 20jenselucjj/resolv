@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { Server } from 'socket.io';
 import multipart from '@fastify/multipart'
+import helmet from '@fastify/helmet';
 import authPlugin from './plugins/auth';
 import authRoutes from './routes/auth';
 import ticketRoutes from './routes/tickets';
@@ -69,6 +70,23 @@ async function start() {
     credentials: true,
   });
 
+  // Security headers
+  await fastify.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
+        fontSrc: ["'self'", 'data:'],
+        frameSrc: ["'self'"],
+        objectSrc: ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'same-origin' },
+  });
+
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     throw new Error('JWT_SECRET environment variable is required. Set it in your .env file.');
@@ -97,7 +115,7 @@ async function start() {
 
   io.use((socket, next) => {
     const authToken = socket.handshake.auth?.token as string | undefined;
-    if (!authToken) return next();
+    if (!authToken) return next(new Error('Unauthorized'));
     try {
       const payload = fastify.jwt.verify<JwtPayload>(authToken);
       socket.data.user = payload;
@@ -109,18 +127,19 @@ async function start() {
 
   // Error handler
   fastify.setErrorHandler((error, request, reply) => {
-    fastify.log.error(error);
-    if (error.name === 'ZodError') {
-      return reply.status(400).send({ error: 'Validation error', details: error.message });
+    const err = error as Error & { code?: string; statusCode?: number };
+    fastify.log.error(err);
+    if (err.name === 'ZodError') {
+      return reply.status(400).send({ error: 'Validation error', details: err.message });
     }
-    if (error.code === '23505') {
+    if (err.code === '23505') {
       return reply.status(409).send({ error: 'Already exists' });
     }
     // In non-production, include the actual error message for debugging
     const isProd = process.env.NODE_ENV === 'production';
     return reply.status(500).send({
       error: 'Internal server error',
-      ...(isProd ? {} : { message: error.message, code: error.code }),
+      ...(isProd ? {} : { message: err.message, code: err.code }),
     });
   });
 
@@ -171,7 +190,7 @@ async function start() {
   });
 
   const port = parseInt(process.env.PORT || '3001');
-  const host = process.env.HOST || '0.0.0.0';
+  const host = process.env.HOST || '127.0.0.1';
 
   // ─── Socket.IO event relay ────────────────────────────────────────────────
   io.on('connection', (socket) => {
@@ -181,7 +200,7 @@ async function start() {
       socket.join(`asset:${data.assetId}`);
       socket.emit('agent:online', { assetId: data.assetId });
       io.to(`asset:${data.assetId}`).emit('asset:online', { assetId: data.assetId });
-      console.log('[API] agent joined asset room:', data.assetId, 'socketId:', socket.id);
+      fastify.log.info(`[API] agent joined asset room: ${data.assetId} socketId: ${socket.id}`);
     });
 
     // Web client requests a checkin from the agent
@@ -241,12 +260,12 @@ async function start() {
 
   // Start email inbound listener (Gmail API via OAuth shared with directory sync)
   startInboundListener().catch(err => {
-    console.error('[index] Failed to start inbound email listener:', err.message);
+    fastify.log.error('[index] Failed to start inbound email listener:', err.message);
   });
 
   // Start scheduled notification runner (due date reminders, SLA warnings, escalations, surveys)
   startScheduledNotifications().catch(err => {
-    console.error('[index] Failed to start scheduled notifications:', err.message);
+    fastify.log.error('[index] Failed to start scheduled notifications:', err.message);
   });
 
   fastify.log.info(`Resolv API running on http://${host}:${port}`);

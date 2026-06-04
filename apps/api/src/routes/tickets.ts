@@ -255,19 +255,12 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         );
       } else {
         // Unassigned ticket — notify all agents and admins
-        const agentResult = await client.query(
-          "SELECT id, email, name FROM users WHERE role IN ('admin', 'agent') AND is_active = true"
+        await client.query(
+          `INSERT INTO notifications (user_id, type, title, body, ticket_id)
+           SELECT id, 'ticket_created', $1, $2, $3 FROM users
+           WHERE role IN ('admin', 'agent') AND is_active = true`,
+          [`New unassigned ticket #${ticket.number}: ${ticket.title}`, `Created by ${request.user.name}`, ticket.id]
         );
-        for (const agent of agentResult.rows) {
-          await createNotification(
-            client,
-            agent.id,
-            'ticket_created',
-            `New unassigned ticket #${ticket.number}: ${ticket.title}`,
-            `Created by ${request.user.name}`,
-            ticket.id
-          );
-        }
       }
 
       await client.query('COMMIT');
@@ -280,12 +273,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         fastify.io.to(`user:${ticket.assigned_to_id}`).emit('notification:new', { ticketId: ticket.id });
       } else {
         // Notify all agents/admins via socket for unassigned tickets
-        const agentResult = await pool.query(
-          "SELECT id FROM users WHERE role IN ('admin', 'agent') AND is_active = true"
-        );
-        for (const agent of agentResult.rows) {
-          fastify.io.to(`user:${agent.id}`).emit('notification:new', { ticketId: ticket.id });
-        }
+        // Broadcast to a 'staff' room when agents connect, or emit to all connected clients
+        fastify.io.emit('notification:new', { ticketId: ticket.id, role: 'agent' });
       }
 
       // Fire-and-forget: dispatch notifications through the pipeline
@@ -585,18 +574,16 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       const primaryTicket = primary.rows[0];
 
-      // Close all merged tickets and link them
-      for (const mergeId of body.mergeIds) {
-        await client.query(
-          `UPDATE tickets SET status = 'closed', closed_at = NOW(), merged_into_id = $1 WHERE id = $2`,
-          [id, mergeId]
-        );
-        await client.query(
-          `INSERT INTO ticket_activity (ticket_id, actor_id, action, new_value)
-           VALUES ($1, $2, 'merged', $3)`,
-          [mergeId, request.user.id, `Merged into #${primaryTicket.number}`]
-        );
-      }
+      // Close all merged tickets and link them (batch)
+      await client.query(
+        `UPDATE tickets SET status = 'closed', closed_at = NOW(), merged_into_id = $1 WHERE id = ANY($2)`,
+        [id, body.mergeIds]
+      );
+      await client.query(
+        `INSERT INTO ticket_activity (ticket_id, actor_id, action, new_value)
+         SELECT unnest($1::uuid[]), $2, 'merged', $3`,
+        [body.mergeIds, request.user.id, `Merged into #${primaryTicket.number}`]
+      );
 
       // Log activity on primary
       await client.query(

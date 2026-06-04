@@ -17,6 +17,10 @@ import type { SortField, SortDir } from './types';
 
 export function TicketTable({
   loading,
+  loadingMore,
+  hasMore,
+  total,
+  sentinelRef,
   sorted,
   selectedIds,
   toggleSelectAll,
@@ -37,6 +41,10 @@ export function TicketTable({
   clearFilters,
 }: {
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+  total: number;
+  sentinelRef: React.RefObject<HTMLDivElement | null>;
   sorted: Ticket[];
   selectedIds: Set<string>;
   toggleSelectAll: () => void;
@@ -421,6 +429,17 @@ export function TicketTable({
             })}
           </tbody>
         </table>
+      )}
+      <div ref={sentinelRef} style={{ height: 1 }} />
+      {loadingMore && (
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, fontWeight: 500 }}>
+          Loading more tickets...
+        </div>
+      )}
+      {!hasMore && !loading && sorted.length > 0 && total > 50 && (
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 11 }}>
+          All {total} tickets loaded
+        </div>
       )}
     </div>
   );

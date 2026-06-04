@@ -96,12 +96,36 @@ function FilterPill({
   );
 }
 
+const SORT_COMPARATORS: Record<SortField, (a: Ticket, b: Ticket) => number> = {
+  number: (a, b) => a.number - b.number,
+  title: (a, b) => a.title.localeCompare(b.title),
+  status: (a, b) => (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0),
+  priority: (a, b) => (PRIORITY_ORDER[a.priority] ?? 0) - (PRIORITY_ORDER[b.priority] ?? 0),
+  ticket_type: (a, b) => (a.ticket_type || '').localeCompare(b.ticket_type || ''),
+  created_at: (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  updated_at: (a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime(),
+  due_date: (a, b) => {
+    const da = a.due_date ? new Date(a.due_date).getTime() : 0;
+    const db = b.due_date ? new Date(b.due_date).getTime() : 0;
+    return da - db;
+  },
+  assignee: (a, b) => (a.assigned_to_name || '').localeCompare(b.assigned_to_name || ''),
+  reporter: (a, b) => (a.created_by_name || '').localeCompare(b.created_by_name || ''),
+};
+
 export default function TicketsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tickets, setTickets, density, user } = useStore();
   
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 50;
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef(1);
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
 
   // Load initial filters from localStorage or searchParams
   const initialFilters = useMemo(() => {
@@ -264,7 +288,7 @@ export default function TicketsPage() {
 
   const viewCounts = useMemo<Record<string, number>>(() => {
     return {
-      'All': tickets.length,
+      'All': total,
       'My Tickets': tickets.filter(t => t.assigned_to_name === user?.name || t.requested_by_name === user?.name).length,
       'Unassigned': tickets.filter(t => !t.assigned_to_name).length,
       'SLA Breached': tickets.filter(t => t.sla_breached).length,
@@ -275,7 +299,7 @@ export default function TicketsPage() {
         return due.toDateString() === today.toDateString();
       }).length,
     };
-  }, [tickets, user]);
+  }, [tickets, user, total]);
 
   const assignees = useMemo(() => {
     const set = new Set<string>();
@@ -297,36 +321,89 @@ export default function TicketsPage() {
     return map;
   }, [allUsers]);
 
-  const fetchTickets = useCallback(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ pageSize: '500' });
+  const fetchPage = useCallback(async (pageNum: number, append: boolean) => {
+    loadingMoreRef.current = true;
+    if (append) setLoadingMore(true); else setLoading(true);
+
+    const params = new URLSearchParams({
+      pageSize: String(PAGE_SIZE),
+      page: String(pageNum),
+    });
     if (status !== 'all') params.set('status', status);
     if (priority !== 'all') params.set('priority', priority);
     if (type !== 'all') params.set('type', type);
     if (search) params.set('search', search);
-    
-    api.get<{ data: Ticket[]; total: number }>(`/tickets?${params}`)
-      .then((res) => { setTickets(res.data); setTotal(res.total); })
-      .finally(() => setLoading(false));
+
+    try {
+      const res = await api.get<{ data: Ticket[]; total: number }>(`/tickets?${params}`);
+      setTickets(append ? [...useStore.getState().tickets, ...res.data] : res.data);
+      setTotal(res.total);
+      pageRef.current = pageNum;
+      const more = pageNum * PAGE_SIZE < res.total;
+      setHasMore(more);
+      hasMoreRef.current = more;
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
+    }
   }, [status, priority, type, search, setTickets]);
 
-  useEffect(() => { fetchTickets(); }, [fetchTickets]);
+  const resetAndFetch = useCallback(() => fetchPage(1, false), [fetchPage]);
 
+  // Fetch page 1 when component mounts or filters change
+  useEffect(() => { resetAndFetch(); }, [resetAndFetch]);
+
+  // Listen for socket events to refresh ticket list when AI or other users make changes
+  useEffect(() => {
+    const { connectSocket } = require('@/lib/socket');
+    const socket = connectSocket();
+    
+    const handleTicketChange = () => {
+      // Refresh the ticket list when any ticket is created or updated
+      resetAndFetch();
+    };
+    
+    socket.on('ticket:created', handleTicketChange);
+    socket.on('ticket:updated', handleTicketChange);
+    
+    return () => {
+      socket.off('ticket:created', handleTicketChange);
+      socket.off('ticket:updated', handleTicketChange);
+    };
+  }, [resetAndFetch]);
+
+  // Reset and re-fetch on 'r' key
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       router.replace('/dashboard/tickets');
     }
   }, []);
 
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMoreRef.current && !loadingMoreRef.current) {
+        fetchPage(pageRef.current + 1, true);
+      }
+    }, { threshold: 0.1 });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchPage]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'r' && !(e.target as HTMLElement).matches('input,textarea,select') && !e.metaKey && !e.ctrlKey) {
-        fetchTickets();
+        fetchPage(1, false);
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [fetchTickets]);
+  }, [fetchPage]);
 
   // Auto-save all filter, sort, search, and column state to localStorage
   useEffect(() => {
@@ -368,42 +445,17 @@ export default function TicketsPage() {
       
       if (isAdminOrAgent && assigneeFilter !== 'all' && aName !== assigneeFilter) return false;
       
-      if (dateFilter !== 'all' && dateFilter !== 'custom') {
-        const created = new Date(t.created_at);
-        const today = new Date();
-        if (dateFilter === 'today' && created.toDateString() !== today.toDateString()) return false;
-        if (dateFilter === '7d' && created < new Date(today.getTime() - 7 * 86400000)) return false;
-        if (dateFilter === '30d' && created < new Date(today.getTime() - 30 * 86400000)) return false;
-      }
+      if (dateFilter === 'today' && new Date(t.created_at).toDateString() !== new Date().toDateString()) return false;
+      if (dateFilter === '7d' && new Date(t.created_at) < new Date(Date.now() - 7 * 86400000)) return false;
+      if (dateFilter === '30d' && new Date(t.created_at) < new Date(Date.now() - 30 * 86400000)) return false;
       return true;
     });
   }, [tickets, currentView, assigneeFilter, dateFilter, user, isAdminOrAgent]);
 
   const sorted = useMemo(() => {
+    const comparator = SORT_COMPARATORS[sortField];
     return [...filteredTickets].sort((a, b) => {
-      let cmp = 0;
-      if (sortField === 'number') cmp = a.number - b.number;
-      else if (sortField === 'title') cmp = a.title.localeCompare(b.title);
-      else if (sortField === 'status') cmp = (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0);
-      else if (sortField === 'priority') cmp = (PRIORITY_ORDER[a.priority] ?? 0) - (PRIORITY_ORDER[b.priority] ?? 0);
-      else if (sortField === 'ticket_type') cmp = (a.ticket_type || '').localeCompare(b.ticket_type || '');
-      else if (sortField === 'created_at') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      else if (sortField === 'updated_at') cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
-      else if (sortField === 'due_date') {
-        const da = a.due_date ? new Date(a.due_date).getTime() : 0;
-        const db = b.due_date ? new Date(b.due_date).getTime() : 0;
-        cmp = da - db;
-      }
-      else if (sortField === 'assignee') {
-        const aa = a.assigned_to_name || '';
-        const ab = b.assigned_to_name || '';
-        cmp = aa.localeCompare(ab);
-      }
-      else if (sortField === 'reporter') {
-        const ra = a.created_by_name || '';
-        const rb = b.created_by_name || '';
-        cmp = ra.localeCompare(rb);
-      }
+      const cmp = comparator(a, b);
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [filteredTickets, sortField, sortDir]);
@@ -430,7 +482,7 @@ export default function TicketsPage() {
     try {
       await api.patch('/tickets/bulk', { ids: [...selectedIds], updates });
       setSelectedIds(new Set());
-      fetchTickets();
+      resetAndFetch();
     } catch (err) {
       console.error('Bulk update failed', err);
     }
@@ -440,7 +492,7 @@ export default function TicketsPage() {
     try {
       await api.post('/tickets/bulk-delete', { ids: [...selectedIds] });
       setSelectedIds(new Set());
-      fetchTickets();
+      resetAndFetch();
     } catch (err) {
       console.error('Bulk delete failed', err);
     }
@@ -457,11 +509,11 @@ export default function TicketsPage() {
     }
     try {
       await api.patch(`/tickets/${ticketId}`, updates);
-      fetchTickets();
+      resetAndFetch();
     } catch (err) {
       console.error('Inline update failed', err);
     }
-  }, [fetchTickets, sorted]);
+  }, [resetAndFetch, sorted]);
 
   const clearFilters = useCallback(() => {
     localStorage.removeItem('resolv_ticket_filters');
@@ -597,7 +649,7 @@ export default function TicketsPage() {
         user={user}
         showNewTicketPanel={showNewTicketPanel}
         setShowNewTicketPanel={setShowNewTicketPanel}
-        fetchTickets={fetchTickets}
+        fetchTickets={resetAndFetch}
       />
     );
   }
@@ -649,7 +701,7 @@ export default function TicketsPage() {
         sorted={sorted}
         total={total}
         exportCSV={exportCSV}
-        fetchTickets={fetchTickets}
+        fetchTickets={resetAndFetch}
         setShowNewTicketPanel={setShowNewTicketPanel}
       />
 
@@ -890,6 +942,10 @@ export default function TicketsPage() {
 
       <TicketTable
         loading={loading}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        total={total}
+        sentinelRef={sentinelRef}
         sorted={sorted}
         selectedIds={selectedIds}
         toggleSelectAll={toggleSelectAll}
@@ -967,7 +1023,7 @@ export default function TicketsPage() {
         inlineCloseNote={inlineCloseNote}
         setInlineCloseNote={setInlineCloseNote}
         sorted={sorted}
-        fetchTickets={fetchTickets}
+        fetchTickets={resetAndFetch}
       />
 
       {/* Bulk Merge Modal */}
@@ -994,7 +1050,7 @@ export default function TicketsPage() {
                   await api.post(`/tickets/${primaryId}/merge`, { mergeIds: otherIds });
                   setSelectedIds(new Set());
                   setShowBulkMerge(false);
-                  fetchTickets();
+                  resetAndFetch();
                 } catch (err) {
                   console.error('Merge failed', err);
                 }
@@ -1024,7 +1080,7 @@ export default function TicketsPage() {
           flexShrink: 0,
         }}>
           <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
-            Showing {sorted.length} {sorted.length === 1 ? 'ticket' : 'tickets'}
+            Showing {sorted.length} of {total} {total === 1 ? 'ticket' : 'tickets'}
           </span>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Click column headers to sort <ChevronsUpDown size={12} /></span>
@@ -1035,7 +1091,7 @@ export default function TicketsPage() {
       {showNewTicketPanel && (
         <NewTicketPanel
           onClose={() => setShowNewTicketPanel(false)}
-          onCreated={fetchTickets}
+          onCreated={resetAndFetch}
         />
       )}
     </div>

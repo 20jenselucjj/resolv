@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
+import { getCached, setCache, clearCache } from '../lib/cache';
 
 const slaPolicySchema = z.object({
   name: z.string().min(1),
@@ -14,9 +15,13 @@ const updateSlaPolicySchema = slaPolicySchema.partial();
 export default async function slaRoutes(fastify: FastifyInstance) {
   // GET /sla-policies - list all SLA policies (authenticated)
   fastify.get('/sla-policies', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const cached = getCached<any[]>('sla-policies:all');
+    if (cached) return reply.send({ data: cached });
+
     const result = await pool.query(
       'SELECT * FROM sla_policies WHERE is_active = true ORDER BY priority DESC'
     );
+    setCache('sla-policies:all', result.rows);
     return reply.send({ data: result.rows });
   });
 
@@ -29,6 +34,7 @@ export default async function slaRoutes(fastify: FastifyInstance) {
        RETURNING *`,
       [body.name, body.priority, body.response_time_hours, body.resolution_time_hours]
     );
+    clearCache('sla-policies');
     return reply.status(201).send({ data: result.rows[0] });
   });
 
@@ -54,6 +60,7 @@ export default async function slaRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'SLA policy not found' });
     }
 
+    clearCache('sla-policies');
     return reply.send({ data: result.rows[0] });
   });
 
@@ -69,6 +76,7 @@ export default async function slaRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'SLA policy not found' });
     }
 
+    clearCache('sla-policies');
     return reply.send({ message: 'SLA policy deactivated successfully' });
   });
 }

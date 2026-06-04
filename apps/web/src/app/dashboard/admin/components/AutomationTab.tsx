@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Zap } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { AutomationRule } from './types';
 
@@ -107,6 +107,23 @@ export function AutomationTab({ showAlert, setConfirmModal }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Description card */}
+      <div style={{
+        padding: '16px 20px', borderRadius: 'var(--radius-lg)',
+        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column', gap: '8px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Zap size={18} style={{ color: 'var(--accent)' }} />
+          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>How Automation Rules Work</span>
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+          Automation rules let you define <strong>trigger → condition → action</strong> workflows that run automatically.
+          When a trigger event occurs (e.g. a ticket is created or an SLA is breached), the rule checks its conditions
+          and executes the specified action. For example: <em>"When a critical ticket is created, automatically assign it to the senior agent group."</em>
+        </p>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <button className="btn btn-primary" onClick={() => setIsAdding(true)}><Plus size={14} /> Add Rule</button>
       </div>

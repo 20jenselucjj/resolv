@@ -8,6 +8,18 @@ import crypto from 'crypto'
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'application/pdf',
+  'text/plain', 'text/csv',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip', 'application/x-rar-compressed',
+  'application/json', 'application/xml',
+  'video/mp4', 'video/webm',
+];
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB (matches multipart config)
+
 export async function attachmentRoutes(app: FastifyInstance) {
   // POST /tickets/:ticketId/attachments — upload file
   app.post('/tickets/:ticketId/attachments', { preHandler: [app.authenticate] }, async (req, reply) => {
@@ -30,6 +42,13 @@ export async function attachmentRoutes(app: FastifyInstance) {
 
     await pipeline(data.file, fs.createWriteStream(storagePath))
     const stat = fs.statSync(storagePath)
+
+    if (!ALLOWED_MIME_TYPES.includes(data.mimetype)) {
+      return reply.status(415).send({ error: `File type '${data.mimetype}' is not allowed` });
+    }
+    if (stat.size > MAX_FILE_SIZE) {
+      return reply.status(413).send({ error: 'File exceeds maximum size of 25MB' });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO ticket_attachments (ticket_id, uploaded_by, filename, original_name, mime_type, size_bytes, storage_path)

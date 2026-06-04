@@ -5,7 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Menu, Bell } from 'lucide-react';
 import { useStore, User } from '@/lib/store';
-import { api } from '@/lib/api';
+import { api, refreshAccessToken } from '@/lib/api';
 import { Sidebar } from '@/components/Sidebar';
 import { ToastContainer } from '@/components/Toast';
 
@@ -14,9 +14,10 @@ const CommandPalette = dynamic(() => import('@/components/CommandPalette').then(
 const NewTicketPanel = dynamic(() => import('@/components/NewTicketPanel').then((m) => m.NewTicketPanel), { ssr: false });
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, setUser, token, unreadCount } = useStore();
+  const { user, setUser, token, setToken: setStoreToken, unreadCount } = useStore();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -25,6 +26,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setMounted(true);
   }, []);
 
+  // Auth init: try to refresh access token from stored refresh token on cold page load
+  useEffect(() => {
+    if (!mounted) return;
+    if (token) {
+      // Already authed (SPA navigation) — just mark ready
+      setAuthReady(true);
+      return;
+    }
+
+    const savedRefresh = localStorage.getItem('resolv_refresh_token');
+    if (!savedRefresh) {
+      setAuthReady(true); // No refresh token — the auth check below will redirect
+      return;
+    }
+
+    refreshAccessToken()
+      .then(async (newToken) => {
+        setStoreToken(newToken); // sets both in-memory + zustand store
+        const res = await api.get<{ data: User }>('/auth/me');
+        setUser(res.data);
+        if (res.data.passwordResetRequired) {
+          router.push('/force-password-change');
+          return;
+        }
+        setAuthReady(true);
+      })
+      .catch(() => {
+        localStorage.removeItem('resolv_refresh_token');
+        setAuthReady(true);
+      });
+  }, [mounted]);
+
   useEffect(() => {
     const handler = () => setNewTicketOpen(true);
     window.addEventListener('resolv:new-ticket', handler);
@@ -32,12 +65,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
-    if (!token) {
+    if (!mounted || !authReady) return;
+    if (!token && !localStorage.getItem('resolv_refresh_token')) {
       router.push('/login');
       return;
     }
-    if (!user) {
+    if (!user && token) {
       api.get<{ data: User }>('/auth/me')
         .then((res) => {
           setUser(res.data);
@@ -47,9 +80,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })
         .catch(() => router.push('/login'));
     }
-  }, [mounted, token, user]);
+  }, [mounted, authReady, token, user]);
 
-  if (!mounted) return null;
+  if (!mounted || !authReady) return null;
   if (!token) return null;
 
   return (

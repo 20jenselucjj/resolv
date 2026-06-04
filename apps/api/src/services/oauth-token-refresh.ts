@@ -7,7 +7,7 @@ import { URL } from 'url';
 export async function oauthTokenRefresh(
   url: string,
   body: Record<string, string>
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const parsed = new URL(url);
   const params = new URLSearchParams(body).toString();
 

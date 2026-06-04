@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
-import { api, API_BASE } from '@/lib/api';
+import { api, API_BASE, getToken } from '@/lib/api';
 import {
   Search, Sparkles, Send, Plus, AlertTriangle, Package,
   KeyRound, Wifi, Monitor, HelpCircle, ChevronRight,
@@ -163,7 +163,7 @@ export default function SelfServicePortal() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const token = localStorage.getItem('resolv_token');
+        const token = getToken();
         const res = await fetch(`${API_BASE}/ai/upload`, {
           method: 'POST',
           body: formData,
@@ -276,7 +276,7 @@ export default function SelfServicePortal() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = localStorage.getItem('resolv_token');
+      const token = getToken();
       const res = await fetch(`${API_BASE}/ai/upload`, {
         method: 'POST',
         body: formData,
@@ -456,7 +456,7 @@ export default function SelfServicePortal() {
 
       // Upload attached files
       if (ticketFiles.length > 0) {
-        const token = localStorage.getItem('resolv_token') || localStorage.getItem('token');
+        const token = getToken();
         for (const file of ticketFiles) {
           const formData = new FormData();
           formData.append('file', file);
