@@ -331,28 +331,34 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
 
   // POST /knowledge/:id/attachments - upload file to knowledge article
   fastify.post('/knowledge/:id/attachments', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
+    try {
+      const { id } = request.params as { id: string };
 
-    const { rows: articles } = await pool.query('SELECT id FROM knowledge_articles WHERE id = $1', [id]);
-    if (articles.length === 0) return reply.status(404).send({ error: 'Article not found' });
+      const { rows: articles } = await pool.query('SELECT id FROM knowledge_articles WHERE id = $1', [id]);
+      if (articles.length === 0) return reply.status(404).send({ error: 'Article not found' });
 
-    const data = await (request as any).file();
-    if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+      const data = await (request as any).file();
+      if (!data) return reply.status(400).send({ error: 'No file uploaded' });
 
-    const ext = path.extname(data.filename);
-    const filename = `${crypto.randomUUID()}${ext}`;
-    const storagePath = path.join(UPLOAD_DIR, filename);
+      const ext = path.extname(data.filename);
+      const filename = `${crypto.randomUUID()}${ext}`;
+      const storagePath = path.join(UPLOAD_DIR, filename);
 
-    await pipeline(data.file, fs.createWriteStream(storagePath));
-    const stat = fs.statSync(storagePath);
+      const ws = fs.createWriteStream(storagePath);
+      await pipeline(data.file, ws);
+      const stat = fs.statSync(storagePath);
 
-    const { rows } = await pool.query(
-      `INSERT INTO knowledge_article_attachments (article_id, uploaded_by, filename, original_name, mime_type, size_bytes, storage_path)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [id, request.user.id, filename, data.filename, data.mimetype, stat.size, storagePath]
-    );
+      const { rows } = await pool.query(
+        `INSERT INTO knowledge_article_attachments (article_id, uploaded_by, filename, original_name, mime_type, size_bytes, storage_path)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [id, request.user.id, filename, data.filename, data.mimetype, stat.size, storagePath]
+      );
 
-    return reply.send({ data: rows[0] });
+      return reply.send({ data: rows[0] });
+    } catch (err: any) {
+      request.log.error(err);
+      return reply.status(500).send({ error: 'Upload failed', message: err.message });
+    }
   });
 
   // GET /knowledge/:id/attachments - list article attachments

@@ -27,6 +27,7 @@ const portalToolsSql = fs.readFileSync(path.join(__dirname, 'migrate_portal_tool
 const passwordResetSql = fs.readFileSync(path.join(__dirname, 'migrate_password_reset.sql'), 'utf8');
 const notificationsV2Sql = fs.readFileSync(path.join(__dirname, 'migrate_notifications_v2.sql'), 'utf8');
 const knowledgeScopeSql = fs.readFileSync(path.join(__dirname, 'migrate_knowledge_scope.sql'), 'utf8');
+const knowledgeAttachmentsSql = fs.readFileSync(path.join(__dirname, 'migrate_knowledge_attachments.sql'), 'utf8');
 const assetGroupDefaultsSql = fs.readFileSync(path.join(__dirname, 'migrate_asset_group_defaults.sql'), 'utf8');
 
 async function run() {
@@ -50,6 +51,8 @@ async function run() {
   console.log('Notifications v2 migration applied');
   await pool.query(knowledgeScopeSql);
   console.log('Knowledge scope migration applied');
+  await pool.query(knowledgeAttachmentsSql);
+  console.log('Knowledge attachments migration applied');
   await pool.query(assetGroupDefaultsSql);
   console.log('Asset group defaults migration applied');
 }
