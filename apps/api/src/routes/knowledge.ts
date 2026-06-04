@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
 import { pool } from '../db/pool';
+import { JwtPayload } from '../plugins/auth';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -388,13 +389,13 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     const att = rows[0];
     if (!fs.existsSync(att.storage_path)) return reply.status(404).send({ error: 'File not found on disk' });
 
-    reply.header('Content-Disposition', `inline; filename="${att.original_name}"`);
+    reply.header('Content-Disposition', `attachment; filename="${att.original_name}"`);
     reply.header('Content-Type', att.mime_type);
     return reply.send(fs.createReadStream(att.storage_path));
   });
 
-  // DELETE /knowledge/attachments/:id - delete file
-  fastify.delete('/knowledge/attachments/:id', { preHandler: [fastify.requireRole(['admin', 'agent'])] }, async (request, reply) => {
+  // GET /knowledge/attachments/:id/view - view file inline (browser-renderable formats)
+  fastify.get('/knowledge/attachments/:id/view', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const { rows } = await pool.query(
@@ -404,6 +405,32 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
 
     const att = rows[0];
+    if (!fs.existsSync(att.storage_path)) return reply.status(404).send({ error: 'File not found on disk' });
+
+    reply.header('Content-Disposition', `inline; filename="${att.original_name}"`);
+    reply.header('Content-Type', att.mime_type);
+    reply.header('Cache-Control', 'private, max-age=3600');
+    return reply.send(fs.createReadStream(att.storage_path));
+  });
+
+  // DELETE /knowledge/attachments/:id - delete file
+  fastify.delete('/knowledge/attachments/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.user as JwtPayload;
+
+    const { rows } = await pool.query(
+      'SELECT * FROM knowledge_article_attachments WHERE id = $1',
+      [id]
+    );
+    if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
+
+    const att = rows[0];
+
+    // Only admin or the uploader can delete
+    if (user.role !== 'admin' && user.role !== 'agent' && att.uploaded_by !== user.id) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
     if (fs.existsSync(att.storage_path)) fs.unlinkSync(att.storage_path);
     await pool.query('DELETE FROM knowledge_article_attachments WHERE id = $1', [id]);
     return reply.send({ data: { success: true } });

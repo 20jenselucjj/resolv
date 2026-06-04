@@ -74,6 +74,8 @@ interface Attachment {
   size: number;
   mime_type: string;
   url: string;
+  viewUrl: string;
+  uploaded_by?: string;
   created_at: string;
 }
 
@@ -143,6 +145,8 @@ export default function ArticleDetailPage() {
       // Fetch attachments
       try {
         const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('resolv_token') || localStorage.getItem('token')) : null;
+        const tokenParam = token ? `?token=${token}` : '';
         const attRes = await api.get<{ data: any[] }>(`/knowledge/${data.id}/attachments`);
         setAttachments((attRes.data || []).map((att: any) => ({
           id: att.id,
@@ -150,8 +154,9 @@ export default function ArticleDetailPage() {
           size: att.size_bytes || att.size,
           mime_type: att.mime_type,
           created_at: att.created_at,
+          uploaded_by: att.uploaded_by,
           url: `${apiBase}/knowledge/attachments/${att.id}/download`,
-          storage_path: att.storage_path,
+          viewUrl: `${apiBase}/knowledge/attachments/${att.id}/view${tokenParam}`,
         })));
       } catch {
         // ignore if endpoint doesn't exist yet
@@ -294,6 +299,16 @@ export default function ArticleDetailPage() {
       console.error('File upload error:', err);
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Delete attachment handler
+  const handleDeleteAttachment = async (attId: string) => {
+    try {
+      await api.delete(`/knowledge/attachments/${attId}`);
+      setAttachments(prev => prev.filter(a => a.id !== attId));
+    } catch {
+      console.error('Failed to delete attachment');
     }
   };
 
@@ -900,54 +915,69 @@ export default function ArticleDetailPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {attachments.map(att => (
-                    <div key={att.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 14px', background: 'var(--background)',
-                      border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-                      fontSize: 14
-                    }}>
-                      {/* Preview thumbnail for images */}
-                      {att.mime_type.startsWith('image/') && (
-                        <img
-                          src={att.url}
-                          alt={att.filename}
-                          style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, cursor: 'pointer' }}
-                          onClick={() => { setPreviewUrl(att.url); setPreviewType(att.mime_type); }}
-                        />
-                      )}
-                      {!att.mime_type.startsWith('image/') && (
-                        <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{getFileIcon(att.mime_type)}</span>
-                      )}
-                      <span style={{ flex: 1, color: 'var(--foreground)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {att.filename}
-                      </span>
-                      <span style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                        {formatFileSize(att.size)}
-                      </span>
-                      {canPreview(att.mime_type) && (
+                  {attachments.map(att => {
+                    const canDelete = user?.role === 'admin' || user?.role === 'agent' || att.uploaded_by === user?.id;
+                    return (
+                      <div key={att.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 14px', background: 'var(--background)',
+                        border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                        fontSize: 14
+                      }}>
+                        {/* Preview thumbnail for images */}
+                        {att.mime_type.startsWith('image/') && (
+                          <img
+                            src={att.viewUrl}
+                            alt={att.filename}
+                            style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, cursor: 'pointer' }}
+                            onClick={() => { setPreviewUrl(att.viewUrl); setPreviewType(att.mime_type); }}
+                          />
+                        )}
+                        {!att.mime_type.startsWith('image/') && (
+                          <span style={{ color: 'var(--accent)', flexShrink: 0 }}>{getFileIcon(att.mime_type)}</span>
+                        )}
+                        <span style={{ flex: 1, color: 'var(--foreground)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                          onClick={() => { setPreviewUrl(att.viewUrl); setPreviewType(att.mime_type); }}
+                        >
+                          {att.filename}
+                        </span>
+                        <span style={{ color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                          {formatFileSize(att.size)}
+                        </span>
                         <button
-                          onClick={() => { setPreviewUrl(att.url); setPreviewType(att.mime_type); }}
+                          onClick={() => { setPreviewUrl(att.viewUrl); setPreviewType(att.mime_type); }}
                           style={{
                             background: 'none', border: 'none', cursor: 'pointer',
                             color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4,
                             fontSize: 13, padding: 0
                           }}
                         >
-                          <ZoomIn size={14} /> Preview
+                          <ZoomIn size={14} />
                         </button>
-                      )}
-                      <a
-                        href={att.url}
-                        download={att.filename}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, textDecoration: 'none' }}
-                      >
-                        <Download size={14} />
-                      </a>
-                    </div>
-                  ))}
+                        <a
+                          href={att.url}
+                          download={att.filename}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, textDecoration: 'none' }}
+                        >
+                          <Download size={14} />
+                        </a>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDeleteAttachment(att.id)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--danger)', display: 'flex', padding: 0, opacity: 0.6,
+                            }}
+                            title="Delete attachment"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -994,22 +1024,23 @@ export default function ArticleDetailPage() {
                       title="File Preview"
                     />
                   )}
-                  <a
-                    href={previewUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      position: 'absolute', bottom: 24,
-                      background: 'var(--accent)', color: '#fff',
-                      padding: '12px 24px', borderRadius: 8,
-                      textDecoration: 'none', fontSize: 15, fontWeight: 600,
-                      display: 'flex', alignItems: 'center', gap: 8,
-                    }}
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <Download size={18} /> Download
-                  </a>
+                  <div style={{ position: 'absolute', bottom: 24, display: 'flex', gap: 12 }}>
+                    <a
+                      href={previewUrl}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        background: 'var(--accent)', color: '#fff',
+                        padding: '12px 24px', borderRadius: 8,
+                        textDecoration: 'none', fontSize: 15, fontWeight: 600,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Download size={18} /> Download
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
