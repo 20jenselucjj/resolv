@@ -1,4 +1,4 @@
-# ===============================================================
+﻿# ===============================================================
 #  Resolv Demo Deployment Script
 #  Sets up the IT service management platform on any Windows PC
 #  Includes fallbacks for NSSM, pkg, DB, and build failures
@@ -280,7 +280,7 @@ if ($dbConnected) {
   Pop-Location
 } else {
   Write-Host "  [SKIP] DB setup (no database connection). Run manually:" -ForegroundColor Yellow
-  Write-Host "         cd apps\api && node src\db\run_schema.js" -ForegroundColor Gray
+  Write-Host "         cd apps\api, then: node src\db\run_schema.js" -ForegroundColor Gray
   Write-Host "         node src\db\run_seed.js" -ForegroundColor Gray
   Write-Host "         node src\db\run_migration.js" -ForegroundColor Gray
 }
@@ -341,7 +341,7 @@ if (Test-Path $nssmExe) {
     if ($LASTEXITCODE -eq 0) { $agentBuilt = $true; Write-Host "  [OK] Agent built via direct pkg" -ForegroundColor Green }
     else {
       Write-Host "  [WARN] Agent build failed (non-critical, Windows EXE not required)." -ForegroundColor Yellow
-      Write-Host "         To build later: cd apps\agent\node-agent && npm run build" -ForegroundColor Gray
+      Write-Host "         To build later: cd apps\agent\node-agent, then: npm run build" -ForegroundColor Gray
     }
   } else { $agentBuilt = $true; Write-Host "  [OK] Agent built (dist/ResolvAgent.exe)" -ForegroundColor Green }
   Pop-Location
@@ -514,7 +514,7 @@ Write-Host ""
 
 # Agent build status
 if ($agentBuilt) { Write-Host "  Agent:     ResolvAgent.exe built and ready" -ForegroundColor Green }
-else { Write-Host "  Agent:     Not built (optional — run: cd apps\agent\node-agent && npm run build)" -ForegroundColor Yellow }
+else { Write-Host "  Agent:     Not built (optional, build with: cd apps\agent\node-agent and run npm run build)" -ForegroundColor Yellow }
 
 Write-Host ""
 Write-Host "  If something didn't work:" -ForegroundColor White
