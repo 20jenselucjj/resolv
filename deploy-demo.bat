@@ -2,47 +2,41 @@
 :: ===============================================================
 ::  Resolv Demo Deployment Launcher
 ::  Auto-elevates to Administrator, bypasses execution policy
-::  Falls back to direct PowerShell if elevation fails
+::  Stays open on completion so you can read the output
 :: ===============================================================
 setlocal enabledelayedexpansion
-
 cd /d "%~dp0"
 
-:: Check if running as Administrator
 net session >nul 2>&1
 if !errorlevel! neq 0 (
   echo.
   echo   Requesting Administrator privileges...
   echo   (A UAC prompt may appear — click Yes)
   echo.
+  echo   The deployment will run in a new window.
+  echo   Come back here and press any key when it finishes.
+  echo.
   powershell -NoProfile -Command ^
-    "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"%~dp0deploy-demo.ps1\"' -Verb RunAs"
-  if !errorlevel! equ 0 (
-    echo   Launched deployment script as Administrator.
-	echo   The new window will run the setup automatically.
-  ) else (
-    echo   [!] Could not auto-elevate.
-	echo   Please run this file as Administrator manually:
-	echo     1. Right-click deploy-demo.bat
-	echo     2. Select "Run as administrator"
-	echo.
-	pause
-  )
+    "Start-Process powershell -ArgumentList '-NoExit -NoProfile -ExecutionPolicy Bypass -File \"%~dp0deploy-demo.ps1\"' -Verb RunAs"
+  echo.
+  echo   If the new window appears, let it finish, then close it.
+  echo.
+  pause
   exit /b
 )
 
-:: Running as admin — execute the PowerShell script
 echo.
 echo   Running deployment script...
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0deploy-demo.ps1"
+set EXIT_CODE=!errorlevel!
 
-if !errorlevel! neq 0 (
-  echo.
-  echo   [!] Deployment encountered errors. Check the output above.
+echo.
+if !EXIT_CODE! neq 0 (
+  echo   [!] Deployment encountered errors (exit code %EXIT_CODE%).
+  echo       Scroll up and check for any red/warning messages.
 ) else (
-  echo.
-  echo   [OK] Deployment complete!
+  echo   [OK] Deployment completed successfully!
 )
 echo.
 pause
