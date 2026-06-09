@@ -78,6 +78,28 @@ The active path is `apps/agent/node-agent/` → `dist/ResolvAgent.exe`, installe
 `apps/agent/node-agent/config.json` holds `serverUrl`, `agentSecret`, `assetId`, `agentToken`.
 **Do not commit real tokens.** The file is gitignored (`apps/agent/node-agent/config.json` in `.gitignore`) but verify.
 
+### Auto-Update
+
+The agent checks for updates on every heartbeat (30s). The API checks `agent_versions` table for `is_latest = true` and compares semver. If newer, it returns `update_available: true` with a `download_url` and `checksum_sha256`. The agent downloads, verifies the checksum, renames the running `.exe` → `.exe.old`, copies the new binary, and restarts.
+
+**⚠️ Critical: checksum case sensitivity.** When registering a new agent version, the `checksum_sha256` in `agent_versions` must be **lowercase hex**. Why:
+- `Get-FileHash` (PowerShell) returns **UPPERCASE**
+- `crypto.createHash('sha256').digest('hex')` (Node.js, used by both agent and server) returns **lowercase**
+- The agent compares checksums with strict equality
+
+If you paste a PowerShell checksum into the DB or migration SQL, it will silently break auto-update. Fix: convert to lowercase before inserting.
+
+**Flow for shipping a new agent version:**
+1. Bump version in `apps/agent/node-agent/package.json` and `apps/agent/node-agent/agent.js` (both must match)
+2. Run `npm run build` — produces `dist/ResolvAgent.exe`, postbuild copies to `apps/api/uploads/agent/`
+3. Compute SHA256 with Node.js (not PowerShell):
+   ```bash
+   node -e "console.log(require('crypto').createHash('sha256').update(require('fs').readFileSync('dist/ResolvAgent.exe')).digest('hex'))"
+   ```
+4. Create a migration SQL to insert into `agent_versions` with `is_latest = true, rollout_percentage = 100`
+5. Run the migration
+6. Wait — agents auto-update within 30s on next heartbeat
+
 ## Code Style (Repo-Specific)
 
 ### Imports
