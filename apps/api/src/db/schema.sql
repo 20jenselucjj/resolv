@@ -527,6 +527,7 @@ CREATE TABLE IF NOT EXISTS assets (
   -- Network
   ip_address VARCHAR(45),
   mac_address VARCHAR(17),
+  default_gateway VARCHAR(45),
   hostname VARCHAR(255),
   domain VARCHAR(255),
   -- OS
