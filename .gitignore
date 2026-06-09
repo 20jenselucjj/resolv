@@ -1,0 +1,74 @@
+node_modules
+dist
+.next
+.env
+.env.local
+*.log
+.DS_Store
+.tmp.driveupload/
+.tmp.drivedownload/
+
+# Runtime output / logs
+.api-*.txt
+.web-*.txt
+
+# Temp downloads
+.tmp.*
+test-*.exe
+
+# Config / auth
+agent-config-new.json
+
+# Agent generated build artifacts
+apps/agent/node-agent/nssm-bundle.js
+apps/agent/node-agent/nssm/
+apps/agent/node-agent/ffmpeg-bundle.js
+
+# Build artifacts / binaries
+apps/api/public/*.zip
+*.exe
+*.zip
+
+# Uploaded files
+apps/api/uploads/
+
+# Misc screenshots / images (root only)
+/assets-page.png
+/logo.png
+
+# One-off schema/column check scripts
+check_*.mjs
+
+# Postgres data directory
+pgdata/
+
+# Leftover remote desktop test/capture scripts
+apps/agent/node-agent/capture.ps1
+apps/agent/node-agent/input_helper.ps1
+apps/agent/node-agent/test_frame*.js
+apps/agent/node-agent/scripts/bundle-ffmpeg.js
+
+# Reserved Windows filename
+nul
+
+# Agent tooling / generated artifacts
+.slim/
+config.json
+codemap.md
+
+# Agent config with secrets
+apps/agent/node-agent/config.json
+
+# Stray artifact
+-w
+
+# Playwright MCP snapshots
+.playwright-mcp/
+
+# Test results
+test-results/
+
+# Environment files
+.env
+.env.local
+.env.production

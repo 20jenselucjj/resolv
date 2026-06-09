@@ -1,0 +1,93 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { CategoriesTab } from './CategoriesTab';
+import { WorkflowTab } from './WorkflowTab';
+import { TicketStatusesTab } from './TicketStatusesTab';
+import type { Category } from './types';
+
+const SUB_TABS = ['Categories', 'Transitions', 'Statuses'] as const;
+type SubTab = typeof SUB_TABS[number];
+
+export function TicketsTab({
+  showAlert,
+  setConfirmModal,
+  categories,
+  onRefreshCategories,
+}: {
+  showAlert: (m: string, t?: 'success' | 'error') => void;
+  setConfirmModal: (modal: { open: boolean; title: string; message: string; onConfirm: () => void } | null) => void;
+  categories: Category[];
+  onRefreshCategories: () => void;
+}) {
+  const [subTab, setSubTab] = useState<SubTab>(() => {
+    try { return (localStorage.getItem('resolv_tickets_tab') as SubTab) || 'Categories' } catch { return 'Categories' }
+  });
+
+  useEffect(() => { localStorage.setItem('resolv_tickets_tab', subTab) }, [subTab]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <style>{`
+        .tickets-tab-pills {
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          white-space: nowrap;
+          padding-bottom: 2px;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .tickets-tab-pills::-webkit-scrollbar { display: none; }
+        @media (min-width: 768px) {
+          .tickets-tab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        }
+        @media (max-width: 767px) {
+          .tickets-tab-grid { display: flex; flex-direction: column; gap: 20px; }
+        }
+      `}</style>
+
+      {/* Sub-tab pill navigation */}
+      <div className="tickets-tab-pills">
+        {SUB_TABS.map(tab => (
+          <button
+            key={tab}
+            onClick={() => setSubTab(tab)}
+            style={{
+              padding: '6px 16px',
+              borderRadius: '20px',
+              border: '1px solid',
+              borderColor: subTab === tab ? 'var(--accent)' : 'var(--border)',
+              background: subTab === tab ? 'var(--accent-subtle)' : 'var(--bg-secondary)',
+              color: subTab === tab ? 'var(--accent)' : 'var(--text-secondary)',
+              fontSize: '13px',
+              fontWeight: subTab === tab ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'all 0.12s',
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'Categories' && (
+        <CategoriesTab
+          categories={categories}
+          onRefresh={onRefreshCategories}
+          showAlert={showAlert}
+          setConfirmModal={setConfirmModal}
+        />
+      )}
+      {subTab === 'Transitions' && (
+        <WorkflowTab
+          showAlert={showAlert}
+          setConfirmModal={setConfirmModal}
+        />
+      )}
+      {subTab === 'Statuses' && (
+        <TicketStatusesTab showAlert={showAlert} />
+      )}
+    </div>
+  );
+}

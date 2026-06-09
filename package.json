@@ -1,0 +1,28 @@
+{
+  "name": "resolv",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "node scripts/kill-dev-ports.js",
+    "dev": "concurrently \"npm run dev --workspace=apps/web\" \"npm run dev --workspace=apps/api\"",
+    "build": "npm run build --workspace=apps/web && npm run build --workspace=apps/api && npm run build:agent-api",
+    "build:agent-api": "node scripts/copy-agent-exe.js",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/mailparser": "^3.4.6",
+    "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.20.0",
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5",
+    "xlsx": "^0.18.5"
+  }
+}

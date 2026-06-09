@@ -1,0 +1,7 @@
+-- ============================================================================
+-- Resolv ITSM — Demo Seed Data
+-- ============================================================================
+-- This file has been cleaned. All mock/demo data has been removed.
+-- To populate demo data for testing, restore from a backup or create
+-- data through the application UI.
+-- ============================================================================

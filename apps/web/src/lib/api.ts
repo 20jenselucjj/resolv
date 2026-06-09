@@ -1,0 +1,188 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
+export const API_BASE = API_URL;
+
+// SessionStorage key for access token persistence
+const SESSION_TOKEN_KEY = 'resolv_access_token';
+
+// In-memory token — also persisted to sessionStorage for tab/session survival
+let currentToken: string | null = null;
+
+function loadStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(SESSION_TOKEN_KEY);
+}
+
+export function getToken(): string | null {
+  if (currentToken) return currentToken;
+  // Fallback to sessionStorage (survives page reloads but not browser close)
+  currentToken = loadStoredToken();
+  return currentToken;
+}
+
+export function setToken(token: string | null) {
+  currentToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+      localStorage.setItem('resolv_token_ts', String(Date.now()));
+    } else {
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    }
+  }
+}
+
+export function clearAuth() {
+  currentToken = null;
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem('resolv_refresh_token');
+    localStorage.removeItem('resolv_token_ts');
+  }
+}
+
+let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('resolv_refresh_token') : null;
+  if (!refreshToken) {
+    throw new Error('No refresh token');
+  }
+
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!res.ok) {
+    localStorage.removeItem('resolv_refresh_token');
+    currentToken = null;
+    throw new Error('Refresh failed');
+  }
+
+  const data = await res.json();
+  currentToken = data.data.token;
+  // Persist to sessionStorage so token survives page reloads
+  if (typeof window !== 'undefined' && currentToken) {
+    sessionStorage.setItem(SESSION_TOKEN_KEY, currentToken);
+  }
+  return currentToken as string;
+}
+
+const ERROR_MESSAGES: Record<number, string> = {
+  400: 'Invalid request — please check your input.',
+  401: 'Your session has expired. Please log in again.',
+  403: 'You don\'t have permission to do that.',
+  404: 'The requested resource was not found.',
+  409: 'A conflict occurred — this item may already exist.',
+  422: 'The data you submitted is invalid.',
+  429: 'Too many requests — please slow down.',
+  500: 'Server error — our team has been notified. Please try again.',
+  502: 'Server is temporarily unavailable. Please try again in a moment.',
+  503: 'Service is down for maintenance. Please try again shortly.',
+};
+
+const REQUEST_TIMEOUT_MS = 30000; // 30 second timeout
+
+async function request<T>(path: string, options: RequestInit = {}, retries = 1): Promise<T> {
+  const token = getToken();
+
+  // Create an AbortController for request timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      headers: {
+        ...(options.method !== 'GET' && options.method !== 'DELETE' ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+
+    if (!res.ok) {
+      // Auto-retry on 502/503/504 once
+      if (retries > 0 && [502, 503, 504].includes(res.status)) {
+        await new Promise(r => setTimeout(r, 1000));
+        return request<T>(path, options, retries - 1);
+      }
+
+      // On 401, attempt token refresh if a refresh token exists
+      if (res.status === 401 && typeof window !== 'undefined' && localStorage.getItem('resolv_refresh_token')) {
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = refreshAccessToken().finally(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+          });
+        }
+
+        try {
+          const newToken = await refreshPromise;
+          // Retry the original request with the new token
+          return request<T>(path, {
+            ...options,
+            headers: {
+              ...options.headers,
+              Authorization: `Bearer ${newToken}`,
+            },
+          }, 0); // No more retries to avoid loops
+        } catch {
+          clearAuth();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+          throw new Error('Session expired');
+        }
+      }
+
+      const body = await res.json().catch(() => ({}));
+      const serverMsg = body.error || body.message || body.msg;
+      const friendlyMsg = ERROR_MESSAGES[res.status];
+
+      // If server gave a specific message, use it; otherwise use friendly fallback
+      const message = serverMsg && serverMsg !== 'Request failed'
+        ? serverMsg
+        : (friendlyMsg || `Request failed (${res.status})`);
+
+      const err = new Error(message) as Error & { status: number; serverError?: string };
+      err.status = res.status;
+      err.serverError = serverMsg;
+      throw err;
+    }
+
+    if (res.status === 204) return undefined as T;
+    return res.json();
+  } catch (err: any) {
+    // Timeout error
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+    // Network error (no response)
+    if (!err.status && err.name !== 'AbortError') {
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 800));
+        return request<T>(path, options, retries - 1);
+      }
+      throw new Error('Cannot connect to server. Please check your connection.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Exported so dashboard layout can auto-refresh on cold page loads
+export { refreshAccessToken };
+
+export const api = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+};

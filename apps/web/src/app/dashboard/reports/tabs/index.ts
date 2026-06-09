@@ -1,0 +1,17 @@
+export { default as ExecutiveSummaryTab } from './ExecutiveSummaryTab';
+export { default as OverviewTab } from './OverviewTab';
+export { default as TicketsTab } from './TicketsTab';
+export { default as SLATab } from './SLATab';
+export { default as PerformanceTab } from './PerformanceTab';
+export { default as ProblemsTab } from './ProblemsTab';
+export { default as ChangesTab } from './ChangesTab';
+export { default as ApprovalsTab } from './ApprovalsTab';
+export { default as LicensesTab } from './LicensesTab';
+export { default as AssetsTab } from './AssetsTab';
+export { default as KnowledgeTab } from './KnowledgeTab';
+export { default as AITab } from './AITab';
+export { default as PortalTab } from './PortalTab';
+export { default as BuilderTab } from './BuilderTab';
+export { default as SavedReportsTab } from './SavedReportsTab';
+export { default as SchedulesTab } from './SchedulesTab';
+export { default as PinboardTab } from './PinboardTab';
