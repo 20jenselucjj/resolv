@@ -476,7 +476,7 @@ export function EncryptionCard({ encryption }: { encryption: Array<{ drive_lette
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {encryption.map((drive) => {
-        const isEncrypted = drive.protection_status?.toLowerCase().includes('on') || drive.encryption_percentage === 100;
+        const isEncrypted = drive.protection_status?.toLowerCase() === 'protection on' || drive.encryption_percentage === 100;
         const pct = drive.encryption_percentage ?? 0;
         return (
           <div key={drive.drive_letter} style={{
@@ -579,46 +579,72 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
   onSelect?: (cmd: AgentCommand) => void;
 }): React.JSX.Element {
   const [cancellingId, setCancellingId] = React.useState<string | null>(null);
+  const [cancelToast, setCancelToast] = React.useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+
+  React.useEffect(() => {
+    if (!cancelToast) return;
+    const t = setTimeout(() => setCancelToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [cancelToast]);
 
   const handleCancel = async (commandId: string) => {
     if (!confirm('Cancel this command?')) return;
     setCancellingId(commandId);
     try {
       await api.post(`/assets/${assetId}/commands/${commandId}/cancel`, {});
-      onRefresh();
+      setCancelToast({ message: 'Command cancelled', tone: 'success' });
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel command');
+      setCancelToast({ message: err.message || 'Failed to cancel command', tone: 'error' });
     }
+    // Always refresh to get latest state (command may have already been dispatched)
+    onRefresh();
     setCancellingId(null);
+  };
+
+  const toastStyle: React.CSSProperties = {
+    position: 'fixed', bottom: 24, right: 24, zIndex: 300,
+    padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    display: 'flex', alignItems: 'center', gap: 8,
+    transition: 'opacity 0.2s ease',
+    opacity: cancelToast ? 1 : 0, pointerEvents: 'none',
   };
 
   if (!commands || commands.length === 0) {
     return (
-      <div>
-        <div style={{
-          padding: '48px 24px', borderRadius: 'var(--radius-lg)',
-          border: '1px dashed var(--border)', background: 'var(--bg-secondary)',
-          textAlign: 'center'
-        }}>
+      <>
+        <div>
           <div style={{
-            width: 56, height: 56, borderRadius: 'var(--radius-lg)',
-            background: 'var(--bg)', border: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px'
+            padding: '48px 24px', borderRadius: 'var(--radius-lg)',
+            border: '1px dashed var(--border)', background: 'var(--bg-secondary)',
+            textAlign: 'center'
           }}>
-            <span style={{ fontSize: 22 }}>⚡</span>
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>No commands</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 420, margin: '0 auto' }}>
-            Commands sent to this agent will appear here.
+            <div style={{
+              width: 56, height: 56, borderRadius: 'var(--radius-lg)',
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <span style={{ fontSize: 22 }}>⚡</span>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>No commands</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 420, margin: '0 auto' }}>
+              Commands sent to this agent will appear here.
+            </div>
           </div>
         </div>
-      </div>
+        {cancelToast && (
+          <div style={{ ...toastStyle, background: cancelToast.tone === 'success' ? '#166534' : '#991b1b', color: '#fff' }}>
+            {cancelToast.message}
+          </div>
+        )}
+      </>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {commands.map((cmd) => {
         const typeInfo = COMMAND_TYPES.find(t => t.value === cmd.command_type);
         const rowBg = cmd.status === 'failed' ? '#fef2f2'
@@ -644,17 +670,19 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
                 <CommandStatusBadge status={cmd.status} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {cmd.status === 'pending' && (
+                {(cmd.status === 'pending' || cmd.status === 'dispatched') && (
                   <button
                     onClick={(e) => { e.stopPropagation(); handleCancel(cmd.id); }}
                     disabled={cancellingId === cmd.id}
                     style={{
-                      padding: '4px 10px', borderRadius: 6, border: '1px solid #ef4444',
-                      background: cancellingId === cmd.id ? '#fecaca' : '#fff',
-                      color: '#ef4444', fontSize: 11, fontWeight: 600, cursor: cancellingId === cmd.id ? 'not-allowed' : 'pointer',
+                      padding: '4px 10px', borderRadius: 6,
+                      border: '1px solid ' + (cmd.status === 'dispatched' ? '#f59e0b' : '#ef4444'),
+                      background: cancellingId === cmd.id ? (cmd.status === 'dispatched' ? '#fef3c7' : '#fecaca') : '#fff',
+                      color: cmd.status === 'dispatched' ? '#b45309' : '#ef4444',
+                      fontSize: 11, fontWeight: 600, cursor: cancellingId === cmd.id ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {cancellingId === cmd.id ? 'Cancelling...' : 'Cancel'}
+                    {cancellingId === cmd.id ? 'Cancelling...' : (cmd.status === 'dispatched' ? 'Force Cancel' : 'Cancel')}
                   </button>
                 )}
                 <span style={{ fontSize: 11, color: '#9ca3af' }}>
@@ -695,6 +723,19 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
         );
       })}
     </div>
+
+    {cancelToast && (
+      <div style={{
+        position: 'fixed', bottom: 24, right: 24, zIndex: 300,
+        padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        background: cancelToast.tone === 'success' ? '#166534' : '#991b1b',
+        color: '#fff', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        {cancelToast.message}
+      </div>
+    )}
+  </>
   );
 }
 

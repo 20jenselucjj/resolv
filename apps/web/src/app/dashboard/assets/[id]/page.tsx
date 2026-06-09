@@ -434,6 +434,17 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [id]);
 
+  // Lightweight poll that doesn't set loading state (for auto-refresh)
+  const pollCommands = useCallback(async () => {
+    try {
+      const response = await api.get<{ data: AgentCommand[] }>(`/assets/${id}/commands`);
+      const list = response?.data || response || [];
+      setCommands(Array.isArray(list) ? list : []);
+    } catch {
+      // Silently ignore polling errors
+    }
+  }, [id]);
+
   const fetchAgentVersion = useCallback(async () => {
     try {
       const response = await api.get<{ data: AgentVersion }>('/agent-versions/latest');
@@ -467,6 +478,15 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Auto-refresh commands every 8s while active (pending/dispatched/in_progress) — no loading flicker
+  useEffect(() => {
+    if (!commands) return;
+    const hasActive = commands.some(c => c.status === 'pending' || c.status === 'dispatched' || c.status === 'in_progress');
+    if (!hasActive) return;
+    const interval = setInterval(pollCommands, 8000);
+    return () => clearInterval(interval);
+  }, [commands, pollCommands]);
 
   // ---- Toast ----
 
@@ -545,6 +565,15 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
       }
     }
     return Array.from(seen.values());
+  }, [usersList]);
+
+  // Most recently logged-in user (by logged_in_at) for the "Assigned to" field
+  const mostRecentUserName = useMemo(() => {
+    if (!usersList || usersList.length === 0) return null;
+    const withTime = usersList.filter(u => u.logged_in_at);
+    if (withTime.length === 0) return null;
+    withTime.sort((a, b) => new Date(b.logged_in_at!).getTime() - new Date(a.logged_in_at!).getTime());
+    return withTime[0].display_name || withTime[0].username || null;
   }, [usersList]);
   const usbDevices = asset?.usb_devices || [];
 
@@ -892,6 +921,45 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                 )}
               </div>
 
+              {/* Agent-offline warning for pending commands */}
+              {selectedCommand.status === 'pending' && asset?.agent_status !== 'online' && (
+                <div style={{
+                  padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                  background: '#fef9c3', border: '1px solid #fde68a',
+                  display: 'flex', alignItems: 'flex-start', gap: 10
+                }}>
+                  <Clock size={16} color='#854d0e' style={{ marginTop: 1, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#854d0e', marginBottom: 2 }}>Agent Offline</div>
+                    <div style={{ fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
+                      This command won't run until the agent connects. Deploy the agent to this machine and it will pick up pending commands automatically.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Stale-dispatched warning — command was picked up by agent but never reported back */}
+              {selectedCommand.status === 'dispatched' && selectedCommand.dispatched_at && (() => {
+                const elapsed = Date.now() - new Date(selectedCommand.dispatched_at).getTime();
+                if (elapsed < 120000) return null; // Only warn after 2+ minutes
+                return (
+                  <div style={{
+                    padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                    background: '#fef9c3', border: '1px solid #fde68a',
+                    display: 'flex', alignItems: 'flex-start', gap: 10
+                  }}>
+                    <AlertTriangle size={16} color='#b45309' style={{ marginTop: 1, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#b45309', marginBottom: 2 }}>Command appears stuck</div>
+                      <div style={{ fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
+                        The agent picked up this command {Math.round(elapsed / 1000)}s ago but hasn't reported a result.
+                        The agent process may have crashed or lost connectivity. You can force-cancel this command and retry.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Timestamps */}
               {selectedCommand.created_at && (
                 <div>
@@ -1217,7 +1285,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
           <DetailGrid
             columns={3}
             items={[
-              { label: 'Assigned to', value: asset.assigned_to_name || '\u2014' },
+              { label: 'Assigned to', value: mostRecentUserName || asset.assigned_to_name || '\u2014' },
               { label: 'Owner', value: asset.owner_name || '\u2014' },
               { label: 'Department', value: asset.department || '\u2014' },
               { label: 'Location', value: asset.location || '\u2014' },

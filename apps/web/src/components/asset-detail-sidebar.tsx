@@ -164,7 +164,7 @@ export function AssetDetailSidebar({
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
-          placeholder="Document useful context, known issues, or field notes\u2026"
+          placeholder="Document useful context, known issues, or field notes..."
           rows={8}
           style={{
             width: '100%',
@@ -260,7 +260,7 @@ export function AssetDetailSidebar({
       {asset.hardware?.encryption_status && asset.hardware.encryption_status.length > 0 && (
         <Panel title="Encryption" subtitle="BitLocker drive status" icon={Shield}>
           {asset.hardware.encryption_status.map((d) => {
-            const encrypted = d.protection_status?.toLowerCase().includes('on') || d.encryption_percentage === 100;
+            const encrypted = d.protection_status?.toLowerCase() === 'protection on' || d.encryption_percentage === 100;
             return (
               <div key={d.drive_letter} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: encrypted ? '#22c55e' : '#ef4444', display: 'inline-block' }} />
