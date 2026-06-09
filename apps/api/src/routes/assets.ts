@@ -80,6 +80,7 @@ const agentCheckinSchema = z.object({
   ip_address: ns(z.string()),
   mac_address: ns(z.string()),
   domain: ns(z.string()),
+  default_gateway: ns(z.string()),
   os: z.object({
     platform: ns(z.string()),
     distro: ns(z.string()),
@@ -449,8 +450,8 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     const size = exeBuffer.length;
     const checksum = crypto.createHash('sha256').update(exeBuffer).digest('hex');
 
-    // If the DB has a checksum, verify it matches; otherwise it's a first-time binary
-    if (latest.checksum_sha256 && latest.checksum_sha256 !== checksum) {
+    // If the DB has a checksum, verify it matches (case-insensitive); otherwise it's a first-time binary
+    if (latest.checksum_sha256 && latest.checksum_sha256.toLowerCase() !== checksum) {
       return reply.status(500).send({ error: 'Binary checksum mismatch — rebuild required' });
     }
 
@@ -867,7 +868,7 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     const assetId = assetResult.rows[0].id;
 
     const body = agentCheckinSchema.parse(request.body);
-    const { os, hardware, network_adapters, software, current_user, users, encryption, battery, usb_devices, usb_changes } = body;
+    const { os, hardware, network_adapters, software, current_user, users, encryption, battery, usb_devices, usb_changes, default_gateway } = body;
 
     // Disk totals: use physical diskLayout capacity, fsSize for used/free
     let diskTotal = 0, diskUsed = 0, diskFree = 0;
@@ -910,13 +911,15 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     await pool.query(`
       UPDATE assets SET
         hostname=$1, agent_version=$2, ip_address=$3, mac_address=$4, domain=$5,
-        os_name=$6, os_version=$7, os_build=$8, os_arch=$9,
-        manufacturer=$10, model=$11, serial_number=$12,
-        machine_fingerprint=COALESCE($14, machine_fingerprint),
+        default_gateway=$6,
+        os_name=$7, os_version=$8, os_build=$9, os_arch=$10,
+        manufacturer=$11, model=$12, serial_number=$13,
+        machine_fingerprint=COALESCE($15, machine_fingerprint),
         agent_status='online', agent_last_seen=NOW()
-      WHERE id=$13
+      WHERE id=$14
     `, [
       body.hostname, body.agent_version, body.ip_address || null, body.mac_address || null, body.domain || null,
+      body.default_gateway || null,
       os ? `${os.distro || os.platform || ''}`.trim() : null,
       os?.release || null, os?.build || null, os?.arch || null,
       hardware?.system?.manufacturer || null, hardware?.system?.model || null, hardware?.system?.serial || null,
@@ -1001,10 +1004,11 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       await pool.query(`DELETE FROM asset_network_adapters WHERE asset_id=$1`, [assetId]);
       for (const adapter of network_adapters) {
         await pool.query(`
-          INSERT INTO asset_network_adapters (asset_id, adapter_name, ip_address, mac_address, adapter_type, speed_mbps, is_virtual, is_active)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          INSERT INTO asset_network_adapters (asset_id, adapter_name, ip_address, mac_address, subnet_mask, gateway, adapter_type, speed_mbps, is_virtual, is_active)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         `, [
           assetId, adapter.iface || 'unknown', adapter.ip4 || null, adapter.mac || null,
+          adapter.netmask || null, adapter.gateway || null,
           adapter.type || null, adapter.speed || null,
           adapter.virtual || false, adapter.operstate === 'up',
         ]);
@@ -1212,9 +1216,10 @@ export default async function assetRoutes(fastify: FastifyInstance) {
           if (eligible) {
             // Auto-populate download_url from server if not set in DB
             const proto = (request.headers['x-forwarded-proto'] as string) || 'http';
-            const host = (request.headers['x-forwarded-host'] as string) || (request.headers.host as string) || `localhost:${process.env.PORT || 3001}`;
+            const hostHeader = (request.headers['x-forwarded-host'] as string) || (request.headers.host as string) || '';
+            const host = hostHeader.includes(':') ? hostHeader : `${hostHeader}:${process.env.PORT || 3001}`;
             const serverUrl = `${proto}://${host}`;
-            const dlUrl = latest.download_url || `${serverUrl}/api/assets/agent/download/update`;
+            const dlUrl = `${serverUrl}/api/assets/agent/download/update`;
 
             updateInfo = {
               update_available: true,

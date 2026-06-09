@@ -555,18 +555,42 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
            VALUES ($1, $2, 'status_changed', $3, $4)`,
           [id, request.user.id, ticket.status, body.status]
         );
+      }
 
-        // Notify creator when resolved
+      // Create in-app notifications for all ticket updates
+      // In ITSM, the notification panel is an activity log — notify both reporter and assignee
+      const notifiedUsers = new Set<string>();
+
+      let notifType = 'ticket_updated';
+      let notifTitle = `Ticket #${updated.number} was updated: ${updated.title}`;
+
+      if (body.status && body.status !== ticket.status) {
+        notifType = 'status_changed';
         if (body.status === 'resolved') {
-          await createNotification(
-            client,
-            updated.created_by_id,
-            'ticket_resolved',
-            `Your ticket #${updated.number} has been resolved`,
-            '',
-            updated.id
-          );
+          notifType = 'ticket_resolved';
+          notifTitle = `Your ticket #${updated.number} has been resolved`;
+        } else if (body.status === 'closed') {
+          notifType = 'ticket_closed';
+          notifTitle = `Your ticket #${updated.number} has been closed`;
+        } else {
+          notifTitle = `Status changed to "${body.status}" on ticket #${updated.number}: ${updated.title}`;
         }
+      }
+
+      // Notify the ticket reporter
+      await createNotification(client, updated.created_by_id, notifType, notifTitle, '', updated.id);
+      notifiedUsers.add(updated.created_by_id);
+
+      // Notify the assignee if different from reporter
+      if (updated.assigned_to_id && !notifiedUsers.has(updated.assigned_to_id)) {
+        let assigneeType = notifType;
+        let assigneeTitle = notifTitle;
+        // For assignment changes, the assignee gets a specific message
+        if (body.assigned_to_id !== undefined && body.assigned_to_id !== ticket.assigned_to_id) {
+          assigneeType = 'ticket_assigned';
+          assigneeTitle = `You have been assigned ticket #${updated.number}: ${updated.title}`;
+        }
+        await createNotification(client, updated.assigned_to_id, assigneeType, assigneeTitle, '', updated.id);
       }
 
       await client.query('COMMIT');
@@ -585,6 +609,12 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       fastify.io.emit(`ticket:updated:${id}`, { ticket: updated });
       fastify.io.emit('ticket:updated', { ticket: updated });
       fastify.io.emit('reports:data-updated', {});
+
+      // Emit real-time notification:new for users who got in-app notifications
+      fastify.io.to(`user:${updated.created_by_id}`).emit('notification:new', { ticketId: id });
+      if (updated.assigned_to_id && !notifiedUsers.has(updated.assigned_to_id)) {
+        fastify.io.to(`user:${updated.assigned_to_id}`).emit('notification:new', { ticketId: id });
+      }
 
       // Auto-sync closed/resolved tickets into AI knowledge base
       if (body.status === 'closed' || body.status === 'resolved') {
@@ -776,8 +806,10 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
       const ticket = ticketResult.rows[0];
 
-      // Notify creator if someone else comments
-      if (ticket.created_by_id !== request.user.id && !is_internal) {
+      // Notify creator and assignee of new comments (always, even self-comment)
+      // In ITSM, the notification panel is an activity log — users see all activity on their tickets
+      if (!is_internal) {
+        const commentNotified = new Set<string>();
         await createNotification(
           client,
           ticket.created_by_id,
@@ -786,18 +818,17 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
           '',
           id
         );
-      }
-
-      // Also notify the assigned agent if they didn't make the comment
-      if (ticket.assigned_to_id && ticket.assigned_to_id !== request.user.id && !is_internal) {
-        await createNotification(
-          client,
-          ticket.assigned_to_id,
-          'new_comment',
-          `New reply on assigned ticket #${ticket.number}: ${ticket.title}`,
-          '',
-          id
-        );
+        commentNotified.add(ticket.created_by_id);
+        if (ticket.assigned_to_id && !commentNotified.has(ticket.assigned_to_id)) {
+          await createNotification(
+            client,
+            ticket.assigned_to_id,
+            'new_comment',
+            `New reply on assigned ticket #${ticket.number}: ${ticket.title}`,
+            '',
+            id
+          );
+        }
       }
 
       // Log activity
