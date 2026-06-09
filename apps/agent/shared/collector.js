@@ -379,6 +379,7 @@ async function collectSystemInfo(options) {
     batteryInfo,
     usbResult,
     encryptionInfo,
+    defaultGatewayInfo,
   ] = await Promise.all([
     safeSi(function () { return si.osInfo(); }, {}),
     safeSi(function () { return si.cpu(); }, {}),
@@ -397,6 +398,7 @@ async function collectSystemInfo(options) {
       return usb;
     }, { usb_devices: [] }),
     safeSi(function () { return getBitLockerStatus(); }, []),
+    safeSi(function () { return si.networkGatewayDefault(); }, null),
   ]);
 
   // Normalise network interfaces
@@ -411,6 +413,11 @@ async function collectSystemInfo(options) {
   var hostname = osInfo.hostname || os.hostname();
   var domain = osInfo.domain || process.env.USERDOMAIN || null;
 
+  // Default gateway (si.networkInterfaces doesn't return gateway, use separate call)
+  var defaultGateway = (typeof defaultGatewayInfo === 'string' && defaultGatewayInfo.trim())
+    ? defaultGatewayInfo.trim()
+    : null;
+
   // Network adapters array
   var networkAdapters = adapters.map(function (a) {
     return {
@@ -418,7 +425,7 @@ async function collectSystemInfo(options) {
       ip4: a.ip4 || null,
       mac: a.mac || null,
       netmask: a.ip4subnet || null,
-      gateway: a.gateway4 || null,
+      gateway: a.default && defaultGateway ? defaultGateway : null,
       type: a.type || null,
       speed: a.speed || null,
       virtual: !!a.virtual,
@@ -453,6 +460,27 @@ async function collectSystemInfo(options) {
   });
   if (users.length > 0) currentUser = users[0];
 
+  // Battery — systeminformation doesn't parse CycleCount on Windows, query ROOT/WMI namespace
+  if (batteryInfo && batteryInfo.hasBattery && os.platform() === 'win32') {
+    try {
+      var ccRaw = await new Promise(function (resolve) {
+        exec('powershell -NoProfile -Command "(Get-CimInstance -Namespace ROOT/WMI -ClassName BatteryCycleCount).CycleCount"', { timeout: 10000, windowsHide: true }, function (err, stdout) {
+          if (err) return resolve(null);
+          resolve(stdout);
+        });
+      });
+      if (ccRaw) {
+        var trimmed = ccRaw.toString().trim();
+        if (trimmed) {
+          var parsed = parseInt(trimmed, 10);
+          if (!isNaN(parsed)) {
+            batteryInfo.cycleCount = parsed;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   // Battery
   var battery = { hasBattery: false };
   if (batteryInfo && batteryInfo.hasBattery) {
@@ -486,6 +514,7 @@ async function collectSystemInfo(options) {
     ip_address: primaryIp,
     mac_address: primaryMac,
     domain: domain,
+    default_gateway: defaultGateway,
     machine_fingerprint: machineFingerprint,
 
     os: {

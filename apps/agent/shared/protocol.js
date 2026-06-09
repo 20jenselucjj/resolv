@@ -64,7 +64,7 @@ function request(method, serverUrl, urlPath, body, token) {
     if (data) {
       headers['Content-Length'] = Buffer.byteLength(data);
     }
-    headers['Host'] = hostname;
+    headers['Host'] = hostname + (parsed.port ? ':' + parsed.port : '');
 
     // Resolve DNS with IPv4 preference
     dns.lookup(hostname, { all: true }, function (err, addresses) {
@@ -294,15 +294,16 @@ async function disconnect(serverUrl, agentToken) {
  * Download the latest agent binary from the server to a local file.
  * Uses Bearer token auth. Streams to disk without buffering the full binary.
  *
- * @param {string} serverUrl    Base server URL
- * @param {string} agentToken   Agent authentication token
- * @param {string} destPath     Local file path to write the binary to
- * @returns {Promise<boolean>}  True if download succeeded
+ * @param {string} serverUrl      Base server URL
+ * @param {string} agentToken     Agent authentication token
+ * @param {string} destPath       Local file path to write the binary to
+ * @param {string} [downloadUrl]  Full download URL (if omitted, uses hardcoded /api/assets/agent/download/update)
+ * @returns {Promise<boolean>}   True if download succeeded
  */
-function downloadBinary(serverUrl, agentToken, destPath) {
+function downloadBinary(serverUrl, agentToken, destPath, downloadUrl) {
   return new Promise(function (resolve) {
     var parsed = url.parse(serverUrl);
-    var fullPath = '/api/assets/agent/download/update';
+    var fullPath = downloadUrl ? url.parse(downloadUrl).pathname : '/api/assets/agent/download/update';
     var isHttps = parsed.protocol === 'https:';
     var mod = isHttps ? https : http;
     var port = parsed.port || (isHttps ? 443 : 80);
@@ -310,7 +311,7 @@ function downloadBinary(serverUrl, agentToken, destPath) {
 
     var headers = {
       'Authorization': 'Bearer ' + agentToken,
-      'Host': hostname,
+      'Host': hostname + ':' + port,
     };
 
     dns.lookup(hostname, { all: true }, function (err, addresses) {

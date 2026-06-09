@@ -164,6 +164,9 @@ class AgentLifecycle {
     // Connect Socket.IO for real-time events
     this._connectSocket();
 
+    // Clean up stale .old files from previous updates
+    this._cleanupStaleFiles();
+
     // Initialize command executor BEFORE starting intervals
     this._commandExecutor = new CommandExecutor({
       serverUrl: this._serverUrl,
@@ -630,11 +633,14 @@ class AgentLifecycle {
     // Download new binary
     this._log('Downloading update from ' + downloadUrl + '...');
     var downloaded;
-    // If the URL points to this server, use the protocol layer with Bearer auth
-    if (downloadUrl.indexOf(this._serverUrl) === 0) {
-      downloaded = await protocol.downloadBinary(this._serverUrl, this._agentToken, newExePath);
-    } else {
-      // External URL (CDN, etc.) — use raw HTTP download without auth
+
+    // Always download from this server's /api/assets/agent/download/update endpoint
+    // which auto-resolves to the latest version for this agent token.
+    // The downloadBinary function handles DNS resolution and Bearer auth.
+    downloaded = await protocol.downloadBinary(this._serverUrl, this._agentToken, newExePath);
+    if (!downloaded && downloadUrl && downloadUrl.indexOf('://') > 0) {
+      // Fallback: external URL (CDN, S3, etc.) — use raw HTTP download
+      this._log('External download fallback...');
       downloaded = await this._downloadToFile(downloadUrl, newExePath);
     }
     if (!downloaded) {
@@ -648,7 +654,7 @@ class AgentLifecycle {
       this._log('Verifying checksum...');
       var fileBuffer = fs.readFileSync(newExePath);
       var actualChecksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-      if (actualChecksum !== expectedChecksum) {
+      if (actualChecksum.toLowerCase() !== expectedChecksum.toLowerCase()) {
         this._log('Checksum mismatch! Expected: ' + expectedChecksum + ', Got: ' + actualChecksum);
         this._log('Aborting update for security.');
         try { fs.unlinkSync(newExePath); } catch (_) {}
@@ -668,71 +674,51 @@ class AgentLifecycle {
     // Create helper batch script
     var helperScript;
     if (isService) {
-      // Service mode: stop service → swap exe → start service
-      helperScript = [
-        '@echo off',
-        'echo [Resolv Agent] Waiting for agent process to exit...',
-        'timeout /t 5 /nobreak >nul',
-        '',
-        '// Wait for the process to fully exit',
-        ':waitloop',
-        'tasklist /FI "IMAGENAME eq ResolvAgent.exe" 2>NUL | find /I /N "ResolvAgent.exe">NUL',
-        'if "%ERRORLEVEL%"=="0" (',
-        '  timeout /t 2 /nobreak >nul',
-        '  goto waitloop',
-        ')',
-        '',
-        'echo [Resolv Agent] Stopping service...',
-        'net stop ResolvAgent 2>nul',
-        'timeout /t 3 /nobreak >nul',
-        '',
-        'echo [Resolv Agent] Replacing agent binary...',
-        'copy /y "' + newExePath + '" "' + currentExe + '"',
-        'if errorlevel 1 (',
-        '  echo [Resolv Agent] ERROR: Failed to replace binary.',
-        '  pause',
-        '  exit /b 1',
-        ')',
-        '',
-        'echo [Resolv Agent] Starting service...',
-        'net start ResolvAgent 2>nul',
-        '',
-        'echo [Resolv Agent] Update complete. Version ' + newVersion,
-        'timeout /t 3 /nobreak >nul',
-        '',
-        '// Cleanup',
-        'del "' + newExePath + '" 2>nul',
-        'del "%~f0" 2>nul',
-      ].join('\r\n');
+      // Service mode: rename running binary → copy new binary → exit.
+      // Windows allows renaming a running executable. After rename, the
+      // original path is free — we copy the new binary in its place.
+      // NSSM restarts immediately (AppThrottle=0) from the NEW binary.
+      // No helper script, no job object issues, no SIGINT races.
+      this._log('Replacing binary (rename + copy)...');
+      var oldExePath = currentExe + '.old';
+      try {
+        fs.renameSync(currentExe, oldExePath);
+        fs.copyFileSync(newExePath, currentExe);
+      } catch (err) {
+        this._log('Binary replacement failed: ' + err.message);
+        try { if (fs.existsSync(oldExePath)) fs.renameSync(oldExePath, currentExe); } catch (_) {}
+        try { fs.unlinkSync(newExePath); } catch (_) {}
+        this._updating = false;
+        return;
+      }
+      // Cleanup old + temp binaries
+      try { fs.unlinkSync(oldExePath); } catch (_) {}
+      try { fs.unlinkSync(newExePath); } catch (_) {}
+      this._log('Binary replaced. Restarting...');
+      this._clearIntervals();
+      if (this._socket) { this._socket.disconnect(); this._socket = null; }
+      process.exit(0);
     } else {
       // Standalone mode: wait for exit → swap exe → relaunch
       helperScript = [
         '@echo off',
-        'echo [Resolv Agent] Waiting for agent process to exit...',
+        'echo Update helper started > "%TEMP%\\resolv-update.log" 2>&1',
+        'echo Waiting for agent to exit... >> "%TEMP%\\resolv-update.log" 2>&1',
         'timeout /t 5 /nobreak >nul',
         '',
-        ':waitloop',
-        'tasklist /FI "IMAGENAME eq ResolvAgent.exe" 2>NUL | find /I /N "ResolvAgent.exe">NUL',
-        'if "%ERRORLEVEL%"=="0" (',
-        '  timeout /t 2 /nobreak >nul',
-        '  goto waitloop',
-        ')',
-        '',
-        'echo [Resolv Agent] Replacing agent binary...',
-        'copy /y "' + newExePath + '" "' + currentExe + '"',
+        'echo Replacing binary... >> "%TEMP%\\resolv-update.log" 2>&1',
+        'copy /y "' + newExePath + '" "' + currentExe + '" >> "%TEMP%\\resolv-update.log" 2>&1',
         'if errorlevel 1 (',
-        '  echo [Resolv Agent] ERROR: Failed to replace binary.',
-        '  pause',
+        '  echo FAILED to replace binary >> "%TEMP%\\resolv-update.log" 2>&1',
         '  exit /b 1',
         ')',
         '',
-        'echo [Resolv Agent] Relaunching agent...',
+        'echo Relaunching agent... >> "%TEMP%\\resolv-update.log" 2>&1',
         'start "" "' + currentExe + '"',
         '',
-        'echo [Resolv Agent] Update complete. Version ' + newVersion,
+        'echo Update complete. Version ' + newVersion + ' >> "%TEMP%\\resolv-update.log" 2>&1',
         'timeout /t 3 /nobreak >nul',
         '',
-        '// Cleanup',
         'del "' + newExePath + '" 2>nul',
         'del "%~f0" 2>nul',
       ].join('\r\n');
@@ -741,27 +727,21 @@ class AgentLifecycle {
     // Write helper script
     fs.writeFileSync(helperPath, helperScript, 'utf8');
 
-    // Launch helper script detached
+    // Launch helper script fully detached (orphan process, no stdio inheritance)
     this._log('Launching update helper...');
-    exec('"' + helperPath + '"', {
+    var spawn = require('child_process').spawn;
+    spawn('cmd.exe', ['/c', helperPath], {
+      detached: true,
+      stdio: 'ignore',
       windowsHide: true,
-      timeout: 1000, // We just need to start it, not wait for it
-    }, function () {
-      // Ignore errors from the exec timeout — the script is running detached
-    });
+    }).unref();
 
-    // Give the helper a moment to start, then exit
+    // The helper calls 'net stop ResolvAgent' which sends SIGINT.
+    // The SIGINT handler shuts down cleanly and calls process.exit(0).
+    // NSSM treats this as a proper service stop (not a crash) — it does NOT
+    // restart. The helper (AppNoJob=1 means no job, so detached:true works)
+    // survives and copies the binary while the file is unlocked.
     this._log('Agent will restart now for update...');
-    setTimeout(function () {
-      // Stop lifecycle gracefully
-      this._clearIntervals();
-      if (this._socket) {
-        this._socket.disconnect();
-        this._socket = null;
-      }
-      // Exit — the helper script will swap the binary and restart
-      process.exit(0);
-    }.bind(this), 2000);
   }
 
   /**
@@ -827,6 +807,42 @@ class AgentLifecycle {
         hasToken: !!this._agentToken,
       });
     } catch (_) { /* callback must not crash the lifecycle */ }
+  }
+
+  /**
+   * Clean up stale .old files from the agent directory and stale temp files
+   * from previous incomplete updates.
+   * Runs on lifecycle start for defense-in-depth.
+   * @private
+   */
+  _cleanupStaleFiles() {
+    try {
+      var fs = require('fs');
+      var path = require('path');
+      var os = require('os');
+
+      // Clean .old files in the agent directory (same dir as the exe)
+      var agentDir = path.dirname(process.execPath);
+      if (agentDir && fs.existsSync(agentDir)) {
+        var entries = fs.readdirSync(agentDir);
+        entries.forEach(function (f) {
+          if (f.endsWith('.old')) {
+            try { fs.unlinkSync(path.join(agentDir, f)); } catch (_) {}
+          }
+        });
+      }
+
+      // Clean stale temp files from previous update attempts
+      var tempDir = os.tmpdir();
+      if (tempDir && fs.existsSync(tempDir)) {
+        var tempEntries = fs.readdirSync(tempDir);
+        tempEntries.forEach(function (f) {
+          if (f.startsWith('resolv-agent-update-')) {
+            try { fs.unlinkSync(path.join(tempDir, f)); } catch (_) {}
+          }
+        });
+      }
+    } catch (_) { /* best-effort cleanup */ }
   }
 }
 

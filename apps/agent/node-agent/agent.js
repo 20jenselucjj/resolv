@@ -217,7 +217,7 @@ async function runInstall(config) {
     await execAsync('reg add "' + uninstallKey + '" /v "UninstallString" /t REG_SZ /d "' + uninstallCmd + '" /f');
     await execAsync('reg add "' + uninstallKey + '" /v "DisplayIcon" /t REG_SZ /d "' + destExe + '" /f');
     await execAsync('reg add "' + uninstallKey + '" /v "Publisher" /t REG_SZ /d "Resolv" /f');
-    await execAsync('reg add "' + uninstallKey + '" /v "DisplayVersion" /t REG_SZ /d "1.0.0" /f');
+    await execAsync('reg add "' + uninstallKey + '" /v "DisplayVersion" /t REG_SZ /d "1.11.0" /f');
   } catch (e) {
     console.warn('[Resolv Agent] Warning: could not create uninstall registry: ' + e.message);
   }
@@ -351,6 +351,25 @@ function saveConfig(cfg) {
 }
 
 // ---------------------------------------------------------------------------
+// Clean up stale .old files from previous updates
+// ---------------------------------------------------------------------------
+try {
+  var oldFiles = fs.readdirSync(AGENT_DIR).filter(function (f) { return f.endsWith('.old'); });
+  oldFiles.forEach(function (f) {
+    try { fs.unlinkSync(path.join(AGENT_DIR, f)); } catch (_) {}
+  });
+} catch (_) {}
+
+// Clean up stale temp files from previous update attempts
+try {
+  var tempDir = os.tmpdir();
+  var tempFiles = fs.readdirSync(tempDir).filter(function (f) { return f.startsWith('resolv-agent-update-'); });
+  tempFiles.forEach(function (f) {
+    try { fs.unlinkSync(path.join(tempDir, f)); } catch (_) {}
+  });
+} catch (_) {}
+
+// ---------------------------------------------------------------------------
 // Start agent using shared lifecycle
 // ---------------------------------------------------------------------------
 const { AgentLifecycle } = require('../shared');
@@ -362,7 +381,7 @@ const agentSecret = config.agentSecret;
 const lifecycle = new AgentLifecycle({
   serverUrl: serverUrl,
   agentSecret: agentSecret,
-  agentVersion: '1.0.0',
+  agentVersion: '1.12.0',
   checkinIntervalMs: config.checkinIntervalMs || 5 * 60 * 1000,
   heartbeatIntervalMs: config.heartbeatIntervalMs || 30 * 1000,
   getConfig: function () {

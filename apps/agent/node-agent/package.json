@@ -1,6 +1,6 @@
 {
   "name": "resolv-agent",
-  "version": "1.0.0",
+  "version": "1.12.0",
   "description": "Resolv ITSM Agent for Windows",
   "main": "agent.js",
   "scripts": {
