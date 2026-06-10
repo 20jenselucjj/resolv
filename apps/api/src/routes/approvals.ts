@@ -60,6 +60,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
         (SELECT json_build_object(
           'id', aps.id, 'step_index', aps.step_index,
           'approver_id', aps.approver_id, 'approver_role', aps.approver_role,
+          'approver_type', aps.approver_type,
           'status', aps.status, 'comment', aps.comment, 'decided_at', aps.decided_at,
           'approver_name', approver.name
         ) FROM approval_steps aps
@@ -88,14 +89,23 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       `SELECT aps.*, ar.id as request_id, ar.entity_type, ar.entity_id, ar.title, ar.description,
               ar.status as request_status, ar.priority, ar.due_date, ar.created_at as request_created_at,
               ar.requested_by, u.name as requested_by_name,
-              COALESCE(approver.name, 'Role: ' || aps.approver_role) as approver_name
+              CASE
+                WHEN aps.approver_type = 'manager_of_requester' THEN 'Manager'
+                ELSE COALESCE(approver.name, 'Role: ' || aps.approver_role)
+              END as approver_name
        FROM approval_steps aps
        JOIN approval_requests ar ON aps.request_id = ar.id
        LEFT JOIN users u ON ar.requested_by = u.id
        LEFT JOIN users approver ON aps.approver_id = approver.id
        WHERE aps.status = 'pending'
          AND ar.status = 'pending'
-         AND (aps.approver_id = $1 OR aps.approver_role = $2)
+         AND (
+           aps.approver_id = $1
+           OR aps.approver_role = $2
+           OR (aps.approver_type = 'manager_of_requester' AND EXISTS (
+             SELECT 1 FROM users WHERE id = ar.requested_by AND manager_id = $1
+           ))
+         )
        ORDER BY ar.priority ASC, ar.due_date ASC NULLS LAST, ar.created_at ASC`,
       [request.user.id, request.user.role]
     );
@@ -144,6 +154,23 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       [id]
     );
 
+    // For manager_of_requester steps, resolve the manager's name from the requester
+    const approver = approvalResult.rows[0];
+    for (const step of stepsResult.rows) {
+      if (step.approver_type === 'manager_of_requester') {
+        const mgrResult = await pool.query(
+          `SELECT u.name, u.email FROM users u WHERE u.id = (SELECT manager_id FROM users WHERE id = $1)`,
+          [approver.requested_by]
+        );
+        if (mgrResult.rows.length > 0) {
+          step.approver_name = mgrResult.rows[0].name;
+          step.approver_email = mgrResult.rows[0].email;
+        } else {
+          step.approver_name = 'Manager (not assigned)';
+        }
+      }
+    }
+
     // Get history
     const historyResult = await pool.query(
       `SELECT ah.*, u.name as actor_name
@@ -164,6 +191,12 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
   });
 
   // ─── POST /approvals — Create approval request ───────────────────────
+  const stepInputSchema = z.object({
+    approver_id: z.string().uuid().optional(),
+    approver_role: z.string().max(50).optional(),
+    approver_type: z.enum(['role', 'manager_of_requester', 'user']).optional().default('role'),
+  });
+
   const createApprovalSchema = z.object({
     entity_type: z.string().min(1).max(100),
     entity_id: z.string().uuid(),
@@ -171,10 +204,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
     description: z.string().optional().default(''),
     priority: z.enum(['low', 'medium', 'high', 'critical']).optional().default('medium'),
     due_date: z.string().optional(),
-    steps: z.array(z.object({
-      approver_id: z.string().uuid().optional(),
-      approver_role: z.string().max(50).optional(),
-    })).min(1, 'At least one approval step is required'),
+    steps: z.array(stepInputSchema).min(1, 'At least one approval step is required'),
   });
 
   fastify.post('/approvals', { preHandler: [fastify.requirePermission('create_approvals')] }, async (request, reply) => {
@@ -196,10 +226,11 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       // Create approval steps
       for (let i = 0; i < body.steps.length; i++) {
         const step = body.steps[i];
+        const approverType = step.approver_type || 'role';
         await client.query(
-          `INSERT INTO approval_steps (request_id, step_index, approver_id, approver_role)
-           VALUES ($1, $2, $3, $4)`,
-          [approvalRequest.id, i, step.approver_id || null, step.approver_role || null]
+          `INSERT INTO approval_steps (request_id, step_index, approver_id, approver_role, approver_type)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [approvalRequest.id, i, step.approver_id || null, step.approver_role || null, approverType]
         );
       }
 
@@ -304,12 +335,22 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
       const currentStep = stepResult.rows[0];
 
-      // Verify the current user is the approver (by ID or role) or is admin
+      // Verify the current user is the approver or is admin
       const isAdmin = request.user.role === 'admin';
       const isApproverById = currentStep.approver_id === request.user.id;
       const isApproverByRole = currentStep.approver_role && currentStep.approver_role === request.user.role;
 
-      if (!isAdmin && !isApproverById && !isApproverByRole) {
+      // Check manager_of_requester: current user must be the manager of the requester
+      let isManagerOfRequester = false;
+      if (currentStep.approver_type === 'manager_of_requester') {
+        const mgrCheck = await client.query(
+          `SELECT 1 FROM users WHERE id = $1 AND manager_id = $2`,
+          [request.user.id, approvalRequest.requested_by]
+        );
+        isManagerOfRequester = mgrCheck.rows.length > 0;
+      }
+
+      if (!isAdmin && !isApproverById && !isApproverByRole && !isManagerOfRequester) {
         await client.query('ROLLBACK');
         return reply.status(403).send({ error: 'You are not the approver for the current step' });
       }
@@ -438,12 +479,22 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
       const currentStep = stepResult.rows[0];
 
-      // Verify the current user is the approver (by ID or role) or is admin
+      // Verify the current user is the approver or is admin
       const isAdmin = request.user.role === 'admin';
       const isApproverById = currentStep.approver_id === request.user.id;
       const isApproverByRole = currentStep.approver_role && currentStep.approver_role === request.user.role;
 
-      if (!isAdmin && !isApproverById && !isApproverByRole) {
+      // Check manager_of_requester: current user must be the manager of the requester
+      let isManagerOfRequester = false;
+      if (currentStep.approver_type === 'manager_of_requester') {
+        const mgrCheck = await client.query(
+          `SELECT 1 FROM users WHERE id = $1 AND manager_id = $2`,
+          [request.user.id, approvalRequest.requested_by]
+        );
+        isManagerOfRequester = mgrCheck.rows.length > 0;
+      }
+
+      if (!isAdmin && !isApproverById && !isApproverByRole && !isManagerOfRequester) {
         await client.query('ROLLBACK');
         return reply.status(403).send({ error: 'You are not the approver for the current step' });
       }
@@ -582,6 +633,22 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
        ORDER BY aps.step_index ASC`,
       [id]
     );
+
+    // For manager_of_requester steps, resolve the manager's name
+    for (const step of stepsResult.rows) {
+      if (step.approver_type === 'manager_of_requester') {
+        const mgrResult = await pool.query(
+          `SELECT u.name, u.email FROM users u WHERE u.id = (SELECT manager_id FROM users WHERE id = $1)`,
+          [approvalResult.rows[0].requested_by]
+        );
+        if (mgrResult.rows.length > 0) {
+          step.approver_name = mgrResult.rows[0].name;
+          step.approver_email = mgrResult.rows[0].email;
+        } else {
+          step.approver_name = 'Manager (not assigned)';
+        }
+      }
+    }
 
     const historyResult = await pool.query(
       `SELECT ah.*, u.name as actor_name

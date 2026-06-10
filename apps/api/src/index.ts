@@ -49,6 +49,8 @@ import pinboardRoutes from './routes/pinboard';
 import scriptRoutes from './routes/scripts';
 import softwarePackageRoutes from './routes/software-packages';
 import agentVersionRoutes from './routes/agent-versions';
+import roleRulesRoutes from './routes/role-rules';
+import approvalRoutingRulesRoutes from './routes/approval-routing-rules';
 import { startInboundListener } from './services/inbound-email';
 import { startScheduledNotifications, stopScheduledNotifications } from './services/scheduled-notifications';
 import { startReportScheduler, stopReportScheduler } from './services/report-scheduler';
@@ -247,6 +249,8 @@ async function start() {
   await fastify.register(scriptRoutes, { prefix: '/api' });
   await fastify.register(softwarePackageRoutes, { prefix: '/api' });
   await fastify.register(agentVersionRoutes, { prefix: '/api' });
+  await fastify.register(roleRulesRoutes, { prefix: '/api' });
+  await fastify.register(approvalRoutingRulesRoutes, { prefix: '/api' });
 
   // Health check (under /api prefix so the frontend api helper can reach it)
   fastify.get('/api/health', async (request, reply) => {

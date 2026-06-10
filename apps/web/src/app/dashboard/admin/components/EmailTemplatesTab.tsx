@@ -1172,7 +1172,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
               <button type="button" className="btn btn-ghost" onClick={() => setEditingTemplate(null)}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Save Changes</button>
+              <button type="submit" className="btn btn-primary btn-save">Save Changes</button>
             </div>
           </form>
         </Modal>

@@ -243,20 +243,125 @@ export async function fetchGroupMembers(accessToken: string, groupKey: string): 
 }
 
 // ─── Resolve field value using dot/bracket notation ──────────────────────────
+// Supports:
+//   simple: "name.fullName"
+//   array index: "phones[0].value"
+//   array filter by key=value: "relations[type=manager].value"
+//   nested: "organizations[0].costCenter"
 
 export function resolveFieldPath(obj: any, path: string): any {
   if (!path) return undefined;
 
-  // Handle array paths like "phones[0].value"
-  const parts = path.split(/\.|\[|\]/).filter(Boolean);
+  // Split on dots but not inside brackets
+  const parts = path.match(/(?:\[\w+=[^\]]*\]|\[\d+\]|\w)+/g);
+  if (!parts) return undefined;
+
   let current = obj;
 
   for (const part of parts) {
     if (current == null || typeof current !== 'object') return undefined;
+
+    // Array filter by key=value: [type=manager]
+    const filterMatch = part.match(/^\[(\w+)=([^\]]+)\]$/);
+    if (filterMatch) {
+      const key = filterMatch[1];
+      const value = filterMatch[2];
+      if (Array.isArray(current)) {
+        current = current.find(item => item?.[key] === value);
+      } else {
+        return undefined;
+      }
+      continue;
+    }
+
+    // Array index access: [0], [1], etc.
+    const indexMatch = part.match(/^\[(\d+)\]$/);
+    if (indexMatch) {
+      current = current[parseInt(indexMatch[1])];
+      continue;
+    }
+
+    // Plain property access
     current = current[part];
   }
 
   return current;
+}
+
+// ─── Evaluate a condition against a set of attributes ─────────────────────────
+
+type ConditionOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'in' | 'not_in' | 'starts_with' | 'ends_with' | 'exists' | 'not_exists' | 'gt' | 'gte' | 'lt' | 'lte';
+
+interface Condition {
+  field: string;
+  operator: ConditionOperator;
+  value: any;
+}
+
+export function evaluateCondition(condition: Condition, attributes: Record<string, any>): boolean {
+  const actual = attributes[condition.field];
+
+  switch (condition.operator) {
+    case 'exists':
+      return actual !== undefined && actual !== null && actual !== '';
+    case 'not_exists':
+      return actual === undefined || actual === null || actual === '';
+    case 'equals':
+      return String(actual).toLowerCase() === String(condition.value).toLowerCase();
+    case 'not_equals':
+      return String(actual).toLowerCase() !== String(condition.value).toLowerCase();
+    case 'contains':
+      return String(actual).toLowerCase().includes(String(condition.value).toLowerCase());
+    case 'not_contains':
+      return !String(actual).toLowerCase().includes(String(condition.value).toLowerCase());
+    case 'starts_with':
+      return String(actual).toLowerCase().startsWith(String(condition.value).toLowerCase());
+    case 'ends_with':
+      return String(actual).toLowerCase().endsWith(String(condition.value).toLowerCase());
+    case 'in':
+      return (Array.isArray(condition.value) ? condition.value : [condition.value])
+        .some((v: any) => String(actual).toLowerCase() === String(v).toLowerCase());
+    case 'not_in':
+      return !(Array.isArray(condition.value) ? condition.value : [condition.value])
+        .some((v: any) => String(actual).toLowerCase() === String(v).toLowerCase());
+    case 'gt':
+      return Number(actual) > Number(condition.value);
+    case 'gte':
+      return Number(actual) >= Number(condition.value);
+    case 'lt':
+      return Number(actual) < Number(condition.value);
+    case 'lte':
+      return Number(actual) <= Number(condition.value);
+    default:
+      return false;
+  }
+}
+
+// ─── Evaluate a set of conditions (all/any match) against attributes ──────────
+
+export function evaluateConditions(
+  conditions: Condition[],
+  matchType: 'all' | 'any',
+  attributes: Record<string, any>
+): boolean {
+  if (!conditions || conditions.length === 0) return true;
+
+  if (matchType === 'all') {
+    return conditions.every(c => evaluateCondition(c, attributes));
+  } else {
+    return conditions.some(c => evaluateCondition(c, attributes));
+  }
+}
+
+// ─── Resolve manager email from a directory user ────────────────────────────
+
+export function extractManagerEmail(dirUser: any): string | null {
+  if (!dirUser.relations || !Array.isArray(dirUser.relations)) return null;
+  const managerRelation = dirUser.relations.find((r: any) => r.type === 'manager');
+  if (!managerRelation || !managerRelation.value) return null;
+  // The value could be an email or a display name — Google usually returns email
+  const value = managerRelation.value.trim();
+  return value.includes('@') ? value.toLowerCase() : null;
 }
 
 // ─── Apply field mapping to a directory user ─────────────────────────────────

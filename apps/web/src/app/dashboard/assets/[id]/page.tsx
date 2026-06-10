@@ -83,7 +83,9 @@ import {
   Pill,
   ActionButton,
   EmptyState,
-  EditAssetModal,
+  OwnershipEditModal,
+  AboutEditModal,
+  TagsEditModal,
   EncryptionCard,
   BatteryCard,
   UsbDevicesPanel,
@@ -374,6 +376,8 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
 
   // UI state
   const [editOpen, setEditOpen] = useState(false);
+  const [aboutEditOpen, setAboutEditOpen] = useState(false);
+  const [tagsEditOpen, setTagsEditOpen] = useState(false);
   const [commandDialogOpen, setCommandDialogOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -732,14 +736,41 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Edit modal */}
+      {/* Ownership edit modal */}
       {editOpen && (
-        <EditAssetModal
-          asset={asset}
+        <OwnershipEditModal
+          asset={{
+            ...asset,
+            assigned_to_name: mostRecentUserName || asset.assigned_to_name || ''
+          }}
           onClose={() => setEditOpen(false)}
           onSaved={(next) => {
             setAsset(next);
             setToast({ message: 'Asset updated', tone: 'success' });
+          }}
+        />
+      )}
+
+      {/* About edit modal */}
+      {aboutEditOpen && (
+        <AboutEditModal
+          asset={asset}
+          onClose={() => setAboutEditOpen(false)}
+          onSaved={(next) => {
+            setAsset(next);
+            setToast({ message: 'Display name updated', tone: 'success' });
+          }}
+        />
+      )}
+
+      {/* Tags edit modal */}
+      {tagsEditOpen && (
+        <TagsEditModal
+          asset={asset}
+          onClose={() => setTagsEditOpen(false)}
+          onSaved={(next) => {
+            setAsset(next);
+            setToast({ message: 'Tags updated', tone: 'success' });
           }}
         />
       )}
@@ -1182,12 +1213,6 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             {canManage && (
-              <ActionButton icon={Edit3} onClick={() => setEditOpen(true)}>
-                Edit
-              </ActionButton>
-            )}
-
-            {canManage && (
               <ActionButton icon={Terminal} onClick={() => setCommandDialogOpen(true)}>
                 Command
               </ActionButton>
@@ -1260,7 +1285,16 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
     return (
       <>
         {/* About this asset */}
-        <Panel title="About this asset" subtitle="Identity, ownership, and lifecycle" icon={Monitor}>
+        <Panel
+          title="About this asset"
+          subtitle="Identity, ownership, and lifecycle"
+          icon={Monitor}
+          actions={canManage ? (
+            <ActionButton icon={Edit3} onClick={() => setAboutEditOpen(true)}>
+              Edit
+            </ActionButton>
+          ) : undefined}
+        >
           <DetailGrid
             columns={3}
             items={[
@@ -1281,7 +1315,16 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
         </Panel>
 
         {/* Ownership & Lifecycle */}
-        <Panel title="Ownership & Lifecycle" subtitle="Assignment and procurement details" icon={User}>
+        <Panel
+          title="Ownership & Lifecycle"
+          subtitle="Assignment and procurement details"
+          icon={User}
+          actions={canManage ? (
+            <ActionButton icon={Edit3} onClick={() => setEditOpen(true)}>
+              Edit
+            </ActionButton>
+          ) : undefined}
+        >
           <DetailGrid
             columns={3}
             items={[
@@ -1299,15 +1342,30 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
         </Panel>
 
         {/* Tags */}
-        {asset.tags && asset.tags.length > 0 && (
-          <Panel title="Tags" subtitle="Labels and categories" icon={Bookmark}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {asset.tags.map((tag) => (
-                <span key={tag} style={tagStyle}>{tag}</span>
-              ))}
-            </div>
+        {(asset.tags && asset.tags.length > 0) || canManage ? (
+          <Panel
+            title="Tags"
+            subtitle="Labels and categories"
+            icon={Bookmark}
+            actions={canManage ? (
+              <ActionButton icon={Edit3} onClick={() => setTagsEditOpen(true)}>
+                Edit
+              </ActionButton>
+            ) : undefined}
+          >
+            {asset.tags && asset.tags.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {asset.tags.map((tag) => (
+                  <span key={tag} style={tagStyle}>{tag}</span>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>
+                No tags yet.
+              </div>
+            )}
           </Panel>
-        )}
+        ) : null}
 
         {/* Software Summary */}
         {software.length > 0 && (

@@ -679,7 +679,7 @@ export function SSOTab({ showAlert }: {
             <button
               onClick={handleSave}
               disabled={saving || !form.name}
-              className="btn btn-primary"
+              className={`btn btn-primary btn-save${saving ? ' saving' : ''}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '8px 16px', background: 'var(--accent)', color: '#fff',

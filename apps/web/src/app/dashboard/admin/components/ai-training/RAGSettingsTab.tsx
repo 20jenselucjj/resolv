@@ -251,6 +251,7 @@ export function RAGSettingsTab(props: RAGSettingsTabProps) {
           <button
             disabled={savingConfig}
             onClick={handleSaveRAGConfig}
+            className={`btn-save${savingConfig ? ' saving' : ''}`}
             style={{
               padding: '10px 24px', borderRadius: 'var(--radius-lg)', border: 'none',
               background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 700,

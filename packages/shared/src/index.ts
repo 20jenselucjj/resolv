@@ -5,6 +5,50 @@
 
 export type UserRole = 'admin' | 'manager' | 'agent' | 'user' | 'readonly';
 
+// ─── Rules Engine Types ──────────────────────────────────────────────────────
+
+export type ConditionOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'in' | 'not_in' | 'starts_with' | 'ends_with' | 'exists' | 'not_exists' | 'gt' | 'gte' | 'lt' | 'lte';
+
+export interface RuleCondition {
+  field: string;
+  operator: ConditionOperator;
+  value: any;
+}
+
+export interface RoleAssignmentRule {
+  id: string;
+  name: string;
+  description?: string;
+  priority: number;
+  match_type: 'all' | 'any';
+  conditions: RuleCondition[];
+  role: UserRole;
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type ApprovalStepType = 'role' | 'manager_of_requester' | 'user' | 'any_role';
+
+export interface ApprovalStepDef {
+  type: ApprovalStepType;
+  role?: string;           // for type='role' or type='any_role'
+  user_id?: string;        // for type='user'
+}
+
+export interface ApprovalRoutingRule {
+  id: string;
+  name: string;
+  description?: string;
+  priority: number;
+  match_type: 'all' | 'any';
+  match_criteria: RuleCondition[];
+  steps: ApprovalStepDef[];
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ─── Ticket Types ────────────────────────────────────────────────────────────
 
 export type TicketType = 'incident' | 'service_request' | 'problem' | 'change';

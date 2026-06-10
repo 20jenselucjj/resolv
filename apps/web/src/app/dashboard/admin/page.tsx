@@ -6,7 +6,7 @@ import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import {
   LayoutDashboard, Users, Layers, Clock, Settings, FileText,
-  ShieldCheck, CalendarClock, Zap, Mail,
+  ShieldCheck, CalendarClock, Mail,
   LayoutGrid, Book, Sparkles,
   Search, Lock, Server, Database, Activity, X, AlertCircle, CheckCircle,
   RefreshCw, RotateCcw, ChevronLeft, ChevronRight, Filter, Calendar,
@@ -19,13 +19,13 @@ import {
 import { DirectorySyncTab } from './DirectorySyncTab';
 import {
   OverviewTab, UsersTab,
-  SettingsTab, RolesTab, AutomationTab, AuditLogTab,
-  PortalCustomizationTab, AIConfigTab,
-  TicketStatusesTab, CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
-  WorkflowTab, BackupRestoreTab,
+  SettingsTab, RolesTab, AuditLogTab,
+  PortalCustomizationTab,
+  CannedResponsesTab, AssetGroupsTab, AgentSettingsTab,
+  BackupRestoreTab,
   EmailTab,
   TicketsTab, SlaHoursTab, AiTab, ClassificationRulesTab,
-  CustomFieldsTab, SSOTab, ServiceCatalogTab, WorkflowDesignerTab,
+  CustomFieldsTab, ServiceCatalogTab, WorkflowDesignerTab,
   AuthenticationTab, NotificationSettingsTab,
   ProblemMgmtTab, ChangeMgmtTab, ApprovalWorkflowsTab,
 } from './components';
@@ -57,8 +57,7 @@ const TAB_SUBTITLES: Record<string, string> = {
   roles: 'Define security roles, access permissions, and privileges',
   tickets: 'Define ticket types, categories, workflow transitions, and status labels',
   'sla-hours': 'Set Service Level Agreement targets, business hours, and holiday calendars',
-  automation: 'Create workflow triggers, automated actions, and conditions',
-  'workflow-designer': 'Build visual automation workflows with triggers, conditions, and sequenced steps',
+  'workflow-designer': 'Design visual workflows with triggers, conditions, and sequenced steps, or create quick single-rule automations',
   classification: 'Configure keyword rules to auto-classify tickets by type (incident, request, problem, change)',
   'custom-fields': 'Create and manage custom fields for tickets and assets',
   'service-catalog': 'Manage service catalog categories and items for user self-service',
@@ -66,8 +65,8 @@ const TAB_SUBTITLES: Record<string, string> = {
   ai: 'Configure the AI assistant, manage knowledge training sources, and RAG settings',
   'problem-mgmt': 'Configure problem management templates, auto-linking rules, and known error lifecycle',
   'change-mgmt': 'Configure change types, risk framework, and plan templates',
-  'approval-workflows': 'Configure approval step templates, escalation rules, and due date defaults',
-  'notification-settings': 'Configure notification channels, event triggers, and alert preferences for tickets and ITSM processes',
+  'approval-workflows': 'Configure approval step templates, escalation rules, due date defaults, and routing rules',
+  'notification-settings': 'Configure notification triggers, event alerts, and delivery channels for tickets and ITSM processes',
   'asset-groups': 'Manage asset groups, categories, software licenses, and compliance defaults',
   'portal-customization': 'Customize the self-service portal branding, hero, quick actions, and end-user experience',
   'canned-responses': 'Create and manage saved reply templates for faster, consistent ticket responses',
@@ -136,11 +135,10 @@ export default function AdminPage() {
     { tab: 'overview', keywords: ['overview', 'dashboard', 'stats', 'statistics', 'summary', 'activity', 'monitor', 'health', 'kpi', 'metrics'] },
     { tab: 'users', keywords: ['users', 'user', 'invite', 'accounts', 'people', 'members', 'staff', 'deactivate', 'activate', 'password', 'reset', 'department', 'bulk'] },
     { tab: 'roles', keywords: ['roles', 'permissions', 'access', 'rbac', 'admin', 'agent', 'privileges', 'security', 'manage users', 'delete tickets', 'assign tickets'] },
-    { tab: 'authentication', keywords: ['authentication', 'sso', 'single sign-on', 'saml', 'ldap', 'directory sync', 'directory', 'sync', 'provision', 'google workspace', 'active directory', 'scim', 'identity', 'login', 'auth', 'login mode', 'emergency access', 'entra id', 'azure ad', 'oauth', 'identity provider', 'idp'] },
+    { tab: 'authentication', keywords: ['authentication', 'sso', 'single sign-on', 'saml', 'ldap', 'directory sync', 'directory', 'sync', 'provision', 'google workspace', 'active directory', 'scim', 'identity', 'login', 'auth', 'login mode', 'emergency access', 'entra id', 'azure ad', 'oauth', 'identity provider', 'idp', 'role rules', 'role mapping', 'auto role', 'role assignment'] },
     { tab: 'tickets', keywords: ['tickets', 'ticket types', 'ticket statuses', 'categories', 'category', 'ticket type', 'classification', 'routing', 'organize', 'color', 'workflow', 'transitions', 'status flow', 'ticket workflow', 'required fields', 'transition', 'ticket statuses', 'status labels', 'status names', 'progress text', 'open', 'in progress', 'waiting', 'closed', 'rename status'] },
     { tab: 'sla-hours', keywords: ['sla', 'service level', 'response time', 'resolution time', 'breach', 'priority', 'critical', 'high', 'medium', 'low', 'policies', 'working hours', 'business hours', 'schedule', 'timezone', 'calendar', 'open', 'closed', 'monday', 'friday', 'weekend', 'operating'] },
-    { tab: 'automation', keywords: ['automation', 'rules', 'trigger', 'workflow', 'escalate', 'escalation', 'auto', 'routing', 'condition', 'action', 'notify'] },
-    { tab: 'workflow-designer', keywords: ['visual workflow', 'workflow designer', 'flowchart', 'steps', 'conditions', 'trigger', 'automation workflow', 'pipeline', 'sequence', 'action chain'] },
+    { tab: 'workflow-designer', keywords: ['workflow designer', 'visual workflow', 'automation', 'rules', 'flowchart', 'steps', 'conditions', 'trigger', 'escalate', 'escalation', 'auto', 'routing', 'condition', 'action', 'notify', 'automation workflow', 'pipeline', 'sequence', 'action chain', 'quick rule', 'simple rule', 'single rule'] },
     { tab: 'classification', keywords: ['classification', 'auto-classification', 'auto classify', 'classify', 'ticket type', 'incident', 'service request', 'detect', 'recognize', 'keyword', 'rule', 'categorize'] },
     { tab: 'custom-fields', keywords: ['custom fields', 'custom field', 'form', 'fields', 'extra fields', 'metadata', 'eav', 'additional data', 'ticket fields', 'asset fields', 'dynamic form'] },
     { tab: 'email', keywords: ['email', 'templates', 'template', 'notification', 'smtp', 'mail', 'subject', 'body', 'ticket created', 'ticket resolved', 'survey', 'auto reply', 'auto-reply', 'autoreply', 'automatic reply', 'reply rule', 'trigger reply', 'auto responder', 'auto-responder', 'inbound', 'gmail', 'email log', 'email history', 'sent email', 'received email', 'delivery', 'outbound', 'smtp log', 'email server', 'imap', 'email polling', 'email routing', 'email ticket', 'gmail inbox'] },
@@ -154,7 +152,7 @@ export default function AdminPage() {
     { tab: 'backup-restore', keywords: ['backup', 'restore', 'database backup', 'dump', 'disaster recovery', 'export', 'sql dump'] },
     { tab: 'problem-mgmt', keywords: ['problem', 'problem management', 'root cause', 'known error', 'kedb', 'auto-link', 'incident link', 'problem lifecycle', 'known error database', 'workaround', 'problem template', 'RCA'] },
     { tab: 'change-mgmt', keywords: ['change', 'change management', 'risk', 'risk framework', 'maintenance window', 'blackout', 'PIR', 'post implementation', 'implementation plan', 'rollback', 'standard change', 'normal change', 'emergency change', 'auto approve'] },
-    { tab: 'approval-workflows', keywords: ['approval', 'approval workflow', 'approve', 'deny', 'escalation', 'due date', 'approval chain', 'approval step', 'approval template', 'pending approval', 'approval notification'] },
+    { tab: 'approval-workflows', keywords: ['approval', 'approval workflow', 'approve', 'deny', 'escalation', 'due date', 'approval chain', 'approval step', 'approval template', 'pending approval', 'approval notification', 'routing rules', 'approver', 'manager approval', 'approval conditions', 'approval routing', 'approval rule', 'step template'] },
     { tab: 'notification-settings', keywords: ['notification', 'notifications', 'notification channels', 'email notification', 'in-app', 'alert', 'alerts', 'event notification', 'ticket notification', 'SLA breach notification', 'problem notification', 'change notification', 'approval notification', 'license notification'] },
   ], []);
 
@@ -186,7 +184,7 @@ export default function AdminPage() {
       group: 'TICKETS & SERVICE',
       items: [
         { id: 'tickets', label: 'Ticket Types & Statuses', icon: <Layers size={15} /> },
-        { id: 'sla-hours', label: 'SLA & Hours', icon: <Clock size={15} /> },
+        { id: 'sla-hours', label: 'SLA & Business Hours', icon: <Clock size={15} /> },
         { id: 'custom-fields', label: 'Custom Fields', icon: <FileText size={15} /> },
         { id: 'service-catalog', label: 'Service Catalog', icon: <Package size={15} /> },
         { id: 'classification', label: 'Auto-Classification', icon: <Hash size={15} /> },
@@ -205,7 +203,6 @@ export default function AdminPage() {
       group: 'AUTOMATION',
       items: [
         { id: 'workflow-designer', label: 'Workflow Designer', icon: <GitBranch size={15} /> },
-        { id: 'automation', label: 'Automation Rules', icon: <Zap size={15} /> },
       ]
     },
     {
@@ -213,7 +210,7 @@ export default function AdminPage() {
       items: [
         { id: 'email', label: 'Email', icon: <Mail size={15} /> },
         { id: 'portal-customization', label: 'Self-Service Portal', icon: <LayoutGrid size={15} /> },
-        { id: 'notification-settings', label: 'Notification Channels', icon: <Bell size={15} /> },
+        { id: 'notification-settings', label: 'Notifications', icon: <Bell size={15} /> },
       ]
     },
     {
@@ -537,7 +534,6 @@ export default function AdminPage() {
           {activeTab === 'ai' && <AiTab showAlert={showAlert} />}
           {activeTab === 'authentication' && <AuthenticationTab showAlert={showAlert} />}
           {activeTab === 'roles' && <RolesTab showAlert={showAlert} />}
-          {activeTab === 'automation' && <AutomationTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}
           {activeTab === 'workflow-designer' && <WorkflowDesignerTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}
           {activeTab === 'classification' && <ClassificationRulesTab showAlert={showAlert} />}
           {activeTab === 'custom-fields' && <CustomFieldsTab showAlert={showAlert} setConfirmModal={setConfirmModal} />}

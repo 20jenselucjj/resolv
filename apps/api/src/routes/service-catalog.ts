@@ -163,6 +163,36 @@ export default async function serviceCatalogRoutes(fastify: FastifyInstance) {
     return reply.send({ message: 'Category deleted successfully' });
   });
 
+  // POST /catalog/categories/reorder — bulk reorder
+  fastify.post('/catalog/categories/reorder', {
+    preHandler: [fastify.requirePermission('manage_catalog')],
+  }, async (request, reply) => {
+    const body = z.object({
+      order: z.array(z.object({
+        id: z.string().uuid(),
+        sort_order: z.number().int(),
+      })),
+    }).parse(request.body);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of body.order) {
+        await client.query(
+          'UPDATE catalog_categories SET sort_order = $1 WHERE id = $2',
+          [item.sort_order, item.id]
+        );
+      }
+      await client.query('COMMIT');
+      return reply.send({ message: 'Categories reordered successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
   // ═════════════════════════════════════════════════════════════════════════
   // ITEMS
   // ═════════════════════════════════════════════════════════════════════════
@@ -328,6 +358,36 @@ export default async function serviceCatalogRoutes(fastify: FastifyInstance) {
     return reply.send({ message: 'Item deleted successfully' });
   });
 
+  // POST /catalog/items/reorder — bulk reorder
+  fastify.post('/catalog/items/reorder', {
+    preHandler: [fastify.requirePermission('manage_catalog')],
+  }, async (request, reply) => {
+    const body = z.object({
+      order: z.array(z.object({
+        id: z.string().uuid(),
+        sort_order: z.number().int(),
+      })),
+    }).parse(request.body);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of body.order) {
+        await client.query(
+          'UPDATE catalog_items SET sort_order = $1 WHERE id = $2',
+          [item.sort_order, item.id]
+        );
+      }
+      await client.query('COMMIT');
+      return reply.send({ message: 'Items reordered successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
   // ═════════════════════════════════════════════════════════════════════════
   // SERVICE REQUESTS
   // ═════════════════════════════════════════════════════════════════════════
@@ -337,7 +397,17 @@ export default async function serviceCatalogRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate],
   }, async (request, reply) => {
     const body = submitRequestSchema.parse(request.body);
-    const user = request.user;
+    const jwtUser = request.user;
+
+    // Fetch full user record from DB (has department, title, location, manager_id, etc.)
+    const userResult = await pool.query(
+      'SELECT id, email, name, role, department, title, location, manager_id FROM users WHERE id = $1',
+      [jwtUser.id]
+    );
+    if (userResult.rows.length === 0) {
+      return reply.status(401).send({ error: 'User not found' });
+    }
+    const user = userResult.rows[0];
 
     const client = await pool.connect();
     try {
@@ -390,7 +460,71 @@ export default async function serviceCatalogRoutes(fastify: FastifyInstance) {
         const approvalTitle = `${item.name} — ${user.name}`;
         const approvalDesc = `Service request for: ${item.name}\n\n${item.description}\n\nRequested by: ${user.name}\n\nAnswers:\n${answersText}`;
 
-        // Create approval request with manager role step
+        // ─── Find matching approval routing rule ────────────────────────
+        // Build context for rule matching: catalog item fields + user fields
+        const matchContext: Record<string, any> = {
+          catalog_name: item.name,
+          catalog_category: item.category_id,
+          catalog_approval_role: item.approval_role,
+          requester_role: user.role,
+          requester_department: user.department,
+          priority: item.priority,
+        };
+        // Add user attributes
+        if (user.department) matchContext.department = user.department;
+        if (user.title) matchContext.title = user.title;
+        if (user.location) matchContext.location = user.location;
+
+        // Fetch matching rules from DB
+        const rulesResult = await pool.query(
+          `SELECT * FROM approval_routing_rules
+           WHERE enabled = true
+           ORDER BY priority ASC`
+        );
+        const rules = rulesResult.rows;
+
+        let matchedSteps: Array<{ type: string; role?: string; user_id?: string }> = [];
+        let matchedRuleName = 'Default: Manager Approval';
+
+        for (const rule of rules) {
+          const criteria = typeof rule.match_criteria === 'string'
+            ? JSON.parse(rule.match_criteria)
+            : rule.match_criteria;
+
+          if (!criteria || criteria.length === 0) {
+            // Catch-all rule — use as fallback
+            matchedSteps = typeof rule.steps === 'string' ? JSON.parse(rule.steps) : rule.steps;
+            matchedRuleName = rule.name;
+            continue; // Keep looking for more specific match
+          }
+
+          // Evaluate criteria against matchContext
+          const allMatch = criteria.every((c: any) => {
+            const actual = matchContext[c.field];
+            if (actual === undefined) return false;
+            switch (c.operator) {
+              case 'equals': return String(actual).toLowerCase() === String(c.value).toLowerCase();
+              case 'not_equals': return String(actual).toLowerCase() !== String(c.value).toLowerCase();
+              case 'contains': return String(actual).toLowerCase().includes(String(c.value).toLowerCase());
+              case 'in': return (Array.isArray(c.value) ? c.value : [c.value])
+                .some((v: any) => String(actual).toLowerCase() === String(v).toLowerCase());
+              default: return false;
+            }
+          });
+
+          if (allMatch) {
+            matchedSteps = typeof rule.steps === 'string' ? JSON.parse(rule.steps) : rule.steps;
+            matchedRuleName = rule.name;
+            break; // First match wins (by priority order)
+          }
+        }
+
+        // Fall back to the catalog item's approval_role if no rule matched
+        if (matchedSteps.length === 0 && item.approval_role) {
+          matchedSteps = [{ type: 'role', role: item.approval_role }];
+        }
+
+        // Create the approval request
         const approvalResult = await client.query(
           `INSERT INTO approval_requests (entity_type, entity_id, title, description, priority, requested_by)
            VALUES ('catalog_request', '00000000-0000-0000-0000-000000000000', $1, $2, $3, $4)
@@ -406,21 +540,54 @@ export default async function serviceCatalogRoutes(fastify: FastifyInstance) {
           [approval.id]
         );
 
-        // Create a single approval step for the manager role
-        await client.query(
-          `INSERT INTO approval_steps (request_id, step_index, approver_role)
-           VALUES ($1, 0, $2)`,
-          [approval.id, item.approval_role]
-        );
+        // Create approval steps from matched rule
+        for (let i = 0; i < matchedSteps.length; i++) {
+          const stepDef = matchedSteps[i];
+          const approverType = stepDef.type || 'role';
+          const approverRole = stepDef.role || null;
+          const approverId = stepDef.user_id || null;
+
+          await client.query(
+            `INSERT INTO approval_steps (request_id, step_index, approver_id, approver_role, approver_type)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [approval.id, i, approverId, approverRole, approverType]
+          );
+        }
 
         // Log creation
         await client.query(
           `INSERT INTO approval_history (request_id, actor_id, action, comment)
-           VALUES ($1, $2, 'created', 'Service catalog request submitted for approval')`,
-          [approval.id, user.id]
+           VALUES ($1, $2, 'created', $3)`,
+          [approval.id, user.id, `Service catalog request submitted for approval (rule: ${matchedRuleName})`]
         );
 
-        // Notify approvers via socket
+        // Notify current step approvers via socket
+        if (matchedSteps.length > 0) {
+          const firstStep = matchedSteps[0];
+          if (firstStep.type === 'role' && firstStep.role) {
+            // Notify all users with that role (in a real app we'd do this more efficiently)
+            // For now, emit a general event that the UI can listen for
+          } else if (firstStep.type === 'manager_of_requester' && user.id) {
+            const mgrIdResult = await pool.query(
+              'SELECT manager_id FROM users WHERE id = $1 AND manager_id IS NOT NULL',
+              [user.id]
+            );
+            if (mgrIdResult.rows.length > 0) {
+              fastify.io.to(`user:${mgrIdResult.rows[0].manager_id}`).emit('approval:updated', {
+                approvalId: approval.id,
+                action: 'approval_requested',
+              });
+            }
+          } else if (firstStep.type === 'user' && firstStep.user_id) {
+            fastify.io.to(`user:${firstStep.user_id}`).emit('approval:updated', {
+              approvalId: approval.id,
+              action: 'approval_requested',
+            });
+          }
+          // General notification for all admins/approvers
+          fastify.io.emit('approval:created', { approval });
+        }
+
         fastify.io.emit('approval:created', { approval });
       } else {
         // Create ticket directly for fulfillment

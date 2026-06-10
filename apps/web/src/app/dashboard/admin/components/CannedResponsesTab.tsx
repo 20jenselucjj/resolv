@@ -209,7 +209,7 @@ export function CannedResponsesTab({ showAlert }: { showAlert: (m: string, t?: '
                             </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                               <button onClick={() => setEditingIdx(null)} className="btn btn-ghost btn-sm">Cancel</button>
-                              <button onClick={saveEdit} className="btn btn-primary btn-sm" disabled={saving}>Save</button>
+                              <button onClick={saveEdit} className={`btn btn-primary btn-sm btn-save${saving ? ' saving' : ''}`} disabled={saving}>Save</button>
                             </div>
                           </div>
                         ) : (

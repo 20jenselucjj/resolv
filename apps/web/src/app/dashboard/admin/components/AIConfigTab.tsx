@@ -627,7 +627,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
 
         {/* ── Save Button ──────────────────────────────────────────────── */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '20px', marginTop: '20px' }}>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}
+          <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving}
             style={{ padding: '12px 32px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600 }}>
             {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
             {saving ? 'Saving...' : 'Save Configuration'}

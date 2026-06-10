@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import {
   Layers, Plus, Edit2, Trash2, Save, X, ChevronDown, ChevronRight,
-  Monitor, Code, Key, User, Wifi, HelpCircle, Package,
+  Monitor, Code, Key, User, Wifi, HelpCircle, Package, GripVertical,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ function CategoryRow({ category, onEdit, onDelete, isEditing, editForm, setEditF
           <IconSelect value={editForm.icon} onChange={v => setEditForm({ ...editForm, icon: v })} />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="submit" className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button type="submit" className="btn btn-primary btn-save" style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Save size={13} /> Save
           </button>
           <button type="button" className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={onCancel}>
@@ -491,7 +491,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
                 <IconSelect value={catForm.icon} onChange={v => setCatForm({ ...catForm, icon: v })} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="submit" className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }}>Create</button>
+                <button type="submit" className="btn btn-primary btn-save" style={{ padding: '6px 14px', fontSize: 12 }}>Create</button>
                 <button type="button" className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setShowAddCategory(false)}>Cancel</button>
               </div>
             </form>
@@ -507,19 +507,76 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
             </div>
           ) : (
             <div>
-              {categories.map(cat => (
-                <CategoryRow
-                  key={cat.id}
-                  category={cat}
-                  onEdit={() => startEditCategory(cat)}
-                  onDelete={() => handleDeleteCategory(cat.id)}
-                  isEditing={editingCategoryId === cat.id}
-                  editForm={catForm}
-                  setEditForm={setCatForm}
-                  onSave={handleEditCategory}
-                  onCancel={() => { setEditingCategoryId(null); setCatForm({ name: '', description: '', icon: '', sort_order: 0 }); }}
-                />
-              ))}
+              {[...categories]
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map((cat, index) => (
+                  <div
+                    key={cat.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', cat.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const draggedId = e.dataTransfer.getData('text/plain');
+                      if (draggedId === cat.id) return;
+                      
+                      const newCategories = [...categories].sort((a, b) => a.sort_order - b.sort_order);
+                      const draggedIdx = newCategories.findIndex(c => c.id === draggedId);
+                      const targetIdx = index;
+                      
+                      if (draggedIdx === -1) return;
+                      
+                      const [moved] = newCategories.splice(draggedIdx, 1);
+                      newCategories.splice(targetIdx, 0, moved);
+                      
+                      const reordered = newCategories.map((c, i) => ({
+                        ...c,
+                        sort_order: i,
+                      }));
+                      
+                      setCategories(reordered);
+                      
+                      api.post('/catalog/categories/reorder', {
+                        order: reordered.map((c, i) => ({ id: c.id, sort_order: i }))
+                      }).catch(err => console.error('Failed to save category order:', err));
+                    }}
+                    style={{ 
+                      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
+                      opacity: editingCategoryId === cat.id ? 0.7 : 1,
+                    }}
+                  >
+                    {/* Drag handle */}
+                    <div
+                      style={{
+                        cursor: 'grab', color: 'var(--text-muted)', padding: 4,
+                        display: 'flex', flexShrink: 0, borderRadius: 4,
+                        visibility: editingCategoryId === cat.id ? 'hidden' : 'visible',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                    >
+                      <GripVertical size={14} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <CategoryRow
+                        category={cat}
+                        onEdit={() => startEditCategory(cat)}
+                        onDelete={() => handleDeleteCategory(cat.id)}
+                        isEditing={editingCategoryId === cat.id}
+                        editForm={catForm}
+                        setEditForm={setCatForm}
+                        onSave={handleEditCategory}
+                        onCancel={() => { setEditingCategoryId(null); setCatForm({ name: '', description: '', icon: '', sort_order: 0 }); }}
+                      />
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
         </div>
@@ -634,7 +691,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
               />
 
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>
+                <button type="submit" className="btn btn-primary btn-save" style={{ padding: '8px 16px', fontSize: 13 }}>
                   {editingItemId ? 'Save Changes' : 'Create Item'}
                 </button>
                 <button type="button" className="btn btn-ghost" style={{ padding: '8px 16px', fontSize: 13 }}
@@ -656,15 +713,63 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map(item => {
+              {[...items]
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map((item, index) => {
                 const IconComp = CATEGORY_ICONS[item.icon] || Package;
                 const isEditing = editingItemId === item.id;
                 return (
-                  <div key={item.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '12px 16px', background: 'var(--card)',
-                    border: '1px solid var(--border)', borderRadius: 12,
-                  }}>
+                  <div
+                    key={item.id}
+                    draggable={!isEditing}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', item.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const draggedId = e.dataTransfer.getData('text/plain');
+                      if (draggedId === item.id) return;
+                      
+                      const newItems = [...items].sort((a, b) => a.sort_order - b.sort_order);
+                      const draggedIdx = newItems.findIndex(i => i.id === draggedId);
+                      const targetIdx = index;
+                      
+                      if (draggedIdx === -1) return;
+                      
+                      const [moved] = newItems.splice(draggedIdx, 1);
+                      newItems.splice(targetIdx, 0, moved);
+                      
+                      setItems(newItems);
+                      
+                      api.post('/catalog/items/reorder', {
+                        order: newItems.map((i, idx) => ({ id: i.id, sort_order: idx }))
+                      }).catch(err => console.error('Failed to save item order:', err));
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 16px', background: 'var(--card)',
+                      border: '1px solid var(--border)', borderRadius: 12,
+                      opacity: isEditing ? 0.6 : 1,
+                    }}
+                  >
+                    {/* Drag handle */}
+                    {!isEditing && (
+                      <div
+                        style={{
+                          cursor: 'grab', color: 'var(--text-muted)', padding: 4,
+                          display: 'flex', borderRadius: 4, flexShrink: 0,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                      >
+                        <GripVertical size={14} />
+                      </div>
+                    )}
                     <div style={{
                       width: 36, height: 36, borderRadius: 10,
                       background: item.approval_required ? 'var(--warning-bg)' : 'var(--accent-subtle)',

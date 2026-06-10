@@ -107,7 +107,7 @@ export function SLAPoliciesTab({ policies, onRefresh, showAlert, setConfirmModal
               <input className="input" type="number" min={1} value={form.resolution_time_hours} onChange={e => setForm({ ...form, resolution_time_hours: parseInt(e.target.value) })} required />
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
+              <button type="submit" className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} style={{ flex: 1 }} disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
               <button type="button" className="btn btn-ghost" onClick={() => setIsAdding(false)}>Cancel</button>
             </div>
           </form>
@@ -162,7 +162,7 @@ export function SLAPoliciesTab({ policies, onRefresh, showAlert, setConfirmModal
                             <input className="input" type="number" min={1} style={{ padding: '6px 10px', fontSize: 13 }} value={editForm.resolution_time_hours} onChange={e => setEditForm({ ...editForm, resolution_time_hours: parseInt(e.target.value) })} required />
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button type="submit" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 12, flex: 1 }}>Save</button>
+                            <button type="submit" className="btn btn-primary btn-save" style={{ padding: '6px 12px', fontSize: 12, flex: 1 }}>Save</button>
                             <button type="button" className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => setEditingId(null)}>Cancel</button>
                           </div>
                         </form>

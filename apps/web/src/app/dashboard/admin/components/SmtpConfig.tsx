@@ -212,7 +212,7 @@ export function SmtpConfig({ showAlert }: { showAlert: (m: string, t?: 'success'
               >
                 Cancel — use Directory Sync
               </button>
-              <button className="btn btn-primary" onClick={handleSaveOAuthConfig} disabled={savingOAuthConfig || !oauthConfig.clientId || !oauthConfig.clientSecret}>
+              <button className={`btn btn-primary btn-save${savingOAuthConfig ? ' saving' : ''}`} onClick={handleSaveOAuthConfig} disabled={savingOAuthConfig || !oauthConfig.clientId || !oauthConfig.clientSecret}>
                 {savingOAuthConfig ? 'Saving...' : 'Save & Connect'}
               </button>
             </div>
@@ -327,7 +327,7 @@ export function SmtpConfig({ showAlert }: { showAlert: (m: string, t?: 'success'
                   Cancel — use Directory Sync
                 </button>
               )}
-              <button className="btn btn-primary" onClick={handleSaveOAuthConfig} disabled={savingOAuthConfig || !oauthConfig.clientId || !oauthConfig.clientSecret}>
+              <button className={`btn btn-primary btn-save${savingOAuthConfig ? ' saving' : ''}`} onClick={handleSaveOAuthConfig} disabled={savingOAuthConfig || !oauthConfig.clientId || !oauthConfig.clientSecret}>
                 {savingOAuthConfig ? 'Saving...' : 'Save Credentials'}
               </button>
             </div>

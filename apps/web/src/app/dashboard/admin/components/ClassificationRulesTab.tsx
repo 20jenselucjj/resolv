@@ -325,7 +325,7 @@ export function ClassificationRulesTab({ showAlert }: { showAlert: (msg: string,
               <button className="btn btn-ghost" onClick={() => { setShowForm(false); setEditingId(null); }} style={{ padding: '10px 20px', fontSize: '13px' }}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', fontSize: '13px', fontWeight: 600 }}>
+              <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', fontSize: '13px', fontWeight: 600 }}>
                 {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
                 {editingId ? 'Update Rule' : 'Create Rule'}
               </button>

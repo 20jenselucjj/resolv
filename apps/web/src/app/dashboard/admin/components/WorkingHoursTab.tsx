@@ -187,7 +187,7 @@ export function WorkingHoursTab({ showAlert }: { showAlert: (m: string, t?: 'suc
           <button className="btn btn-ghost" onClick={() => setHours(DAYS.map((day, i) => ({ day, enabled: i < 5, start: '08:00', end: '17:00' })))}>
             <RotateCcw size={14} /> Reset to Default
           </button>
-          <button className="btn btn-primary" onClick={handleSave}>
+          <button className="btn btn-primary btn-save" onClick={handleSave}>
             <Save size={14} /> Save Working Hours
           </button>
         </div>

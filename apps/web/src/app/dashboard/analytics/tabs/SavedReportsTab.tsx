@@ -2,6 +2,7 @@
 
 import { Save, Play, Edit3, Download, Printer, Trash2, RefreshCcw } from 'lucide-react';
 import type { SavedReport, ReportExecutionResult } from '../types';
+import PinButton from '../components/shared/PinButton';
 
 interface SavedReportsTabProps {
   savedReports: SavedReport[];
@@ -12,10 +13,14 @@ interface SavedReportsTabProps {
   onEdit: (report: SavedReport) => void;
   onExport: (id: string, format: string, name: string) => void;
   onDelete: (id: string) => void;
+  isMetricPinned?: (key: string) => boolean;
+  handlePin?: (key: string, label: string, type?: string, config?: any) => void;
+  handleUnpin?: (key: string) => void;
 }
 
 export default function SavedReportsTab({
   savedReports, execResult, execLoading, onRefresh, onExecute, onEdit, onExport, onDelete,
+  isMetricPinned, handlePin, handleUnpin,
 }: SavedReportsTabProps) {
   return (
     <div className="rp-fade" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -38,10 +43,15 @@ export default function SavedReportsTab({
           {savedReports.map(report => (
             <div key={report.id} className="rp-card card" style={{ padding: 20, borderRadius: 14, border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{report.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {report.report_type.replace(/_/g, ' ')} · by {report.created_by_name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {isMetricPinned && handlePin && handleUnpin && (
+                    <PinButton size={13} isPinned={isMetricPinned(`report_${report.id}`)} onPin={() => handlePin(`report_${report.id}`, report.name, 'kpi', { report_id: report.id })} onUnpin={() => handleUnpin(`report_${report.id}`)} />
+                  )}
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{report.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {report.report_type.replace(/_/g, ' ')} · by {report.created_by_name}
+                    </div>
                   </div>
                 </div>
                 <span style={{

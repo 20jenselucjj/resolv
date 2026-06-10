@@ -61,7 +61,7 @@ const navSections: NavSection[] = [
     title: 'Administration',
     items: [
       { href: '/dashboard/admin',    icon: Shield,    label: 'Admin',         adminOnly: true },
-      { href: '/dashboard/reports',  icon: BarChart2, label: 'Reports',       adminOnly: true },
+      { href: '/dashboard/analytics',  icon: BarChart2, label: 'Analytics',       adminOnly: true },
     ],
   },
 ];

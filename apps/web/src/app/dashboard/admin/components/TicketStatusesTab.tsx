@@ -398,7 +398,7 @@ export function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 's
 
       {/* ── Save ─────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 28px', fontSize: 14 }}>
+        <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving} style={{ padding: '10px 28px', fontSize: 14 }}>
           {saving ? 'Saving...' : 'Save All Changes'}
         </button>
       </div>

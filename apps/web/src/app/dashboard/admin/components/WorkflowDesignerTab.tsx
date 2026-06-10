@@ -763,7 +763,7 @@ export function WorkflowDesignerTab({ showAlert, setConfirmModal }: {
             <button className="btn btn-ghost" onClick={handleTest} disabled={testing}>
               {testing ? <RotateCcw className="spin" size={14} /> : <Play size={14} />} Test
             </button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving}>
               {saving ? <RotateCcw className="spin" size={14} /> : <Save size={14} />} Save
             </button>
             <button className="btn btn-ghost" onClick={closeEditor}><X size={14} /> Cancel</button>
@@ -1166,7 +1166,7 @@ export function WorkflowDesignerTab({ showAlert, setConfirmModal }: {
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-ghost" onClick={closeEditor}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving}>
               {saving ? <RotateCcw className="spin" size={14} /> : <Save size={14} />} Save Workflow
             </button>
           </div>

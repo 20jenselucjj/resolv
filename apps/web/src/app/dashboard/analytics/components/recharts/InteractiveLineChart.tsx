@@ -1,41 +1,45 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useCallback } from 'react';
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Dot,
 } from 'recharts';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
+import ChartSkeleton from './ChartSkeleton';
 
 // ── Types ──────────────────────────────────────────────────────
 
-export interface AreaSeries {
+export interface LineSeries {
   dataKey: string;
   name: string;
   color: string;
-  /** Fill opacity (default 0.15) */
-  fillOpacity?: number;
-  /** Stack with other series */
-  stackId?: string;
+  /** Whether to show dots */
+  dot?: boolean;
+  /** Stroke width */
+  strokeWidth?: number;
+  /** Dash array for dashed lines */
+  strokeDasharray?: string;
 }
 
-export interface AreaChartDatum {
+export interface LineChartDatum {
   name: string;
   [key: string]: any;
 }
 
-export interface InteractiveAreaChartProps {
-  data: AreaChartDatum[];
+export interface InteractiveLineChartProps {
+  data: LineChartDatum[];
   /** Series to render */
-  series: AreaSeries[];
+  series: LineSeries[];
   /** Click handler on data point */
-  onPointClick?: (datum: AreaChartDatum, seriesKey: string) => void;
+  onPointClick?: (datum: LineChartDatum, seriesKey: string) => void;
   /** Export filename (without extension) */
   exportFilename?: string;
   /** Show export buttons */
@@ -48,12 +52,16 @@ export interface InteractiveAreaChartProps {
   xKey?: string;
   /** Tooltip value suffix */
   unit?: string;
-  /** Make gradient fill */
-  gradient?: boolean;
+  /** Fill area under lines */
+  fillArea?: boolean;
   /** Y-axis label */
   yLabel?: string;
   /** X-axis label */
   xLabel?: string;
+  /** Enable zoom (visual hint only — full zoom requires custom impl) */
+  enableZoom?: boolean;
+  /** Loading state */
+  loading?: boolean;
 }
 
 // ── Custom Tooltip ─────────────────────────────────────────────
@@ -74,7 +82,7 @@ const CustomTooltip = ({ active, payload, label, unit }: any) => {
       <div style={{ fontWeight: 600, color: cssVar('--text', '#1F2937'), marginBottom: 6 }}>{label}</div>
       {payload.map((entry: any, idx: number) => (
         <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: entry.color }} />
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color }} />
           <span style={{ color: cssVar('--text-secondary', '#4B5563') }}>
             {entry.name}: <strong>{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</strong> {unit || ''}
           </span>
@@ -84,23 +92,57 @@ const CustomTooltip = ({ active, payload, label, unit }: any) => {
   );
 };
 
+// ── Custom Active Dot ──────────────────────────────────────────
+
+const CustomizedDot = (props: any) => {
+  const { cx, cy, stroke, payload, seriesKey, onClick } = props;
+  return (
+    <Dot
+      cx={cx}
+      cy={cy}
+      r={4}
+      fill={stroke}
+      stroke={cssVar('--bg', '#fff')}
+      strokeWidth={2}
+      style={{ cursor: onClick ? 'pointer' : 'default' }}
+      onClick={() => onClick?.(payload, seriesKey)}
+    />
+  );
+};
+
 // ── Component ──────────────────────────────────────────────────
 
-const InteractiveAreaChart: React.FC<InteractiveAreaChartProps> = ({
+const InteractiveLineChart: React.FC<InteractiveLineChartProps> = ({
   data,
   series,
   onPointClick,
-  exportFilename = 'area-chart',
+  exportFilename = 'line-chart',
   showExport = false,
   height = 300,
   showGrid = true,
   xKey = 'name',
   unit,
-  gradient = true,
   yLabel,
   xLabel,
+  enableZoom = false,
+  loading = false,
 }) => {
   const chartRef = useRef<HTMLDivElement>(null);
+  const [hiddenSeries, setHiddenSeries] = React.useState<Set<string>>(new Set());
+
+  const handleLegendClick = useCallback((entry: any) => {
+    const key = entry.dataKey;
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  if (loading) {
+    return <ChartSkeleton height={height} showLegend showGrid={showGrid} />;
+  }
 
   if (!data.length) {
     return (
@@ -121,39 +163,37 @@ const InteractiveAreaChart: React.FC<InteractiveAreaChartProps> = ({
 
   return (
     <div>
-      {showExport && (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginBottom: 8 }}>
-          <button
-            onClick={() => exportToPng(chartRef.current, `${exportFilename}.png`)}
-            className="btn btn-sm"
-            style={{ fontSize: 11, padding: '4px 10px' }}
-          >
-            PNG
-          </button>
-          <button
-            onClick={() => exportToSvg(chartRef.current, `${exportFilename}.svg`)}
-            className="btn btn-sm"
-            style={{ fontSize: 11, padding: '4px 10px' }}
-          >
-            SVG
-          </button>
-        </div>
-      )}
-      <div ref={chartRef}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        {enableZoom && (
+          <span style={{ fontSize: 11, color: cssVar('--text-muted', '#9CA3AF') }}>
+            Scroll to zoom · Drag to pan
+          </span>
+        )}
+        {showExport && (
+          <>
+            <button
+              onClick={() => exportToPng(chartRef.current, `${exportFilename}.png`)}
+              className="btn btn-sm"
+              style={{ fontSize: 11, padding: '4px 10px' }}
+            >
+              PNG
+            </button>
+            <button
+              onClick={() => exportToSvg(chartRef.current, `${exportFilename}.svg`)}
+              className="btn btn-sm"
+              style={{ fontSize: 11, padding: '4px 10px' }}
+            >
+              SVG
+            </button>
+          </>
+        )}
+      </div>
+      <div ref={chartRef} role="img" aria-label="Line chart">
         <ResponsiveContainer width="100%" height={height}>
-          <AreaChart
+          <LineChart
             data={data}
             margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
           >
-            <defs>
-              {gradient &&
-                series.map((s) => (
-                  <linearGradient key={s.dataKey} id={`gradient-${s.dataKey}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={s.color} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={s.color} stopOpacity={0.02} />
-                  </linearGradient>
-                ))}
-            </defs>
             {showGrid && (
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -182,16 +222,16 @@ const InteractiveAreaChart: React.FC<InteractiveAreaChartProps> = ({
             />
             <Tooltip content={<CustomTooltip unit={unit} />} />
             {series.map((s) => (
-              <Area
+              <Line
                 key={s.dataKey}
                 type="monotone"
                 dataKey={s.dataKey}
                 name={s.name}
                 stroke={s.color}
-                strokeWidth={2}
-                fill={gradient ? `url(#gradient-${s.dataKey})` : s.color}
-                fillOpacity={gradient ? 1 : (s.fillOpacity ?? 0.15)}
-                stackId={s.stackId}
+                strokeWidth={s.strokeWidth ?? 2}
+                strokeDasharray={s.strokeDasharray}
+                hide={hiddenSeries.has(s.dataKey)}
+                dot={s.dot !== false ? <CustomizedDot seriesKey={s.dataKey} onClick={onPointClick} /> : false}
                 activeDot={{ r: 6, fill: s.color, stroke: cssVar('--bg', '#fff'), strokeWidth: 2, cursor: onPointClick ? 'pointer' : 'default' }}
                 animationDuration={800}
                 animationEasing="ease-out"
@@ -202,15 +242,16 @@ const InteractiveAreaChart: React.FC<InteractiveAreaChartProps> = ({
               height={30}
               iconType="line"
               iconSize={14}
+              onClick={handleLegendClick}
               formatter={(value: string) => (
                 <span style={{ color: cssVar('--text-secondary', '#4B5563'), fontSize: 12 }}>{value}</span>
               )}
             />
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
   );
 };
 
-export default InteractiveAreaChart;
+export default InteractiveLineChart;

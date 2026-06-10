@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS scripts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- If the table already existed without is_builtin (e.g. from agent schema), add it
+DO $$ BEGIN
+  ALTER TABLE scripts ADD COLUMN IF NOT EXISTS is_builtin BOOLEAN NOT NULL DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_scripts_category ON scripts (category);
 CREATE INDEX IF NOT EXISTS idx_scripts_builtin ON scripts (is_builtin);
 

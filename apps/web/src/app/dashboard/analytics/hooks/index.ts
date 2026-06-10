@@ -5,3 +5,4 @@ export type { ExportFormat } from './useExport';
 export { useDrillDown } from './useDrillDown';
 export { usePinboard } from './usePinboard';
 export { useAutoRefresh } from './useAutoRefresh';
+export { usePresentationMode } from './usePresentationMode';

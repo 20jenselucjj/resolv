@@ -260,6 +260,7 @@ export default function SelfServicePortal() {
   const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogSearch, setCatalogSearch] = useState('');
 
   // Service Request Modal
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -281,8 +282,8 @@ export default function SelfServicePortal() {
       .catch(() => {});
 
     // Load my tickets
-    api.get<{ data: Ticket[] }>('/tickets?pageSize=4')
-      .then(res => setMyTickets(res.data?.slice(0, 4) || []))
+    api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
+      .then(res => setMyTickets(res.data?.slice(0, 8) || []))
       .catch(() => setMyTickets([]))
       .finally(() => setTicketsLoading(false));
 
@@ -302,7 +303,7 @@ export default function SelfServicePortal() {
       .finally(() => setCatalogLoading(false));
 
     // Load my service requests
-    api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=5')
+    api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
       .then(res => setMyRequests(res.data || []))
       .catch(() => setMyRequests([]))
       .finally(() => setRequestsLoading(false));
@@ -460,8 +461,8 @@ export default function SelfServicePortal() {
       // If the AI created a ticket, refresh the ticket list so it shows up without a manual refresh
       const createdTicket = res.data.tool_calls?.find((tc: any) => tc.function?.name === 'create_ticket')
       if (createdTicket) {
-        api.get<{ data: Ticket[] }>('/tickets?pageSize=5')
-          .then(ticketsRes => setMyTickets(ticketsRes.data?.slice(0, 5) || []))
+        api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
+          .then(ticketsRes => setMyTickets(ticketsRes.data?.slice(0, 8) || []))
           .catch(() => {})
       }
     } catch {
@@ -576,7 +577,7 @@ export default function SelfServicePortal() {
         setTicketFiles([]);
       }
 
-      setMyTickets(prev => [res.data, ...prev].slice(0, 5));
+      setMyTickets(prev => [res.data, ...prev].slice(0, 8));
       setTicketSuccess(true);
       setTimeout(() => { setShowTicketForm(false); setTicketSuccess(false); setTicketForm({ title: '', description: '', priority: 'medium', ticket_type: 'incident' }); }, 2000);
     } catch (err: any) {
@@ -633,6 +634,66 @@ export default function SelfServicePortal() {
     fulfilled:        { label: 'Fulfilled',     color: '#059669', bg: '#ecfdf5' },
     cancelled:        { label: 'Cancelled',     color: '#6b7280', bg: '#f9fafb' },
   };
+
+  const FULFILLMENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    ticket:    { label: 'Ticket',    color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
+    approval:  { label: 'Approval',  color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
+    automated: { label: 'Automated', color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0' },
+  };
+
+  const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
+    low:      { label: 'Low',      color: '#6b7280' },
+    medium:   { label: 'Medium',   color: '#3b82f6' },
+    high:     { label: 'High',     color: '#f59e0b' },
+    critical: { label: 'Critical', color: '#ef4444' },
+  };
+
+  // Merged list of tickets + service requests sorted by created_at desc
+  const mergedRequests = useMemo(() => {
+    const items: Array<{
+      type: 'ticket' | 'service_request';
+      id: string;
+      number: number;
+      title: string;
+      subtitle: string;
+      created_at: string;
+      status: string;
+      statusConfig: { label: string; color: string; bg: string; icon?: any };
+      Icon: any;
+      ticketId?: string;
+    }> = [];
+    myTickets.forEach(t => {
+      const s = STATUS_CONFIG[t.status] || STATUS_CONFIG.open;
+      items.push({
+        type: 'ticket',
+        id: t.id,
+        number: t.number,
+        title: t.title,
+        subtitle: new Date(t.created_at).toLocaleDateString(),
+        created_at: t.created_at,
+        status: t.status,
+        statusConfig: s,
+        Icon: MessageSquare,
+        ticketId: t.id,
+      });
+    });
+    myRequests.forEach(sr => {
+      const srStatus = SR_STATUS_CONFIG[sr.status] || SR_STATUS_CONFIG.submitted;
+      const SrIcon = getCatalogIcon(sr.catalog_item_icon || '');
+      items.push({
+        type: 'service_request',
+        id: sr.id,
+        number: sr.number,
+        title: (sr.catalog_item_name || 'Service Request') + ' #' + sr.number,
+        subtitle: new Date(sr.created_at).toLocaleDateString() + (sr.ticket_number ? ' · Ticket #' + sr.ticket_number : ''),
+        created_at: sr.created_at,
+        status: sr.status,
+        statusConfig: srStatus,
+        Icon: SrIcon,
+      });
+    });
+    return items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 8);
+  }, [myTickets, myRequests]);
 
   const CATALOG_ICONS: Record<string, any> = {
     monitor: Monitor, code: Code, key: Key, user: UserIcon,
@@ -1009,7 +1070,7 @@ export default function SelfServicePortal() {
             </div>
           </div>
 
-          {/* ── Right Column: My Tickets + Submit ────────────────────────────── */}
+          {/* ── Right Column: Submit Ticket Form ────────────────────────────── */}
           <div style={{ display:'flex', flexDirection:'column', gap:20, minWidth:0 }}>
 
             {/* Submit a Request */}
@@ -1124,19 +1185,8 @@ export default function SelfServicePortal() {
                     <UploadCloud size={14} />
                     {ticketFiles.length > 0 ? `${ticketFiles.length} file(s) attached` : 'Attach screenshots or files'}
                   </button>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                    <select className="select" value={ticketForm.priority} onChange={e => setTicketForm(f => ({ ...f, priority: e.target.value }))} style={{ fontSize:12 }}>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </select>
-                    <select className="select" value={ticketForm.ticket_type} onChange={e => setTicketForm(f => ({ ...f, ticket_type: e.target.value }))} style={{ fontSize:12 }}>
-                      <option value="incident">Incident</option>
-                      <option value="service_request">Service Request</option>
-                      <option value="problem">Problem</option>
-                    </select>
-                  </div>
+                  <input type="hidden" name="priority" value="medium" />
+                  <input type="hidden" name="ticket_type" value="incident" />
                   {ticketError && <div style={{ fontSize:12, color:'var(--danger)', padding:'8px 12px', background:'var(--danger-bg)', borderRadius:8, border:'1px solid var(--danger-border)' }}>{ticketError}</div>}
                   <div style={{ display:'flex', gap:10, marginTop:4 }}>
                     <button type="submit" disabled={ticketLoading} className="btn btn-primary" style={{ flex:1, fontSize:13, height:40, borderRadius:10, boxShadow:'0 4px 14px rgba(37,99,235,0.2)', transition:'all 0.2s ease' }}
@@ -1152,14 +1202,14 @@ export default function SelfServicePortal() {
               )}
             </div>
 
-            {/* My Tickets */}
-            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', flex:1 }}>
+            {/* ── My Requests (Merged) ────────────────────────────────────────── */}
+            <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
               <div style={{ padding:'16px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <MessageSquare size={14} color="white" />
+                    <Layers size={14} color="white" />
                   </div>
-                  <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_tickets_header || 'My Tickets'}</span>
+                  <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_requests_header || 'My Tickets'}</span>
                 </div>
                 <a href="/dashboard/tickets" style={{ fontSize:12, color:'var(--accent)', textDecoration:'none', display:'flex', alignItems:'center', gap:3, fontWeight:600, transition:'all 0.15s ease' }}
                   onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateX(2px)'; }}
@@ -1168,42 +1218,179 @@ export default function SelfServicePortal() {
                   View all <ArrowRight size={12} />
                 </a>
               </div>
-              <div style={{ padding:'10px', maxHeight:380, overflowY:'auto' }}>
-                {ticketsLoading ? (
+              <div style={{ padding:'10px', maxHeight:400, overflowY:'auto' }}>
+                {ticketsLoading || requestsLoading ? (
                   <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
-                ) : myTickets.length === 0 ? (
+                ) : mergedRequests.length === 0 ? (
                   <div style={{ padding:'28px 20px', textAlign:'center' }}>
                     <div style={{ width:44, height:44, borderRadius:'50%', background:'var(--success-bg)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
                       <CheckCircle2 size={20} color="var(--success)" />
                     </div>
-                    <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_all_clear_text || 'All clear!'}</div>
-                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, lineHeight:1.5 }}>{portalSettings.portal_no_tickets_text || 'No open requests.'}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_requests_empty || 'No requests yet'}</div>
+                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, lineHeight:1.5 }}>{portalSettings.portal_requests_empty_desc || 'Submit a ticket above or browse the service catalog.'}</div>
                   </div>
-                ) : myTickets.map(ticket => {
-                  const s = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
-                  return (
-                    <a key={ticket.id} href={`/dashboard/tickets/${ticket.id}`} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 10px', borderRadius:10, textDecoration:'none', transition:'all 0.2s ease', border:'1px solid transparent', marginBottom:4 }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
-                    >
-                      <div style={{ width:28, height:28, borderRadius:8, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, fontWeight:700, color:s.color }}>
-                        #{ticket.number}
+                ) : mergedRequests.map(item => {
+                  if (item.type === 'ticket') {
+                    const s = STATUS_CONFIG[item.status] || STATUS_CONFIG.open;
+                    return (
+                      <a key={`t-${item.id}`} href={`/dashboard/tickets/${item.id}`} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 10px', borderRadius:10, textDecoration:'none', transition:'all 0.2s ease', border:'1px solid transparent', marginBottom:4 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width:28, height:28, borderRadius:8, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, fontWeight:700, color:s.color }}>
+                          #{item.number}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
+                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{item.subtitle}</div>
+                        </div>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0, letterSpacing:'0.02em' }}>{s.label}</span>
+                      </a>
+                    );
+                  } else {
+                    const srStatus = SR_STATUS_CONFIG[item.status] || SR_STATUS_CONFIG.submitted;
+                    const SrIcon = item.Icon;
+                    return (
+                      <div key={`sr-${item.id}`} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 10px', borderRadius:10, textDecoration:'none', transition:'all 0.2s ease', border:'1px solid transparent', marginBottom:4, cursor:'default' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width:28, height:28, borderRadius:8, background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <SrIcon size={14} color="var(--accent)" />
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {item.title}
+                          </div>
+                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{item.subtitle}</div>
+                        </div>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:srStatus.bg, color:srStatus.color, flexShrink:0, letterSpacing:'0.02em' }}>{srStatus.label}</span>
                       </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ticket.title}</div>
-                        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{new Date(ticket.created_at).toLocaleDateString()}</div>
-                      </div>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0, letterSpacing:'0.02em' }}>{s.label}</span>
-                    </a>
-                  );
+                    );
+                  }
                 })}
               </div>
             </div>
           </div>
         </div>
 
+        {/* ── Service Catalog ──────────────────────────────────────────────────── */}
+        <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom:24, animationDelay:'0.3s' }}>
+          <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <ShoppingCart size={14} color="white" />
+              </div>
+              <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_catalog_header || 'Service Catalog'}</span>
+            </div>
+            <div style={{ position:'relative', flex:1, maxWidth:280 }}>
+              <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+              <input
+                value={catalogSearch}
+                onChange={e => setCatalogSearch(e.target.value)}
+                placeholder="Search services..."
+                style={{
+                  width:'100%', height:32, padding:'0 10px 0 32px',
+                  background:'var(--bg)', border:'1px solid var(--border)',
+                  borderRadius:8, fontSize:12, color:'var(--text)',
+                  outline:'none',
+                }}
+              />
+            </div>
+          </div>
+          <div style={{ padding:16 }}>
+            {catalogLoading ? (
+              <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
+            ) : catalogCategories.length === 0 ? (
+              <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
+                <Package size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
+                <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>{portalSettings.portal_catalog_empty || 'No services available yet'}</div>
+              </div>
+            ) : catalogSearch && catalogItems.filter(i => i.is_active && (i.name.toLowerCase().includes(catalogSearch.toLowerCase()) || (i.short_description && i.short_description.toLowerCase().includes(catalogSearch.toLowerCase())))).length === 0 ? (
+                <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
+                  <Search size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
+                  <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>{portalSettings.portal_catalog_no_results || 'No services match your search'}</div>
+                  <button onClick={() => setCatalogSearch('')} style={{ marginTop:8, fontSize:12, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:600, textDecoration:'underline' }}>Clear search</button>
+                </div>
+              ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+                {catalogCategories.map(category => {
+                  const catItems = catalogItems.filter(i => i.category_id === category.id && i.is_active && (!catalogSearch || i.name.toLowerCase().includes(catalogSearch.toLowerCase()) || (i.short_description && i.short_description.toLowerCase().includes(catalogSearch.toLowerCase()))));
+                  if (catItems.length === 0) return null;
+                  const CatIcon = getCatalogIcon(category.icon);
+                  return (
+                    <div key={category.id}>
+                      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14, paddingBottom:12, borderBottom:'1.5px solid var(--border-subtle)' }}>
+                        <div style={{ width:34, height:34, borderRadius:10, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 2px 8px rgba(37,99,235,0.2)' }}>
+                          <CatIcon size={16} color="white" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{category.name}</div>
+                          {category.description && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:1 }}>{category.description}</div>}
+                        </div>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', background:'var(--bg-secondary)', padding:'2px 10px', borderRadius:10, marginLeft:'auto', whiteSpace:'nowrap' }}>{catItems.length} item{catItems.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+                        {catItems.map(item => {
+                          const ItemIcon = getCatalogIcon(item.icon);
+                          const fConfig = FULFILLMENT_CONFIG[item.fulfillment_type] || FULFILLMENT_CONFIG.ticket;
+                          const pConfig = PRIORITY_CONFIG[item.priority] || PRIORITY_CONFIG.medium;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => openRequestModal(item)}
+                              className="ssp-card"
+                              style={{
+                                display:'flex', flexDirection:'column', gap:8, padding:'16px',
+                                textAlign:'left', cursor:'pointer',
+                                background:'var(--card)',
+                                border:'1px solid var(--border)',
+                                borderRadius:12,
+                                boxShadow:'var(--shadow-sm)',
+                                transition:'all 0.25s cubic-bezier(0.4,0,0.2,1)',
+                              }}
+                            >
+                              {/* Top row: icon + fulfillment badge */}
+                              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
+                                <div style={{ width:32, height:32, borderRadius:8, background:'var(--accent-subtle)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                  <ItemIcon size={15} color="var(--accent)" />
+                                </div>
+                                <span style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', color:fConfig.color, background:fConfig.bg, padding:'2px 8px', borderRadius:6, border:`1px solid ${fConfig.border}`, whiteSpace:'nowrap', marginLeft:'auto' }}>
+                                  {fConfig.label}
+                                </span>
+                              </div>
+                              {/* Name */}
+                              <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.3 }}>{item.name}</div>
+                              {/* Description */}
+                              {item.short_description && (
+                                <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+                                  {item.short_description}
+                                </div>
+                              )}
+                              {/* Bottom row: priority dot + Request */}
+                              <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:10, fontWeight:600, marginTop:'auto', paddingTop:4 }}>
+                                <span style={{ display:'flex', alignItems:'center', gap:4, color:pConfig.color }}>
+                                  <span style={{ width:7, height:7, borderRadius:'50%', background:pConfig.color, display:'inline-block', flexShrink:0 }} />
+                                  {pConfig.label}
+                                </span>
+                                <span style={{ color:'var(--accent)', display:'flex', alignItems:'center', gap:3, marginLeft:'auto', fontWeight:600 }}>
+                                  Request <ArrowRight size={10} />
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              )}
+          </div>
+        </div>
+
         {/* ── Knowledge Base ─────────────────────────────────────────────────── */}
-        <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom: isAdmin ? 24 : 0, animationDelay:'0.3s' }}>
+        <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom: isAdmin ? 24 : 0, animationDelay:'0.35s' }}>
           <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -1269,161 +1456,6 @@ export default function SelfServicePortal() {
           </div>
         </div>
 
-        {/* ── Service Catalog ──────────────────────────────────────────────────── */}
-        <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom:24, animationDelay:'0.35s' }}>
-          <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <ShoppingCart size={14} color="white" />
-              </div>
-              <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Service Catalog</span>
-            </div>
-          </div>
-          <div style={{ padding:16 }}>
-            {catalogLoading ? (
-              <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
-            ) : catalogCategories.length === 0 ? (
-              <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
-                <Package size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
-                <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>No services available yet</div>
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-                {catalogCategories.map(category => {
-                  const catItems = catalogItems.filter(i => i.category_id === category.id && i.is_active);
-                  if (catItems.length === 0) return null;
-                  const CatIcon = getCatalogIcon(category.icon);
-                  return (
-                    <div key={category.id}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-                        <div style={{ width:28, height:28, borderRadius:8, background:'var(--accent-subtle)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                          <CatIcon size={14} color="var(--accent)" />
-                        </div>
-                        <div>
-                          <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{category.name}</span>
-                          {category.description && <span style={{ fontSize:12, color:'var(--text-muted)', marginLeft:8 }}>{category.description}</span>}
-                        </div>
-                      </div>
-                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:10 }}>
-                        {catItems.map(item => {
-                          const ItemIcon = getCatalogIcon(item.icon);
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => openRequestModal(item)}
-                              className="kb-card"
-                              style={{
-                                display:'flex', flexDirection:'column', gap:8, padding:'14px',
-                                textAlign:'left', cursor:'pointer',
-                                background:'var(--card)',
-                                border:'1px solid var(--border)',
-                                borderRadius:12,
-                                boxShadow:'var(--shadow-sm)',
-                                transition:'all 0.25s cubic-bezier(0.4,0,0.2,1)',
-                              }}
-                            >
-                              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                                <div style={{ width:30, height:30, borderRadius:8, background: item.approval_required ? 'var(--warning-bg)' : 'var(--accent-subtle)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                                  <ItemIcon size={14} color={item.approval_required ? 'var(--warning)' : 'var(--accent)'} />
-                                </div>
-                                {item.fulfillment_type === 'approval' && (
-                                  <span style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', color:'var(--warning)', background:'var(--warning-bg)', padding:'1px 6px', borderRadius:6, border:'1px solid var(--warning-border)' }}>
-                                    Approval
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ minWidth:0 }}>
-                                <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'var(--text)' }}>{item.name}</div>
-                                {item.short_description && (
-                                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3, lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-                                    {item.short_description}
-                                  </div>
-                                )}
-                              </div>
-                              <div style={{ fontSize:10, color:'var(--accent)', fontWeight:600, display:'flex', alignItems:'center', gap:3, marginTop:'auto' }}>
-                                Request <ArrowRight size={10} />
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── My Service Requests ──────────────────────────────────────────────── */}
-        <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom:24, animationDelay:'0.4s' }}>
-          <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <Layers size={14} color="white" />
-              </div>
-              <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>My Requests</span>
-            </div>
-          </div>
-          <div style={{ padding:'10px', maxHeight:400, overflowY:'auto' }}>
-            {requestsLoading ? (
-              <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
-            ) : myRequests.length === 0 ? (
-              <div style={{ padding:'28px 20px', textAlign:'center' }}>
-                <div style={{ width:44, height:44, borderRadius:'50%', background:'var(--success-bg)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
-                  <CheckCircle2 size={20} color="var(--success)" />
-                </div>
-                <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>No requests yet</div>
-                <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, lineHeight:1.5 }}>Browse the service catalog above to submit your first request.</div>
-              </div>
-            ) : myRequests.map(sr => {
-              const srStatus = SR_STATUS_CONFIG[sr.status] || SR_STATUS_CONFIG.submitted;
-              const SrIcon = getCatalogIcon(sr.catalog_item_icon || '');
-              return (
-                <div key={sr.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 10px', borderRadius:10, border:'1px solid transparent', marginBottom:4 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
-                >
-                  <div style={{ width:28, height:28, borderRadius:8, background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <SrIcon size={14} color="var(--accent)" />
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {sr.catalog_item_name || 'Service Request'} #{sr.number}
-                    </div>
-                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, display:'flex', alignItems:'center', gap:8 }}>
-                      <span>{new Date(sr.created_at).toLocaleDateString()}</span>
-                      {sr.ticket_number && (
-                        <span>· Ticket #{sr.ticket_number}</span>
-                      )}
-                    </div>
-                  </div>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:srStatus.bg, color:srStatus.color, flexShrink:0, letterSpacing:'0.02em' }}>{srStatus.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── Admin: SSP Documents ───────────────────────────────────────────── */}
-        {isAdmin && (
-          <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', animationDelay:'0.4s' }}>
-            <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', gap:8 }}>
-              <Shield size={15} color="#8b5cf6" />
-              <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>Portal Documents</span>
-              <span style={{ fontSize:11, padding:'2px 7px', background:'#f5f3ff', color:'#7c3aed', border:'1px solid #ddd6fe', borderRadius:10, fontWeight:600 }}>Admin</span>
-            </div>
-            <div style={{ padding:16 }}>
-              <div style={{ padding:'32px 24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
-                <FileText size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
-                <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>Document management coming soon</div>
-                <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:6, maxWidth:320, marginLeft:'auto', marginRight:'auto', lineHeight:1.4 }}>
-                  Admins will be able to upload and manage portal documents for end users.
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Service Request Modal ─────────────────────────────────────────── */}

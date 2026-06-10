@@ -491,7 +491,7 @@ export function EmailAccountsTab({ showAlert }: {
                 Cancel
               </button>
               <button
-                className="btn btn-primary"
+                className={`btn btn-primary btn-save${saving ? ' saving' : ''}`}
                 onClick={handleSave}
                 disabled={saving || !form.name || ((form.account_type === 'smtp' || form.account_type === 'imap') && !form.host)}
                 style={{ display: 'flex', alignItems: 'center', gap: 6 }}

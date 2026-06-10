@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Palette, Zap, Globe, LayoutGrid, Eye, Info, MessageSquare, FileText, List, BookOpen } from 'lucide-react';
+import { Palette, Zap, Globe, LayoutGrid, Eye, Info, MessageSquare, FileText, List, BookOpen, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
 
 const QA_COLORS = [
@@ -56,6 +56,12 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
     portal_all_clear_text: 'All clear!',
     portal_kb_header: 'Knowledge Base',
     portal_no_articles_text: 'No articles found.',
+    portal_requests_header: 'My Tickets',
+    portal_requests_empty: 'No requests yet',
+    portal_requests_empty_desc: 'Submit a ticket above or browse the service catalog.',
+    portal_catalog_header: 'Service Catalog',
+    portal_catalog_empty: 'No services available yet',
+    portal_catalog_no_results: 'No services match your search',
   });
 
   useEffect(() => {
@@ -103,6 +109,12 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
           portal_all_clear_text: s.portal_all_clear_text || prev.portal_all_clear_text,
           portal_kb_header: s.portal_kb_header || prev.portal_kb_header,
           portal_no_articles_text: s.portal_no_articles_text || prev.portal_no_articles_text,
+          portal_requests_header: s.portal_requests_header || prev.portal_requests_header,
+          portal_requests_empty: s.portal_requests_empty || prev.portal_requests_empty,
+          portal_requests_empty_desc: s.portal_requests_empty_desc || prev.portal_requests_empty_desc,
+          portal_catalog_header: s.portal_catalog_header || prev.portal_catalog_header,
+          portal_catalog_empty: s.portal_catalog_empty || prev.portal_catalog_empty,
+          portal_catalog_no_results: s.portal_catalog_no_results || prev.portal_catalog_no_results,
         }));
       })
       .catch(() => {})
@@ -430,7 +442,7 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
         </div>
       </div>
 
-      {/* ── My Tickets Text ───────────────────────────────────────────────────── */}
+      {/* ── My Requests Text ──────────────────────────────────────────────────── */}
       <div className="card" style={{ padding: 24, borderRadius: 'var(--radius-lg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -438,22 +450,50 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>My Tickets Section</h3>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Text for the My Tickets list on the portal</p>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Text for the My Tickets list (tickets + service requests) on the portal</p>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Section Header</label>
-            <input className="input" value={form.portal_tickets_header} onChange={e => setForm(f => ({ ...f, portal_tickets_header: e.target.value }))} placeholder="My Tickets" style={{ width: '100%', fontSize: 12 }} />
+            <input className="input" value={form.portal_requests_header} onChange={e => setForm(f => ({ ...f, portal_requests_header: e.target.value }))} placeholder="My Requests" style={{ width: '100%', fontSize: 12 }} />
           </div>
           <div>
-            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>No Tickets Text</label>
-            <input className="input" value={form.portal_no_tickets_text} onChange={e => setForm(f => ({ ...f, portal_no_tickets_text: e.target.value }))} placeholder="No open requests." style={{ width: '100%', fontSize: 12 }} />
+            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Empty Title</label>
+            <input className="input" value={form.portal_requests_empty} onChange={e => setForm(f => ({ ...f, portal_requests_empty: e.target.value }))} placeholder="No requests yet" style={{ width: '100%', fontSize: 12 }} />
           </div>
           <div>
-            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>All Clear Text</label>
-            <input className="input" value={form.portal_all_clear_text} onChange={e => setForm(f => ({ ...f, portal_all_clear_text: e.target.value }))} placeholder="All clear!" style={{ width: '100%', fontSize: 12 }} />
+            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Empty Description</label>
+            <input className="input" value={form.portal_requests_empty_desc} onChange={e => setForm(f => ({ ...f, portal_requests_empty_desc: e.target.value }))} placeholder="Submit a ticket above or browse the service catalog." style={{ width: '100%', fontSize: 12 }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Service Catalog Text ──────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: 'var(--radius-lg)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShoppingCart size={18} color="var(--accent)" />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Service Catalog Section</h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Text for the service catalog section on the portal</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Section Header</label>
+            <input className="input" value={form.portal_catalog_header} onChange={e => setForm(f => ({ ...f, portal_catalog_header: e.target.value }))} placeholder="Service Catalog" style={{ width: '100%', fontSize: 12 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Empty State</label>
+            <input className="input" value={form.portal_catalog_empty} onChange={e => setForm(f => ({ ...f, portal_catalog_empty: e.target.value }))} placeholder="No services available yet" style={{ width: '100%', fontSize: 12 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>No Results Text</label>
+            <input className="input" value={form.portal_catalog_no_results} onChange={e => setForm(f => ({ ...f, portal_catalog_no_results: e.target.value }))} placeholder="No services match your search" style={{ width: '100%', fontSize: 12 }} />
           </div>
         </div>
       </div>
@@ -494,7 +534,7 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
           <Eye size={14} /> Preview Portal
         </a>
         <button
-          className="btn btn-primary"
+          className={`btn btn-primary btn-save${saving ? ' saving' : ''}`}
           onClick={handleSave}
           disabled={saving}
           style={{ padding: '10px 28px', fontSize: 14, fontWeight: 600 }}

@@ -4,6 +4,7 @@ import React, { useId } from 'react';
 import { cssVar } from './export-utils';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import PinButton from '../shared/PinButton';
+import ChartSkeleton from './ChartSkeleton';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -42,6 +43,8 @@ export interface ScorecardWidgetProps {
   onPin?: () => void;
   /** Unpin callback */
   onUnpin?: () => void;
+  /** Loading state */
+  loading?: boolean;
 }
 
 // ── Mini Sparkline ─────────────────────────────────────────────
@@ -99,9 +102,33 @@ const ScorecardWidget: React.FC<ScorecardWidgetProps> = ({
   isPinned,
   onPin,
   onUnpin,
+  loading = false,
 }) => {
   const accent = accentColor || cssVar('--accent', '#1E40AF');
   const spColor = sparklineColor || accent;
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          background: cssVar('--bg-elevated', '#fff'),
+          border: `1px solid ${cssVar('--border', '#dde1e7')}`,
+          borderLeft: `4px solid ${accent}`,
+          borderRadius: 12,
+          padding: '18px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="animate-pulse" style={{ height: 12, width: '60%', borderRadius: 6, background: cssVar('--border-subtle', '#eef0f3') }} />
+        <div className="animate-pulse" style={{ height: 32, width: '40%', borderRadius: 6, background: cssVar('--border-subtle', '#eef0f3') }} />
+        <div className="animate-pulse" style={{ height: 8, width: '80%', borderRadius: 4, background: cssVar('--border-subtle', '#eef0f3') }} />
+      </div>
+    );
+  }
 
   return (
     <div

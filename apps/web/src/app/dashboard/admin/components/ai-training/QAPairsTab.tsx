@@ -157,6 +157,7 @@ export function QAPairsTab(props: QAPairsTabProps) {
             </button>
             <button
               type="submit"
+              className="btn-save"
               style={{
                 padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none',
                 background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
@@ -261,6 +262,7 @@ export function QAPairsTab(props: QAPairsTabProps) {
                         </button>
                         <button
                           onClick={() => handleSaveEditQA(qa.id)}
+                          className="btn-save"
                           style={{
                             padding: '6px 12px', borderRadius: 'var(--radius-md)', border: 'none',
                             background: 'var(--success)', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer'

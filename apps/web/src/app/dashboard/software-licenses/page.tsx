@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle, Calendar, ChevronDown, CreditCard, Edit3, FileText,
-  Key, MoreHorizontal, Plus, RefreshCw, Search, Shield, Trash2, X,
+  AlertTriangle, Calendar, ChevronDown, CreditCard, CheckSquare, Download, Edit3, FileText,
+  Key, MoreHorizontal, Plus, RefreshCw, Search, Shield, Square, Trash2, Upload, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import ImportModal from './ImportModal';
 
 interface SoftwareLicense {
   id: string;
@@ -114,6 +115,10 @@ export default function SoftwareLicensesPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showImport, setShowImport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [justRefreshed, setJustRefreshed] = useState(false);
   const [form, setForm] = useState({
     name: '',
     publisher: '',
@@ -146,11 +151,14 @@ export default function SoftwareLicensesPage() {
   }, [search]);
 
   useEffect(() => {
-    function handleClose() { setMenuOpenId(null); }
-    if (!menuOpenId) return;
+    function handleClose(e: MouseEvent) {
+      setMenuOpenId(null);
+      setShowExport(false);
+    }
+    if (!menuOpenId && !showExport) return;
     document.addEventListener('click', handleClose);
     return () => document.removeEventListener('click', handleClose);
-  }, [menuOpenId]);
+  }, [menuOpenId, showExport]);
 
   const fetchLicenses = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -182,7 +190,10 @@ export default function SoftwareLicensesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchLicenses(); }, [fetchLicenses]);
+  useEffect(() => {
+    fetchLicenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchLicenses]);
   useEffect(() => { fetchOverview(); }, [fetchOverview]);
 
   // Toast auto-dismiss
@@ -194,6 +205,8 @@ export default function SoftwareLicensesPage() {
 
   async function refreshAll() {
     await Promise.all([fetchLicenses(true), fetchOverview()]);
+    setJustRefreshed(true);
+    setTimeout(() => setJustRefreshed(false), 2000);
   }
 
   function openAddModal() {
@@ -286,6 +299,90 @@ export default function SoftwareLicensesPage() {
     }
   }
 
+  const allSelected = licenses.length > 0 && licenses.every(l => selected.has(l.id));
+  const someSelected = selected.size > 0 && !allSelected;
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(licenses.map(l => l.id)));
+    }
+  }
+
+  function clearSelection() { setSelected(new Set()); }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!window.confirm(`Delete ${selected.size} license(s)? This cannot be undone.`)) return;
+    try {
+      await Promise.all(Array.from(selected).map(id => api.delete(`/software-licenses/${id}`)));
+      setToast({ message: `${selected.size} license(s) deleted`, type: 'success' });
+      clearSelection();
+      await refreshAll();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Bulk delete failed', type: 'error' });
+    }
+  }
+
+  function exportLicenses(format: 'csv' | 'json') {
+    const data = licenses.filter(l => selected.size === 0 || selected.has(l.id));
+    if (data.length === 0) return;
+
+    const rows = data.map(l => ({
+      name: l.name,
+      publisher: l.publisher || '',
+      version: l.version || '',
+      license_type: l.license_type,
+      license_key: l.license_key || '',
+      total_seats: l.total_seats,
+      used_seats: l.used_seats,
+      available_seats: l.available_seats,
+      purchase_date: l.purchase_date || '',
+      expiry_date: l.expiry_date || '',
+      cost_per_seat: l.cost_per_seat ?? '',
+      total_cost: l.total_cost ?? '',
+      currency: l.currency,
+      vendor: l.vendor || '',
+      compliance_status: l.compliance_status,
+    }));
+
+    const filename = `licenses-export-${new Date().toISOString().slice(0, 10)}`;
+
+    if (format === 'csv') {
+      const headers = Object.keys(rows[0]);
+      const csv = [
+        headers.join(','),
+        ...rows.map(r => headers.map(h => {
+          const val = (r as any)[h];
+          const str = String(val ?? '');
+          return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+        }).join(',')),
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${filename}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${filename}.json`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    setShowExport(false);
+    setToast({ message: `Exported ${rows.length} license(s) as ${format.toUpperCase()}`, type: 'success' });
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const filterCount = Object.values(filters).filter(Boolean).length;
 
@@ -356,11 +453,38 @@ export default function SoftwareLicensesPage() {
               Track license compliance, manage seat allocations, and automate software matching.
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => refreshAll()} style={{ ...controlButtonStyle, background: 'var(--bg-elevated)' }}>
-              <RefreshCw size={15} style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }} />
-              Refresh
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={() => refreshAll()} style={{ ...controlButtonStyle, background: 'var(--bg-elevated)', gap: 6 }}>
+              <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : undefined }} />
+              {justRefreshed ? 'Refreshed!' : 'Refresh'}
             </button>
+            {isAdmin && (
+              <button onClick={() => setShowImport(true)} style={{ ...controlButtonStyle, background: 'var(--bg-elevated)' }}>
+                <Upload size={14} />
+                Import
+              </button>
+            )}
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setShowExport(!showExport)} style={{ ...controlButtonStyle, background: 'var(--bg-elevated)' }}>
+                <Download size={14} />
+                Export
+                <ChevronDown size={12} />
+              </button>
+              {showExport && (
+                <div style={{
+                  position: 'absolute', right: 0, top: '100%', zIndex: 50, minWidth: 130, marginTop: 4,
+                  background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)', padding: 4,
+                }}>
+                  <button onClick={() => exportLicenses('csv')} style={menuItemStyle}>
+                    <Download size={13} /> Export as CSV
+                  </button>
+                  <button onClick={() => exportLicenses('json')} style={menuItemStyle}>
+                    <FileText size={13} /> Export as JSON
+                  </button>
+                </div>
+              )}
+            </div>
             {isAdmin && (
               <button onClick={openAddModal} style={{
                 ...controlButtonStyle, background: 'var(--accent)', border: '1px solid var(--accent)', color: 'var(--text-inverse)',
@@ -451,6 +575,30 @@ export default function SoftwareLicensesPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {selected.size > 0 && (
+        <div style={{
+          padding: '10px 24px', borderBottom: '1px solid var(--border)',
+          background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', gap: 12,
+          fontSize: 13, flexShrink: 0,
+        }}>
+          <CheckSquare size={15} style={{ color: 'var(--accent)' }} />
+          <span style={{ fontWeight: 600 }}>{selected.size} selected</span>
+          <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+          <button onClick={() => exportLicenses('csv')} style={bulkActionBtnStyle}>
+            <Download size={13} /> Export Selected
+          </button>
+          {isAdmin && (
+            <button onClick={handleBulkDelete} style={{ ...bulkActionBtnStyle, color: '#ef4444' }}>
+              <Trash2 size={13} /> Delete Selected
+            </button>
+          )}
+          <button onClick={clearSelection} style={{ ...bulkActionBtnStyle, color: 'var(--text-muted)' }}>
+            <X size={13} /> Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
         {loading ? (
@@ -468,6 +616,13 @@ export default function SoftwareLicensesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ ...thStyle, width: 40 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <button onClick={toggleSelectAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                        {allSelected ? <CheckSquare size={14} /> : someSelected ? <CheckSquare size={14} style={{ opacity: 0.5 }} /> : <Square size={14} />}
+                      </button>
+                    </div>
+                  </th>
                   <th style={thStyle}>Name</th>
                   <th style={thStyle}>Publisher</th>
                   <th style={thStyle}>Type</th>
@@ -486,6 +641,16 @@ export default function SoftwareLicensesPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
+                    <td style={{ ...tdStyle, width: 40 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); toggleSelect(lic.id); }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: selected.has(lic.id) ? 'var(--accent)' : 'var(--text-muted)', padding: 0 }}
+                        >
+                          {selected.has(lic.id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                        </button>
+                      </div>
+                    </td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600 }}>{lic.name}</div>
                       {lic.version && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>v{lic.version}</div>}
@@ -697,6 +862,13 @@ export default function SoftwareLicensesPage() {
           </div>
         </ModalOverlay>
       )}
+      {/* Import Modal */}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => refreshAll()}
+        />
+      )}
     </div>
   );
 }
@@ -762,6 +934,13 @@ const menuItemStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
   background: 'none', border: 'none', color: 'var(--text)', fontSize: 12, fontWeight: 500,
   cursor: 'pointer', borderRadius: 'var(--radius-sm)', textAlign: 'left',
+};
+
+const bulkActionBtnStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+  borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+  background: 'var(--bg-elevated)', color: 'var(--text)', cursor: 'pointer',
+  fontSize: 12, fontWeight: 600,
 };
 
 const pageBtnStyle: CSSProperties = {

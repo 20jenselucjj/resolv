@@ -11,6 +11,7 @@ import {
   fetchGoogleDirectoryGroups, fetchGroupMembers,
   resolveFieldPath, mapDirectoryUser, friendlyError,
   getLoginMode, getEmergencyKey, verifyEmergencyKey,
+  extractManagerEmail, evaluateConditions,
 } from './directory-sync/helpers';
 
 const LOGIN_MODE_KEY = 'login_mode';
@@ -182,6 +183,12 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Pre-load role assignment rules (enabled, sorted by priority)
+      const roleRulesResult = await pool.query(
+        'SELECT * FROM role_assignment_rules WHERE enabled = true ORDER BY priority ASC'
+      );
+      const roleRules = roleRulesResult.rows;
+
       // Process users
       let usersSynced = 0;
       let usersCreated = 0;
@@ -189,14 +196,61 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
       let usersDeactivated = 0;
 
       const syncedEmails: string[] = [];
+      const syncedUsers: Array<{ email: string; manager_email?: string | null }> = [];
 
       for (const dirUser of dirUsers) {
         const mapped = mapDirectoryUser(dirUser, fieldMapping);
+        // Also extract manager email directly from the raw directory user (not through mapping,
+        // since the mapping path is configurable, but we always want to try manager resolution)
+        const directManagerEmail = extractManagerEmail(dirUser);
         const email = mapped.email || dirUser.primaryEmail;
 
         if (!email) continue;
 
         syncedEmails.push(email.toLowerCase());
+
+        // Build attribute set for role rule evaluation
+        const userAttrs: Record<string, any> = { ...mapped };
+        // Add some computed attributes for richer rules
+        if (email) userAttrs.email = email.toLowerCase();
+
+        // Determine role: role assignment rules (priority order) > group mapping > defaultRole
+        let role = defaultRole;
+        let roleSource: string | null = null;
+
+        // 1. Try role assignment rules (admin-configurable, highest priority)
+        for (const rule of roleRules) {
+          const conditions = typeof rule.conditions === 'string' ? JSON.parse(rule.conditions) : rule.conditions;
+          if (conditions.length === 0) continue; // Skip catch-all rules until nothing else matches
+          if (evaluateConditions(conditions, rule.match_type, userAttrs)) {
+            role = rule.role;
+            roleSource = 'rule';
+            break;
+          }
+        }
+
+        // 2. Fall back to group->role mapping (legacy)
+        if (!roleSource) {
+          for (const mapping of roleMapping) {
+            if (mapping.directoryGroup && groupMembersByEmail[mapping.directoryGroup]?.includes(email.toLowerCase())) {
+              role = mapping.role;
+              roleSource = 'group';
+              break;
+            }
+          }
+        }
+
+        // Only if group mapping also didn't match, check for catch-all role rules
+        if (!roleSource) {
+          for (const rule of roleRules) {
+            const conditions = typeof rule.conditions === 'string' ? JSON.parse(rule.conditions) : rule.conditions;
+            if (conditions.length === 0) {
+              role = rule.role;
+              roleSource = 'rule_catchall';
+              break;
+            }
+          }
+        }
 
         // Check if user exists
         const existing = await pool.query(
@@ -204,14 +258,21 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
           [email]
         );
 
-        // Determine role from role mapping
-        let role = defaultRole;
-        for (const mapping of roleMapping) {
-          if (mapping.directoryGroup && groupMembersByEmail[mapping.directoryGroup]?.includes(email.toLowerCase())) {
-            role = mapping.role;
-            break;
+        // Build all mapped fields for update/insert
+        // Only include fields that map to actual DB columns (exclude transient/temp fields)
+        const UPDATEABLE_COLUMNS = new Set([
+          'name', 'department', 'title', 'phone', 'external_id',
+          'employee_id', 'location', 'cost_center',
+        ]);
+        const updateableFields: Record<string, any> = {};
+        for (const [field, value] of Object.entries(mapped)) {
+          if (UPDATEABLE_COLUMNS.has(field) && value !== undefined) {
+            updateableFields[field] = value;
           }
         }
+
+        // Store the manager email for post-sync resolution (regardless of mapping)
+        const managerEmail = directManagerEmail || mapped.manager_email;
 
         if (existing.rows.length > 0) {
           // Update existing user
@@ -219,25 +280,10 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
           const updateValues: any[] = [];
           let paramIdx = 1;
 
-          if (mapped.name !== undefined) {
-            updateFields.push(`name = $${paramIdx++}`);
-            updateValues.push(mapped.name);
-          }
-          if (mapped.department !== undefined) {
-            updateFields.push(`department = $${paramIdx++}`);
-            updateValues.push(mapped.department);
-          }
-          if (mapped.job_title !== undefined) {
-            updateFields.push(`title = $${paramIdx++}`);
-            updateValues.push(mapped.job_title);
-          }
-          if (mapped.phone !== undefined) {
-            updateFields.push(`phone = $${paramIdx++}`);
-            updateValues.push(mapped.phone);
-          }
-          if (mapped.external_id !== undefined) {
-            updateFields.push(`external_id = $${paramIdx++}`);
-            updateValues.push(mapped.external_id);
+          for (const [field, value] of Object.entries(updateableFields)) {
+            if (field === 'manager_email') continue; // handled in post-sync pass
+            updateFields.push(`${field} = $${paramIdx++}`);
+            updateValues.push(value);
           }
 
           updateFields.push('source = $' + paramIdx++);
@@ -258,32 +304,73 @@ export default async function directorySyncRoutes(fastify: FastifyInstance) {
             );
             usersUpdated++;
           }
+
+          syncedUsers.push({ email: email.toLowerCase(), manager_email: managerEmail });
         } else if (autoProvision) {
-          // Create new user (existence already checked above)
+          // Create new user
           try {
             const placeholderHash = crypto.randomBytes(32).toString('hex');
+            const insertFields = ['email', 'name', 'role', 'source', 'is_active', 'last_sync_at', 'password_hash'];
+            const insertValues: any[] = [
+              email,
+              mapped.name || email.split('@')[0],
+              role,
+              'google_workspace',
+              true,
+              new Date().toISOString(),
+              placeholderHash,
+            ];
+
+            // Add optional mapped fields
+            for (const [field, value] of Object.entries(updateableFields)) {
+              if (field === 'manager_email' || field === 'name') continue;
+              if (value !== undefined && value !== null) {
+                insertFields.push(field);
+                insertValues.push(value);
+              }
+            }
+
+            const placeholders = insertValues.map((_, i) => `$${i + 1}`).join(', ');
             await pool.query(
-              `INSERT INTO users (email, name, role, department, title, phone, external_id, source, is_active, last_sync_at, password_hash)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, 'google_workspace', true, NOW(), $8)`,
-              [
-                email,
-                mapped.name || email.split('@')[0],
-                role,
-                mapped.department ?? null,
-                mapped.job_title ?? null,
-                mapped.phone ?? null,
-                mapped.external_id ?? null,
-                placeholderHash,
-              ]
+              `INSERT INTO users (${insertFields.join(', ')}) VALUES (${placeholders})`,
+              insertValues
             );
             usersCreated++;
+
+            syncedUsers.push({ email: email.toLowerCase(), manager_email: managerEmail });
           } catch (insertErr: any) {
-            // Ignore duplicate key errors in case of race condition
             if (insertErr.code !== '23505') throw insertErr;
           }
+        } else {
+          syncedUsers.push({ email: email.toLowerCase(), manager_email: managerEmail });
         }
 
         usersSynced++;
+      }
+
+      // ─── Post-sync: resolve manager emails to manager_ids ─────────────
+      for (const synced of syncedUsers) {
+        if (!synced.manager_email) continue;
+
+        try {
+          const managerResult = await pool.query(
+            'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [synced.manager_email]
+          );
+
+          if (managerResult.rows.length > 0) {
+            // Avoid circular self-reference
+            if (synced.email !== synced.manager_email.toLowerCase()) {
+              await pool.query(
+                'UPDATE users SET manager_id = $1 WHERE LOWER(email) = LOWER($2) AND (manager_id IS NULL OR manager_id != $1)',
+                [managerResult.rows[0].id, synced.email]
+              );
+            }
+          }
+        } catch (resolveErr: any) {
+          // Log but don't fail the sync
+          fastify.log.warn({ err: resolveErr, email: synced.email }, 'Failed to resolve manager');
+        }
       }
 
       // Remove users not found in directory but with source='google_workspace'

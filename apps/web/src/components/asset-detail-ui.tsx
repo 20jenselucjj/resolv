@@ -298,7 +298,7 @@ export function EmptyState({
   );
 }
 
-export function EditAssetModal({
+export function OwnershipEditModal({
   asset,
   onClose,
   onSaved
@@ -308,14 +308,15 @@ export function EditAssetModal({
   onSaved: (next: AssetDetail) => void;
 }): React.JSX.Element {
   const [form, setForm] = React.useState({
-    display_name: asset.display_name || '',
     assigned_to_name: asset.assigned_to_name || '',
+    owner_name: asset.owner_name || '',
     department: asset.department || '',
     location: asset.location || '',
     company: asset.company || '',
     vendor: asset.vendor || '',
     purchase_date: asset.purchase_date || '',
-    warranty_expiry: asset.warranty_expiry || ''
+    warranty_expiry: asset.warranty_expiry || '',
+    purchase_cost: asset.purchase_cost != null ? String(asset.purchase_cost) : ''
   });
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -337,9 +338,20 @@ export function EditAssetModal({
     setSaving(true);
     setError('');
 
+    const payload: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(form)) {
+      if (value === '' || value == null) {
+        payload[key] = null;
+      } else if (key === 'purchase_cost') {
+        payload[key] = Number(value);
+      } else {
+        payload[key] = value;
+      }
+    }
+
     try {
-      const response = await api.patch<AssetResponse | undefined>(`/assets/${asset.id}`, form);
-      onSaved(response?.data || { ...asset, ...form });
+      const response = await api.patch<AssetResponse | undefined>(`/assets/${asset.id}`, payload);
+      onSaved(response?.data || { ...asset, ...payload, purchase_cost: payload.purchase_cost as number | null });
       onClose();
     } catch (err: any) {
       setError(err.message || 'Unable to save asset');
@@ -383,9 +395,9 @@ export function EditAssetModal({
           }}
         >
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Edit asset</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Edit Ownership &amp; Lifecycle</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              Update ownership, lifecycle, and display details.
+              Update assignment and procurement details.
             </div>
           </div>
           <button
@@ -409,14 +421,15 @@ export function EditAssetModal({
 
         <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           {[
-            ['Display name', 'display_name', 'text'],
             ['Assigned to', 'assigned_to_name', 'text'],
+            ['Owner', 'owner_name', 'text'],
             ['Department', 'department', 'text'],
             ['Location', 'location', 'text'],
             ['Company', 'company', 'text'],
             ['Vendor', 'vendor', 'text'],
             ['Purchase date', 'purchase_date', 'date'],
-            ['Warranty expiry', 'warranty_expiry', 'date']
+            ['Warranty expiry', 'warranty_expiry', 'date'],
+            ['Purchase cost', 'purchase_cost', 'number']
           ].map(([label, key, type]) => (
             <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span
@@ -458,6 +471,214 @@ export function EditAssetModal({
             borderTop: '1px solid var(--border)'
           }}
         >
+          <ActionButton onClick={onClose}>Cancel</ActionButton>
+          <ActionButton icon={Save} tone="primary" disabled={saving} onClick={save}>
+            {saving ? 'Saving\u2026' : 'Save changes'}
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AboutEditModal({
+  asset,
+  onClose,
+  onSaved
+}: {
+  asset: AssetDetail;
+  onClose: () => void;
+  onSaved: (next: AssetDetail) => void;
+}): React.JSX.Element {
+  const [displayName, setDisplayName] = React.useState(asset.display_name || '');
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 42,
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--border)',
+    background: 'var(--bg)',
+    color: 'var(--text)',
+    padding: '0 12px',
+    fontSize: 13,
+    fontFamily: BODY_FONT,
+    boxSizing: 'border-box'
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const response = await api.patch<AssetResponse | undefined>(`/assets/${asset.id}`, {
+        display_name: displayName || null
+      });
+      onSaved(response?.data || { ...asset, display_name: displayName || null });
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Unable to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', padding: 24, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 480, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Edit Display Name</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Update the friendly name for this asset.</div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontWeight: 700 }}>Display name</span>
+            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={inputStyle} />
+          </label>
+          {error && <div style={{ marginTop: 12, color: 'var(--danger)', fontSize: 13, fontWeight: 600 }}>{error}</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 20px 20px', borderTop: '1px solid var(--border)' }}>
+          <ActionButton onClick={onClose}>Cancel</ActionButton>
+          <ActionButton icon={Save} tone="primary" disabled={saving} onClick={save}>
+            {saving ? 'Saving\u2026' : 'Save changes'}
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TagsEditModal({
+  asset,
+  onClose,
+  onSaved
+}: {
+  asset: AssetDetail;
+  onClose: () => void;
+  onSaved: (next: AssetDetail) => void;
+}): React.JSX.Element {
+  const [tags, setTags] = React.useState<string[]>(asset.tags || []);
+  const [input, setInput] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const addTag = () => {
+    const trimmed = input.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
+    setInput('');
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const response = await api.patch<AssetResponse | undefined>(`/assets/${asset.id}`, { tags });
+      onSaved(response?.data || { ...asset, tags });
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Unable to save tags');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', padding: 24, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 480, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Edit Tags</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Add or remove labels and categories.</div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a tag and press Enter"
+              style={{
+                flex: 1,
+                height: 42,
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                background: 'var(--bg)',
+                color: 'var(--text)',
+                padding: '0 12px',
+                fontSize: 13,
+                fontFamily: BODY_FONT,
+                boxSizing: 'border-box'
+              }}
+            />
+            <ActionButton onClick={addTag} disabled={!input.trim()}>Add</ActionButton>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minHeight: 40 }}>
+            {tags.length === 0 && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>No tags yet. Type above to add one.</div>
+            )}
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  border: '1px solid var(--border)',
+                  background: 'var(--accent-subtle)',
+                  color: 'var(--accent)',
+                  fontSize: 12,
+                  fontWeight: 700
+                }}
+              >
+                {tag}
+                <button
+                  onClick={() => removeTag(tag)}
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0,
+                    fontSize: 14,
+                    lineHeight: 1
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          {error && <div style={{ marginTop: 12, color: 'var(--danger)', fontSize: 13, fontWeight: 600 }}>{error}</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, padding: '16px 20px 20px', borderTop: '1px solid var(--border)' }}>
           <ActionButton onClick={onClose}>Cancel</ActionButton>
           <ActionButton icon={Save} tone="primary" disabled={saving} onClick={save}>
             {saving ? 'Saving\u2026' : 'Save changes'}

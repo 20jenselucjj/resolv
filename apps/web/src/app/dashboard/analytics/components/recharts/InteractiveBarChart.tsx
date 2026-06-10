@@ -13,6 +13,7 @@ import {
   Cell,
 } from 'recharts';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
+import ChartSkeleton from './ChartSkeleton';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -53,6 +54,8 @@ export interface BarChartProps {
   xLabel?: string;
   /** Y-axis label */
   yLabel?: string;
+  /** Loading state */
+  loading?: boolean;
 }
 
 // ── Custom Tooltip ─────────────────────────────────────────────
@@ -101,10 +104,22 @@ const InteractiveBarChart: React.FC<BarChartProps> = ({
   width = '100%',
   xLabel,
   yLabel,
+  loading = false,
 }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | undefined>(undefined);
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const defaultColor = color || cssVar('--accent', '#1E40AF');
+
+  const handleLegendClick = useCallback((entry: any) => {
+    const key = entry.dataKey;
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const handleClick = useCallback(
     (data: any, index: number) => {
@@ -112,6 +127,10 @@ const InteractiveBarChart: React.FC<BarChartProps> = ({
     },
     [onBarClick]
   );
+
+  if (loading) {
+    return <ChartSkeleton height={height} showLegend={!!series} showGrid={showGrid} />;
+  }
 
   if (!data.length) {
     return (
@@ -156,7 +175,7 @@ const InteractiveBarChart: React.FC<BarChartProps> = ({
           </button>
         </div>
       )}
-      <div ref={chartRef}>
+      <div ref={chartRef} role="img" aria-label="Bar chart">
         <ResponsiveContainer width={width} height={height}>
           <BarChart
             data={data}
@@ -223,6 +242,7 @@ const InteractiveBarChart: React.FC<BarChartProps> = ({
                   name={s.name}
                   fill={s.color}
                   radius={radius}
+                  hide={hiddenSeries.has(s.dataKey)}
                   animationDuration={800}
                   animationEasing="ease-out"
                 />
@@ -256,6 +276,7 @@ const InteractiveBarChart: React.FC<BarChartProps> = ({
               height={36}
               iconType="rect"
               iconSize={10}
+              onClick={series ? handleLegendClick : undefined}
               formatter={(value: string) => (
                 <span style={{ color: cssVar('--text-secondary', '#4B5563'), fontSize: 12 }}>{value}</span>
               )}

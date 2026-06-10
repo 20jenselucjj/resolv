@@ -220,6 +220,7 @@ export function ChangeMgmtTab({ showAlert }: {
                   onClick={() => handleSave(key, settings[key] || '')}
                   style={savingKey === key ? btnDisabledStyle : btnStyle}
                   disabled={savingKey === key}
+                  className={`btn-save${savingKey === key ? ' saving' : ''}`}
                 >
                   <Save size={13} />
                   {savingKey === key ? 'Saving...' : 'Save'}
@@ -269,6 +270,7 @@ export function ChangeMgmtTab({ showAlert }: {
                 onClick={() => handleSave('change_blackout_message', settings['change_blackout_message'] || '')}
                 style={savingKey === 'change_blackout_message' ? btnDisabledStyle : btnStyle}
                 disabled={savingKey === 'change_blackout_message'}
+                className={`btn-save${savingKey === 'change_blackout_message' ? ' saving' : ''}`}
               >
                 <Save size={13} />
                 {savingKey === 'change_blackout_message' ? 'Saving...' : 'Save'}
@@ -323,6 +325,7 @@ export function ChangeMgmtTab({ showAlert }: {
                 onClick={() => handleSave('change_pir_types', settings['change_pir_types'] || 'normal,emergency')}
                 style={savingKey === 'change_pir_types' ? btnDisabledStyle : btnStyle}
                 disabled={savingKey === 'change_pir_types'}
+                className={`btn-save${savingKey === 'change_pir_types' ? ' saving' : ''}`}
               >
                 <Save size={13} />
                 {savingKey === 'change_pir_types' ? 'Saving...' : 'Save'}
@@ -380,6 +383,7 @@ export function ChangeMgmtTab({ showAlert }: {
               onClick={() => handleSave('change_impl_plan_template', settings['change_impl_plan_template'] || '')}
               style={savingKey === 'change_impl_plan_template' ? btnDisabledStyle : btnStyle}
               disabled={savingKey === 'change_impl_plan_template'}
+              className={`btn-save${savingKey === 'change_impl_plan_template' ? ' saving' : ''}`}
             >
               <Save size={13} />
               {savingKey === 'change_impl_plan_template' ? 'Saving...' : 'Save Template'}
@@ -429,6 +433,7 @@ export function ChangeMgmtTab({ showAlert }: {
               onClick={() => handleSave('change_rollback_template', settings['change_rollback_template'] || '')}
               style={savingKey === 'change_rollback_template' ? btnDisabledStyle : btnStyle}
               disabled={savingKey === 'change_rollback_template'}
+              className={`btn-save${savingKey === 'change_rollback_template' ? ' saving' : ''}`}
             >
               <Save size={13} />
               {savingKey === 'change_rollback_template' ? 'Saving...' : 'Save Template'}

@@ -41,6 +41,7 @@ const createAssetSchema = z.object({
   os_version: z.string().max(255).optional(),
   asset_group_id: z.string().uuid().optional().nullable(),
   assigned_to_id: z.string().uuid().optional().nullable(),
+  owner_name: z.string().max(255).optional(),
   department: z.string().max(100).optional(),
   location: z.string().max(255).optional(),
   company: z.string().max(255).optional(),
@@ -711,7 +712,7 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     const allowed = [
       'name', 'display_name', 'asset_type', 'status', 'serial_number', 'manufacturer', 'model',
       'ip_address', 'mac_address', 'hostname', 'domain', 'os_name', 'os_version', 'os_build', 'os_arch',
-      'asset_group_id', 'assigned_to_id', 'department', 'location', 'company',
+      'asset_group_id', 'assigned_to_id', 'owner_name', 'department', 'location', 'company',
       'purchase_date', 'warranty_expiry', 'purchase_cost', 'vendor', 'notes', 'tags',
     ];
     const sets: string[] = [];

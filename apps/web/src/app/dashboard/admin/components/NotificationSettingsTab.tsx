@@ -261,7 +261,7 @@ export function NotificationSettingsTab({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="btn btn-primary"
+                className={`btn btn-primary btn-save${saving ? ' saving' : ''}`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '10px 24px', background: 'var(--accent)', color: '#fff',

@@ -580,6 +580,106 @@ export default async function softwareLicenseRoutes(fastify: FastifyInstance) {
     return reply.send({ data: result.rows[0] });
   });
 
+  // ─── Bulk Import ────────────────────────────────────────────────────────────
+
+  const importSchema = z.object({
+    licenses: z.array(z.object({
+      name: z.string().min(1).max(300),
+      publisher: z.string().max(200).optional().nullable(),
+      version: z.string().max(100).optional().nullable(),
+      license_type: z.enum(['perpetual', 'subscription', 'concurrent', 'freeware', 'open_source', 'trial']).default('perpetual'),
+      license_key: z.string().optional().nullable(),
+      total_seats: z.number().int().min(0).default(1),
+      purchase_date: z.string().optional().nullable(),
+      expiry_date: z.string().optional().nullable(),
+      cost_per_seat: z.number().optional().nullable(),
+      total_cost: z.number().optional().nullable(),
+      currency: z.string().max(10).default('USD'),
+      vendor: z.string().max(200).optional().nullable(),
+      category: z.string().max(100).optional().nullable(),
+      notes: z.string().optional().nullable(),
+    })).min(1).max(500),
+  });
+
+  fastify.post('/software-licenses/import', { preHandler: [fastify.requirePermission('manage_licenses')] }, async (request: any, reply) => {
+    const body = importSchema.parse(request.body);
+
+    const results: { row: number; name: string; status: 'imported' | 'error'; error?: string }[] = [];
+    let importedCount = 0;
+
+    for (let i = 0; i < body.licenses.length; i++) {
+      const lic = body.licenses[i];
+      try {
+        const result = await pool.query(`
+          INSERT INTO software_licenses (
+            name, publisher, version, license_type, license_key, total_seats,
+            purchase_date, expiry_date, cost_per_seat, total_cost,
+            currency, vendor, category, notes, created_by
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          RETURNING id
+        `, [
+          lic.name, lic.publisher || null, lic.version || null, lic.license_type,
+          lic.license_key || null, lic.total_seats ?? 1,
+          lic.purchase_date || null, lic.expiry_date || null,
+          lic.cost_per_seat || null, lic.total_cost || null,
+          lic.currency || 'USD', lic.vendor || null,
+          lic.category || null, lic.notes || null, request.user.id,
+        ]);
+
+        await recalculateLicenseCompliance(result.rows[0].id);
+
+        importedCount++;
+        results.push({ row: i + 1, name: lic.name, status: 'imported' });
+      } catch (err: any) {
+        const msg = err.message || 'Validation failed';
+        results.push({ row: i + 1, name: lic.name, status: 'error', error: msg });
+      }
+    }
+
+    return reply.status(importedCount > 0 ? 200 : 400).send({
+      data: {
+        total: body.licenses.length,
+        imported: importedCount,
+        failed: body.licenses.length - importedCount,
+        results,
+      },
+    });
+  });
+
+  // ─── Export ──────────────────────────────────────────────────────────────────
+
+  fastify.get('/software-licenses/export', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    if (request.user.role === 'user') {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const { license_type, compliance_status, publisher, search } = request.query as any;
+    const conditions: string[] = [];
+    const vals: any[] = [];
+    let paramIdx = 1;
+
+    if (license_type) { conditions.push(`sl.license_type = $${paramIdx++}`); vals.push(license_type); }
+    if (compliance_status) { conditions.push(`sl.compliance_status = $${paramIdx++}`); vals.push(compliance_status); }
+    if (publisher) { conditions.push(`sl.publisher ILIKE $${paramIdx++}`); vals.push(`%${publisher}%`); }
+    if (search) {
+      conditions.push(`(sl.name ILIKE $${paramIdx} OR sl.publisher ILIKE $${paramIdx} OR sl.vendor ILIKE $${paramIdx})`);
+      vals.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const result = await pool.query(`
+      SELECT sl.*, u.name as created_by_name
+      FROM software_licenses sl
+      LEFT JOIN users u ON sl.created_by = u.id
+      ${where}
+      ORDER BY sl.name ASC
+    `, vals);
+
+    return reply.send({ data: result.rows, total: result.rows.length });
+  });
+
   // ─── Contracts ───────────────────────────────────────────────────────────────
 
   fastify.get('/software-licenses/:id/contracts', { preHandler: [fastify.authenticate] }, async (request, reply) => {

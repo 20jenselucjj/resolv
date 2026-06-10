@@ -11,6 +11,7 @@ import {
   Sector,
 } from 'recharts';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
+import ChartSkeleton from './ChartSkeleton';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ export interface DonutChartProps {
   showExport?: boolean;
   /** Chart height */
   height?: number;
+  /** Loading state */
+  loading?: boolean;
 }
 
 // ── Custom Active Shape ────────────────────────────────────────
@@ -116,6 +119,7 @@ const InteractiveDonutChart: React.FC<DonutChartProps> = ({
   exportFilename = 'donut-chart',
   showExport = false,
   height = 300,
+  loading = false,
 }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = React.useState<number | undefined>(undefined);
@@ -126,6 +130,10 @@ const InteractiveDonutChart: React.FC<DonutChartProps> = ({
     },
     [data, onSegmentClick]
   );
+
+  if (loading) {
+    return <ChartSkeleton height={height} showLegend={false} showGrid={false} />;
+  }
 
   const computedTotal = total ?? data.reduce((s, d) => s + d.value, 0);
 
@@ -149,7 +157,7 @@ const InteractiveDonutChart: React.FC<DonutChartProps> = ({
           </button>
         </div>
       )}
-      <div ref={chartRef}>
+      <div ref={chartRef} role="img" aria-label="Donut chart">
         <ResponsiveContainer width="100%" height={height}>
           <PieChart>
             {total !== undefined && activeIndex === undefined && (

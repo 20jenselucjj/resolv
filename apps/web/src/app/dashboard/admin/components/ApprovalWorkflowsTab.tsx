@@ -3,16 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle, XCircle, Bell, Clock, AlertTriangle, ArrowUpCircle, Save,
-  Users, HelpCircle, Gavel
+  Users, HelpCircle, Gavel, ArrowRight, CheckSquare
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ToggleSwitch } from './ToggleSwitch';
+import { ApprovalRoutingRulesTab } from './ApprovalRoutingRulesTab';
+import { SelectSearch } from '@/components/SelectSearch';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ApprovalWorkflowsTab({ showAlert }: {
   showAlert: (m: string, t?: 'success' | 'error') => void;
 }) {
+  const [subSection, setSubSection] = useState<'settings' | 'routing-rules'>('settings');
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -42,10 +45,6 @@ export function ApprovalWorkflowsTab({ showAlert }: {
   const labelStyle: React.CSSProperties = {
     display: 'block', fontSize: '12px', fontWeight: 600,
     color: 'var(--text-secondary)', marginBottom: '4px',
-  };
-
-  const selectStyle: React.CSSProperties = {
-    ...inputStyle, cursor: 'pointer',
   };
 
   const subsectionStyle: React.CSSProperties = {
@@ -124,6 +123,11 @@ export function ApprovalWorkflowsTab({ showAlert }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {renderSubTabs(subSection, setSubSection)}
+      {subSection === 'routing-rules' ? (
+        <ApprovalRoutingRulesTab showAlert={showAlert} />
+      ) : (
+        <>
 
       {/* Default Due Dates */}
       <div style={sectionStyle}>
@@ -183,6 +187,7 @@ export function ApprovalWorkflowsTab({ showAlert }: {
                 }
                 showAlert('All due date settings saved');
               }}
+              className="btn-save"
               style={btnStyle}
             >
               <Save size={13} />
@@ -237,6 +242,7 @@ export function ApprovalWorkflowsTab({ showAlert }: {
                 onClick={() => handleSave('approval_escalation_hours', settings['approval_escalation_hours'] || '48')}
                 style={savingKey === 'approval_escalation_hours' ? btnDisabledStyle : btnStyle}
                 disabled={savingKey === 'approval_escalation_hours'}
+                className={`btn-save${savingKey === 'approval_escalation_hours' ? ' saving' : ''}`}
               >
                 <Save size={13} />
                 {savingKey === 'approval_escalation_hours' ? 'Saving...' : 'Save'}
@@ -251,20 +257,26 @@ export function ApprovalWorkflowsTab({ showAlert }: {
             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' }}>
               Who receives the escalated approval request.
             </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select
-                value={settings['approval_escalation_target'] || 'next_step'}
-                onChange={e => setSettings(prev => ({ ...prev, approval_escalation_target: e.target.value }))}
-                style={{ ...selectStyle, flex: 1 }}
-              >
-                <option value="next_step">Next Approver in Step</option>
-                <option value="manager">Requestor's Manager</option>
-                <option value="admin">System Administrator</option>
-              </select>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <SelectSearch
+                  options={[
+                    { value: 'next_step', label: 'Next Approver in Step' },
+                    { value: 'manager', label: "Requestor's Manager" },
+                    { value: 'admin', label: 'System Administrator' },
+                  ]}
+                  value={settings['approval_escalation_target'] || 'next_step'}
+                  onChange={val => setSettings(prev => ({ ...prev, approval_escalation_target: val || 'next_step' }))}
+                  allowClear={false}
+                  hideClear
+                  showSearch={false}
+                />
+              </div>
               <button
                 onClick={() => handleSave('approval_escalation_target', settings['approval_escalation_target'] || 'next_step')}
                 style={savingKey === 'approval_escalation_target' ? btnDisabledStyle : btnStyle}
                 disabled={savingKey === 'approval_escalation_target'}
+                className={`btn-save${savingKey === 'approval_escalation_target' ? ' saving' : ''}`}
               >
                 <Save size={13} />
                 {savingKey === 'approval_escalation_target' ? 'Saving...' : 'Save'}
@@ -305,6 +317,7 @@ export function ApprovalWorkflowsTab({ showAlert }: {
                   onClick={() => handleSave('approval_normal_steps', settings['approval_normal_steps'] || 'manager,admin')}
                   style={savingKey === 'approval_normal_steps' ? btnDisabledStyle : btnStyle}
                   disabled={savingKey === 'approval_normal_steps'}
+                  className={`btn-save${savingKey === 'approval_normal_steps' ? ' saving' : ''}`}
                 >
                   <Save size={13} />
                   {savingKey === 'approval_normal_steps' ? 'Saving...' : 'Save'}
@@ -328,6 +341,7 @@ export function ApprovalWorkflowsTab({ showAlert }: {
                   onClick={() => handleSave('approval_emergency_steps', settings['approval_emergency_steps'] || 'admin')}
                   style={savingKey === 'approval_emergency_steps' ? btnDisabledStyle : btnStyle}
                   disabled={savingKey === 'approval_emergency_steps'}
+                  className={`btn-save${savingKey === 'approval_emergency_steps' ? ' saving' : ''}`}
                 >
                   <Save size={13} />
                   {savingKey === 'approval_emergency_steps' ? 'Saving...' : 'Save'}
@@ -395,6 +409,32 @@ export function ApprovalWorkflowsTab({ showAlert }: {
           </div>
         </div>
       </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function renderSubTabs(subSection: 'settings' | 'routing-rules', setSubSection: (s: 'settings' | 'routing-rules') => void) {
+  return (
+    <div style={{ display: 'flex', gap: '0', marginBottom: '24px', borderBottom: '2px solid var(--border)' }}>
+      {([{ id: 'settings' as const, label: 'General Settings', icon: <CheckSquare size={14} /> },
+         { id: 'routing-rules' as const, label: 'Routing Rules', icon: <ArrowRight size={14} /> }]).map(tab => (
+        <div
+          key={tab.id}
+          onClick={() => setSubSection(tab.id)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '10px 20px', fontSize: '13px', fontWeight: subSection === tab.id ? 700 : 500,
+            cursor: 'pointer', color: subSection === tab.id ? 'var(--accent)' : 'var(--text-secondary)',
+            borderBottom: subSection === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: '-2px', transition: 'all 0.15s',
+          }}
+        >
+          {tab.icon}
+          {tab.label}
+        </div>
+      ))}
     </div>
   );
 }

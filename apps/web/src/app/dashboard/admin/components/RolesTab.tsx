@@ -392,7 +392,7 @@ export function RolesTab({ showAlert }: { showAlert: (m: string, t?: 'success' |
         {hasChanges && (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-ghost" onClick={handleReset}>Reset to defaults</button>
-            <button className="btn btn-primary" onClick={handleSave}>Save Changes</button>
+            <button className="btn btn-primary btn-save" onClick={handleSave}>Save Changes</button>
           </div>
         )}
       </div>

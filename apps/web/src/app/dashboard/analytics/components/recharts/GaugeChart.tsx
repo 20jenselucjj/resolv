@@ -3,6 +3,7 @@
 import React, { useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
+import ChartSkeleton from './ChartSkeleton';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ export interface GaugeChartProps {
   size?: number;
   /** Click handler */
   onClick?: () => void;
+  /** Loading state */
+  loading?: boolean;
 }
 
 // ── Determine color based on value ─────────────────────────────
@@ -68,8 +71,13 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
   showExport = false,
   size = 240,
   onClick,
+  loading = false,
 }) => {
   const chartRef = useRef<HTMLDivElement>(null);
+
+  if (loading) {
+    return <ChartSkeleton height={size * 0.8} showLegend={false} showGrid={false} />;
+  }
 
   const safeValue = Math.min(Math.max(value, 0), 100);
   const safeTarget = target !== undefined ? Math.min(Math.max(target, 0), 100) : undefined;
@@ -115,8 +123,12 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
 
       <div
         ref={chartRef}
+        role="img"
+        aria-label="Gauge chart"
         style={{ width: size, margin: '0 auto', cursor: onClick ? 'pointer' : 'default' }}
         onClick={onClick}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
       >
         {/* ── Arc area with min/max endpoint labels ── */}
         <div style={{ position: 'relative' }}>

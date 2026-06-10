@@ -91,7 +91,7 @@ function CategoryTreeNode({ node, depth, onEdit, onDelete, editingId, editForm, 
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button type="submit" className="btn btn-primary" style={{ padding: '4px 12px', fontSize: 12 }}>Save</button>
+              <button type="submit" className="btn btn-primary btn-save" style={{ padding: '4px 12px', fontSize: 12 }}>Save</button>
               <button type="button" className="btn btn-ghost" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => onEdit({} as Category)}>Cancel</button>
             </div>
           </form>
@@ -265,7 +265,7 @@ export function CategoriesTab({ categories, onRefresh, showAlert, setConfirmModa
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
+              <button type="submit" className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
               <button type="button" className="btn btn-ghost" onClick={() => setIsAdding(false)}>Cancel</button>
             </div>
           </form>

@@ -1027,6 +1027,52 @@ html {
   overscroll-behavior: none;
 }
 
+/* ============================================================
+   Save Button Animations
+   ============================================================ */
+
+.btn-save {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-save:active:not(:disabled) {
+  transform: scale(0.97) !important;
+}
+
+.btn-save.saving {
+  animation: btn-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes btn-pulse {
+  0%   { opacity: 0.85; transform: scale(1); }
+  50%  { opacity: 0.55; transform: scale(0.97); }
+  100% { opacity: 0.85; transform: scale(1); }
+}
+
+/* ============================================================
+   Native Select — Remove OS styling, add custom chevron
+   Targets all single <select> elements for consistent look
+   ============================================================ */
+
+select:not([multiple]) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238590a2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  background-size: 12px !important;
+  padding-right: 28px !important;
+}
+
+select:not([multiple]):focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
 /* PWA standalone mode adjustments */
 @media all and (display-mode: standalone) {
   .mobile-header {

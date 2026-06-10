@@ -22,4 +22,6 @@ export type { FunnelStage, FunnelChartProps } from './FunnelChart';
 export { default as GaugeChart } from './GaugeChart';
 export type { GaugeChartProps } from './GaugeChart';
 
+export { default as ChartSkeleton } from './ChartSkeleton';
+
 export { exportToPng, exportToSvg, cssVar } from './export-utils';

@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Users, LogIn } from 'lucide-react';
+import { Shield, Users, LogIn, GitBranch } from 'lucide-react';
 import { SSOTab } from './SSOTab';
 import { DirectorySyncTab } from '../DirectorySyncTab';
 import { LoginModeSection } from './LoginModeSection';
+import { RoleAssignmentRulesTab } from './RoleAssignmentRulesTab';
 
-type AuthSubTab = 'sso' | 'directory-sync' | 'login-mode';
+type AuthSubTab = 'sso' | 'directory-sync' | 'role-rules' | 'login-mode';
 
 interface SubTabConfig {
   id: AuthSubTab;
@@ -17,6 +18,7 @@ interface SubTabConfig {
 const SUB_TABS: SubTabConfig[] = [
   { id: 'sso', label: 'SSO Providers', icon: <Shield size={14} /> },
   { id: 'directory-sync', label: 'Directory Sync', icon: <Users size={14} /> },
+  { id: 'role-rules', label: 'Role Rules', icon: <GitBranch size={14} /> },
   { id: 'login-mode', label: 'Login Mode', icon: <LogIn size={14} /> },
 ];
 
@@ -64,6 +66,9 @@ export function AuthenticationTab({
 
       {/* Directory Sync */}
       {activeSubTab === 'directory-sync' && <DirectorySyncTab showAlert={showAlert} />}
+
+      {/* Role Rules */}
+      {activeSubTab === 'role-rules' && <RoleAssignmentRulesTab showAlert={showAlert} />}
 
       {/* Login Mode */}
       {activeSubTab === 'login-mode' && <LoginModeSection showAlert={showAlert} variant="page" />}

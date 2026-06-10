@@ -183,6 +183,7 @@ export function ProblemMgmtTab({ showAlert }: {
               onClick={() => handleSave('problem_root_cause_template', settings['problem_root_cause_template'] || '')}
               style={savingKey === 'problem_root_cause_template' ? btnDisabledStyle : btnStyle}
               disabled={savingKey === 'problem_root_cause_template'}
+              className={`btn-save${savingKey === 'problem_root_cause_template' ? ' saving' : ''}`}
             >
               <Save size={13} />
               {savingKey === 'problem_root_cause_template' ? 'Saving...' : 'Save Template'}
@@ -285,6 +286,7 @@ export function ProblemMgmtTab({ showAlert }: {
                 onClick={() => handleSave('ke_auto_archive_days', settings['ke_auto_archive_days'] || '0')}
                 style={savingKey === 'ke_auto_archive_days' ? btnDisabledStyle : btnStyle}
                 disabled={savingKey === 'ke_auto_archive_days'}
+                className={`btn-save${savingKey === 'ke_auto_archive_days' ? ' saving' : ''}`}
               >
                 <Save size={13} />
                 {savingKey === 'ke_auto_archive_days' ? 'Saving...' : 'Save'}
@@ -321,6 +323,7 @@ export function ProblemMgmtTab({ showAlert }: {
             onClick={() => handleSave('problem_default_priority', settings['problem_default_priority'] || 'medium')}
             style={savingKey === 'problem_default_priority' ? btnDisabledStyle : btnStyle}
             disabled={savingKey === 'problem_default_priority'}
+            className={`btn-save${savingKey === 'problem_default_priority' ? ' saving' : ''}`}
           >
             <Save size={13} />
             {savingKey === 'problem_default_priority' ? 'Saving...' : 'Save'}

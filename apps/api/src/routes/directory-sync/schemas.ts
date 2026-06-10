@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const configSchema = z.object({
   enabled: z.boolean().optional().default(false),
   autoProvision: z.boolean().optional().default(false),
-  defaultRole: z.enum(['admin', 'agent', 'user']).optional().default('user'),
+  defaultRole: z.enum(['admin', 'manager', 'agent', 'user', 'readonly']).optional().default('user'),
   syncIntervalMinutes: z.number().int().min(1).optional().default(60),
   fieldMapping: z.record(z.string()).optional().default({
     name: 'name.fullName',
@@ -12,10 +12,16 @@ export const configSchema = z.object({
     job_title: 'title',
     phone: 'phones[0].value',
     external_id: 'id',
+    employee_id: 'externalIds[0].value',
+    location: 'locations[0].buildingId',
+    manager_email: 'relations[type=manager].value',
+    cost_center: 'organizations[0].costCenter',
+    google_admin: 'isAdmin',
+    suspended: 'suspended',
   }),
   roleMapping: z.array(z.object({
     directoryGroup: z.string(),
-    role: z.enum(['admin', 'agent', 'user']),
+    role: z.enum(['admin', 'manager', 'agent', 'user', 'readonly']),
   })).optional().default([]),
   provider: z.enum(['google_workspace', 'azure_ad', 'okta', 'onelogin', 'generic']).optional().default('google_workspace'),
   clientId: z.string().optional(),

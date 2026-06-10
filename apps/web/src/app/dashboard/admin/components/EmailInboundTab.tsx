@@ -520,7 +520,7 @@ export function EmailInboundTab({ showAlert }: { showAlert: (m: string, t?: 'suc
           <RefreshCw size={14} className={testing ? 'spin' : ''} />
           {testing ? 'Pulling...' : 'Pull New Emails'}
         </button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Save size={14} />
           {saving ? 'Saving...' : 'Save Settings'}
         </button>

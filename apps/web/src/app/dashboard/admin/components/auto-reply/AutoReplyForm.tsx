@@ -326,7 +326,7 @@ export function AutoReplyForm({ showAlert, onSaved, onCancel, editingRule, categ
 
         {/* Save Button */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}
+          <button className={`btn btn-primary btn-save${saving ? ' saving' : ''}`} onClick={handleSave} disabled={saving}
             style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
             <Save size={14} />
             {saving ? 'Saving...' : editingRule ? 'Update Rule' : 'Create Rule'}

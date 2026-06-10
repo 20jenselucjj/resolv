@@ -210,7 +210,7 @@ const HeatmapChart: React.FC<HeatmapChartProps> = ({
         </div>
       )}
 
-      <div ref={chartRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <div ref={chartRef} role="img" aria-label="Heatmap chart" style={{ position: 'relative', display: 'inline-block' }}>
         <div style={{ display: 'flex', gap: cellGap }}>
           {/* Hour headers */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: cellGap, marginRight: 4 }}>
@@ -245,6 +245,9 @@ const HeatmapChart: React.FC<HeatmapChartProps> = ({
                 return (
                   <div
                     key={`${day}-${hour}`}
+                    role="gridcell"
+                    tabIndex={hasValue && onCellClick ? 0 : undefined}
+                    aria-label={hasValue && cell ? `${day} ${hour}:00, value ${cell.value}` : `${day} ${hour}:00, no data`}
                     style={{
                       width: cellW,
                       height: rowHeight,
@@ -278,6 +281,19 @@ const HeatmapChart: React.FC<HeatmapChartProps> = ({
                       }
                     }}
                     onClick={() => handleCellClick(cell)}
+                    onKeyDown={(e) => {
+                      if (hasValue && onCellClick && cell && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        handleCellClick(cell);
+                      }
+                    }}
+                    onFocus={(e) => {
+                      if (hasValue && cell) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setTooltip({ x: rect.left, y: rect.top, cell });
+                      }
+                    }}
+                    onBlur={() => setTooltip(null)}
                   >
                     {showValues && hasValue && cell!.value}
                   </div>

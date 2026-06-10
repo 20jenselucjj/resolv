@@ -327,7 +327,7 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <button type="submit" className="btn btn-primary" style={{ padding: '4px 12px', fontSize: 12 }}>Save</button>
+                    <button type="submit" className="btn btn-primary btn-save" style={{ padding: '4px 12px', fontSize: 12 }}>Save</button>
                     <button type="button" className="btn btn-ghost" style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setEditingId(null)}>Cancel</button>
                   </div>
                 </form>
@@ -484,7 +484,7 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
-                        <button type="submit" className="btn btn-primary" style={{ padding: '6px 14px', fontSize: 12 }} disabled={savingDefaults}>
+                        <button type="submit" className={`btn btn-primary btn-save${savingDefaults ? ' saving' : ''}`} style={{ padding: '6px 14px', fontSize: 12 }} disabled={savingDefaults}>
                           {savingDefaults ? 'Saving...' : 'Save Defaults & Rules'}
                         </button>
                       </div>

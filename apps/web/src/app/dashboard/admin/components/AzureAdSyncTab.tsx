@@ -546,7 +546,7 @@ export function AzureAdSyncTab({
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
           <button
-            className="btn btn-primary"
+            className={`btn btn-primary btn-save${saving ? ' saving' : ''}`}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
             onClick={handleSave}
             disabled={saving || !hasUnsavedChanges}
