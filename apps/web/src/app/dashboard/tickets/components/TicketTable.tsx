@@ -9,9 +9,10 @@ import { formatDate } from '@/lib/date-utils';
 import { InlineSelect } from '@/components/InlineSelect';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import {
-  STATUS_OPTIONS, PRIORITY_OPTIONS, priorityColors, statusConfig, TYPE_CONFIG,
-  PRIORITY_ORDER, STATUS_ORDER, ALL_COLUMNS,
+  PRIORITY_OPTIONS, priorityColors, TYPE_CONFIG,
+  PRIORITY_ORDER, ALL_COLUMNS,
 } from './constants';
+import { useStatusConfig } from '@/lib/StatusConfigContext';
 import { getDueDateColor, timeAgo } from './helpers';
 import type { SortField, SortDir } from './types';
 
@@ -65,6 +66,7 @@ export function TicketTable({
   clearFilters: () => void;
 }) {
   const router = useRouter();
+  const { statusConfig, statusOptions, statusOrder } = useStatusConfig();
 
   return (
     <div style={{ flex: 1, overflow: 'auto' }}>
@@ -306,7 +308,7 @@ export function TicketTable({
                       {isAdminOrAgent ? (
                         <InlineSelect
                           value={t.status}
-                          options={STATUS_OPTIONS.filter(s => s !== 'all').map(s => ({ value: s, label: statusConfig[s]?.label || s }))}
+                          options={statusOptions.filter(s => s.value !== 'all')}
                           onChange={(val) => handleInlineUpdate(t.id, { status: val as Ticket['status'] })}
                           renderValue={(val) => {
                             const sc2 = statusConfig[val] || statusConfig.open;

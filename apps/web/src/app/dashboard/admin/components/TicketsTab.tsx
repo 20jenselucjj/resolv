@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { CategoriesTab } from './CategoriesTab';
-import { WorkflowTab } from './WorkflowTab';
 import { TicketStatusesTab } from './TicketStatusesTab';
+import { ReopenTab } from './ReopenTab';
 import type { Category } from './types';
 
-const SUB_TABS = ['Categories', 'Transitions', 'Statuses'] as const;
+const SUB_TABS = ['Categories', 'Statuses', 'Reopen'] as const;
 type SubTab = typeof SUB_TABS[number];
 
 export function TicketsTab({
@@ -79,14 +79,11 @@ export function TicketsTab({
           setConfirmModal={setConfirmModal}
         />
       )}
-      {subTab === 'Transitions' && (
-        <WorkflowTab
-          showAlert={showAlert}
-          setConfirmModal={setConfirmModal}
-        />
-      )}
       {subTab === 'Statuses' && (
         <TicketStatusesTab showAlert={showAlert} />
+      )}
+      {subTab === 'Reopen' && (
+        <ReopenTab showAlert={showAlert} />
       )}
     </div>
   );

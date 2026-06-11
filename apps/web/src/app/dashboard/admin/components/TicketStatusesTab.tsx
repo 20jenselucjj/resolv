@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Circle, Plus, RotateCcw, X, GripVertical, Hash } from 'lucide-react';
+import { Circle, Plus, X, GripVertical, Hash } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useStatusConfig } from '@/lib/StatusConfigContext';
 
 interface CustomStatus {
   value: string;
@@ -28,6 +29,7 @@ const COLOR_OPTIONS = [
 const DEFAULT_KEYS = DEFAULT_STATUSES.map(d => d.value);
 
 export function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
+  const { refreshStatusConfig } = useStatusConfig();
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +108,7 @@ export function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 's
       await api.patch('/admin/settings', { key: 'custom_statuses', value: JSON.stringify(updatedCustom) });
       await api.patch('/admin/settings', { key: 'status_order', value: JSON.stringify(statusOrder) });
       setCustomStatuses(updatedCustom);
+      await refreshStatusConfig();
       showAlert('All status labels saved successfully');
     } catch {
       showAlert('Failed to save status labels', 'error');
@@ -311,16 +314,6 @@ export function TicketStatusesTab({ showAlert }: { showAlert: (m: string, t?: 's
               ) : null}
 
               {/* Actions */}
-              {def && (
-                <button
-                  onClick={() => setLabels(prev => ({ ...prev, [key]: def.defaultLabel }))}
-                  className="btn btn-ghost btn-sm"
-                  title="Reset label"
-                  style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-                >
-                  <RotateCcw size={12} />
-                </button>
-              )}
               {cs && (
                 <button
                   onClick={() => removeCustomStatus(key)}

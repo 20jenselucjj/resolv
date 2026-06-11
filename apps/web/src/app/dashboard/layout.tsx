@@ -9,6 +9,8 @@ import { Sidebar } from '@/components/Sidebar';
 import { ToastContainer, toast } from '@/components/Toast';
 import { connectSocket } from '@/lib/socket';
 
+import { StatusConfigProvider } from '@/lib/StatusConfigContext';
+
 const AiPanel = dynamic(() => import('@/components/AiPanel').then((m) => m.AiPanel), { ssr: false });
 const CommandPalette = dynamic(() => import('@/components/CommandPalette').then((m) => m.CommandPalette), { ssr: false });
 const NewTicketPanel = dynamic(() => import('@/components/NewTicketPanel').then((m) => m.NewTicketPanel), { ssr: false });
@@ -132,6 +134,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!hasToken) return null;
 
   return (
+    <StatusConfigProvider>
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       <Sidebar 
         onAiOpen={() => { setAiOpen(true); setNewTicketOpen(false); setNotificationsOpen(false); }} 
@@ -214,5 +217,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <CommandPalette />
       <ToastContainer />
     </div>
+    </StatusConfigProvider>
   );
 }

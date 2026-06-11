@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Plus, Trash2, Edit2, ArrowUp, ArrowDown, CheckSquare } from 'lucide-react';
+import { ConditionSection } from './ConditionBuilder';
+import type { RuleCondition, ConditionOperator } from './ConditionBuilder';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -12,12 +14,6 @@ interface StepDef {
   type: ApprovalStepType;
   role?: string;
   user_id?: string;
-}
-
-interface RuleCondition {
-  field: string;
-  operator: string;
-  value: any;
 }
 
 interface ApprovalRoutingRule {
@@ -37,7 +33,7 @@ interface ApprovalRoutingRule {
 
 const ROLES = ['admin', 'manager', 'agent', 'user', 'readonly'];
 
-const OPERATORS = [
+const OPERATORS: ConditionOperator[] = [
   { value: 'equals', label: 'equals' },
   { value: 'not_equals', label: 'not equals' },
   { value: 'contains', label: 'contains' },
@@ -126,67 +122,6 @@ function StepEditor({
   );
 }
 
-// ─── Condition Row ───────────────────────────────────────────────────────────
-
-function ConditionRow({
-  condition,
-  index,
-  onChange,
-  onRemove,
-}: {
-  condition: RuleCondition;
-  index: number;
-  onChange: (idx: number, c: RuleCondition) => void;
-  onRemove: (idx: number) => void;
-}) {
-  const update = (field: keyof RuleCondition, value: any) => {
-    onChange(index, { ...condition, [field]: value });
-  };
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      <select
-        className="select"
-        value={condition.field}
-        onChange={e => update('field', e.target.value)}
-        style={{ width: 160, padding: '6px 8px', fontSize: 12 }}
-      >
-        <option value="">Select field…</option>
-        {SUGGESTED_FIELDS.map(f => <option key={f} value={f}>{f}</option>)}
-      </select>
-
-      <select
-        className="select"
-        value={condition.operator}
-        onChange={e => update('operator', e.target.value)}
-        style={{ width: 150, padding: '6px 8px', fontSize: 12 }}
-      >
-        {OPERATORS.map(op => (
-          <option key={op.value} value={op.value}>{op.label}</option>
-        ))}
-      </select>
-
-      <input
-        className="input"
-        value={typeof condition.value === 'string' ? condition.value : JSON.stringify(condition.value ?? '')}
-        onChange={e => {
-          if (['in', 'not_in'].includes(condition.operator)) {
-            update('value', e.target.value.split(',').map((v: string) => v.trim()).filter(Boolean));
-          } else {
-            update('value', e.target.value);
-          }
-        }}
-        placeholder="Value"
-        style={{ flex: 1, padding: '6px 8px', fontSize: 12 }}
-      />
-
-      <button onClick={() => onRemove(index)} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}>
-        <Trash2 size={14} />
-      </button>
-    </div>
-  );
-}
-
 // ─── Rule Editor ─────────────────────────────────────────────────────────────
 
 function RuleEditor({
@@ -255,29 +190,15 @@ function RuleEditor({
           </select>
         </div>
 
-        {/* Match Criteria */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Match Criteria (leave empty for catch-all)</label>
-            <button onClick={addCriterion} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '4px 10px', borderRadius: 'var(--radius-md)',
-              background: 'var(--accent)', color: 'white', border: 'none',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            }}>
-              <Plus size={12} /> Add Criterion
-            </button>
-          </div>
-          {criteria.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-              No criteria — this rule will match all requests (catch-all default).
-            </p>
-          ) : (
-            criteria.map((c, i) => (
-              <ConditionRow key={i} condition={c} index={i} onChange={updateCriterion} onRemove={removeCriterion} />
-            ))
-          )}
-        </div>
+        <ConditionSection
+          conditions={criteria}
+          onAdd={addCriterion}
+          onChange={updateCriterion}
+          onRemove={removeCriterion}
+          fields={SUGGESTED_FIELDS}
+          operators={OPERATORS}
+          emptyLabel="No criteria — this rule will match all requests (catch-all default)."
+        />
 
         {/* Approval Steps */}
         <div>

@@ -6,6 +6,7 @@ import { promisify } from 'util';
 import { pool } from '../db/pool';
 import { getDefaultTemplates } from '../services/email-template-engine';
 import { invalidateRolePermsCache } from '../plugins/auth';
+import { saveBusinessHoursConfig, updateDaySchedule, addHoliday, getHolidays, removeHoliday } from '../services/business-hours';
 
 const execFileAsync = promisify(execFile);
 
@@ -210,7 +211,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'status_label_open', 'status_label_in_progress', 'status_label_waiting', 'status_label_resolved', 'status_label_closed',
       'canned_responses', 'custom_statuses',
       'smtp_oauth_config',
-      'status_order', 'role_permissions',
+      'status_order', 'status_ticket_types', 'role_permissions',
       // Problem Management
       'problem_root_cause_template', 'problem_auto_link_enabled', 'problem_auto_link_similarity',
       'ke_require_approval', 'ke_auto_archive_days', 'problem_default_priority',
@@ -226,6 +227,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'approval_escalation_enabled', 'approval_escalation_hours', 'approval_escalation_target',
       'approval_normal_steps', 'approval_emergency_steps',
       'approval_notify_created', 'approval_notify_approved', 'approval_notify_denied', 'approval_notify_escalated',
+      // Reopen Policy
+      'reopen_window_days',
     ] as const;
 
     const body = z.object({
@@ -254,99 +257,37 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.send({ data: result.rows[0] });
   });
 
-  // ─── DEPRECATED: Legacy automation rules ──────────────────────────────────
-  // These routes manage the legacy `automation_rules` table (simple string-based rules).
-  // They are retained for backward compatibility but are NOT wired to any runtime execution.
-  // New automation should use Visual Workflows (see /workflows/visual routes).
-  // These endpoints may be removed in a future release.
+  // ─── REMOVED: Legacy automation rules ─────────────────────────────────────
+  // The legacy `/admin/automation-rules` CRUD and `automation_rules` table have been removed.
+  // All automation should use Visual Workflows (see /workflows/visual routes).
 
-  // GET /admin/automation-rules
-  fastify.get('/admin/automation-rules', { preHandler: [fastify.requirePermission('manage_automation')] }, async (request, reply) => {
-    const result = await pool.query('SELECT * FROM automation_rules ORDER BY created_at DESC');
-    return reply.send({ data: result.rows });
-  });
-
-  // POST /admin/automation-rules
-  fastify.post('/admin/automation-rules', { preHandler: [fastify.requirePermission('manage_automation')] }, async (request, reply) => {
-    const body = z.object({
-      name: z.string().min(1),
-      trigger: z.string().min(1),
-      condition: z.string().optional().nullable(),
-      action: z.string().min(1),
-      action_value: z.string().optional().nullable(),
-      enabled: z.boolean().optional().default(true),
-    }).parse(request.body);
-    const result = await pool.query(
-      'INSERT INTO automation_rules (name, trigger, condition, action, action_value, enabled) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [body.name, body.trigger, body.condition ?? null, body.action, body.action_value ?? null, body.enabled]
-    );
-    try {
-      await pool.query('INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1,$2,$3,$4,$5)',
-        [request.user.id, 'create_automation_rule', 'automation_rules', result.rows[0].id, JSON.stringify(body)]);
-    } catch (logErr: any) {
-      fastify.log.error({ err: logErr }, 'Failed to write audit log');
-    }
-    return reply.status(201).send({ data: result.rows[0] });
-  });
-
-  // PATCH /admin/automation-rules/:id
-  fastify.patch('/admin/automation-rules/:id', { preHandler: [fastify.requirePermission('manage_automation')] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = z.object({
-      name: z.string().optional(),
-      enabled: z.boolean().optional(),
-      trigger: z.string().optional(),
-      condition: z.string().nullable().optional(),
-      action: z.string().optional(),
-      action_value: z.string().nullable().optional(),
-    }).parse(request.body);
-    const fields = Object.entries(body).filter(([,v]) => v !== undefined);
-    if (fields.length === 0) return reply.send({ data: null });
-    const setClauses = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
-    const values = fields.map(([,v]) => v);
-    const result = await pool.query(
-      `UPDATE automation_rules SET ${setClauses}, updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    if (result.rows.length === 0) {
-      return reply.status(404).send({ error: 'Automation rule not found' });
-    }
-    try {
-      await pool.query(
-        'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
-        [request.user.id, 'update_automation_rule', 'automation_rules', id, JSON.stringify(body)]
-      );
-    } catch (logErr: any) {
-      fastify.log.error({ err: logErr }, 'Failed to write audit log');
-    }
-    return reply.send({ data: result.rows[0] });
-  });
-
-  // DELETE /admin/automation-rules/:id
-  fastify.delete('/admin/automation-rules/:id', { preHandler: [fastify.requirePermission('manage_automation')] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const result = await pool.query('DELETE FROM automation_rules WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) {
-      return reply.status(404).send({ error: 'Automation rule not found' });
-    }
-    try {
-      await pool.query(
-        'INSERT INTO audit_log (actor_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)',
-        [request.user.id, 'delete_automation_rule', 'automation_rules', id]
-      );
-    } catch (logErr: any) {
-      fastify.log.error({ err: logErr }, 'Failed to write audit log');
-    }
-    return reply.send({ success: true });
-  });
-
-  // GET /admin/working-hours
+  // GET /admin/working-hours — consolidated into business_hours table
   fastify.get('/admin/working-hours', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
-    const result = await pool.query('SELECT * FROM working_hours ORDER BY CASE day WHEN \'Monday\' THEN 1 WHEN \'Tuesday\' THEN 2 WHEN \'Wednesday\' THEN 3 WHEN \'Thursday\' THEN 4 WHEN \'Friday\' THEN 5 WHEN \'Saturday\' THEN 6 WHEN \'Sunday\' THEN 7 END');
+    const result = await pool.query(`
+      SELECT
+        CASE day_of_week
+          WHEN 0 THEN 'Sunday'
+          WHEN 1 THEN 'Monday'
+          WHEN 2 THEN 'Tuesday'
+          WHEN 3 THEN 'Wednesday'
+          WHEN 4 THEN 'Thursday'
+          WHEN 5 THEN 'Friday'
+          WHEN 6 THEN 'Saturday'
+        END as day,
+        is_business_day as enabled,
+        start_time::varchar(5) as start_time,
+        end_time::varchar(5) as end_time
+      FROM business_hours
+      ORDER BY day_of_week
+    `);
     return reply.send({ data: result.rows });
   });
 
-  // PUT /admin/working-hours
+  // PUT /admin/working-hours — consolidated into business_hours table
+  const DAY_NAME_TO_INT: Record<string, number> = {
+    'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4,
+    'Friday': 5, 'Saturday': 6, 'Sunday': 0,
+  };
   fastify.put('/admin/working-hours', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
     const body = z.object({
       timezone: z.string().optional(),
@@ -359,11 +300,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }).parse(request.body);
 
     for (const h of body.hours) {
-      await pool.query(
-        `INSERT INTO working_hours (day, enabled, start_time, end_time) VALUES ($1,$2,$3,$4)
-         ON CONFLICT (day) DO UPDATE SET enabled=$2, start_time=$3, end_time=$4, updated_at=NOW()`,
-        [h.day, h.enabled, h.start_time, h.end_time]
-      );
+      const dow = DAY_NAME_TO_INT[h.day];
+      if (dow === undefined) continue;
+      const startTime = h.start_time.includes(':') ? h.start_time + ':00' : h.start_time;
+      const endTime = h.end_time.includes(':') ? h.end_time + ':00' : h.end_time;
+      await updateDaySchedule(dow, startTime, endTime, h.enabled);
     }
     if (body.timezone) {
       await pool.query(
@@ -397,6 +338,9 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       'portal_chip_4_label', 'portal_chip_4_prompt',
       'portal_input_placeholder', 'portal_input_hint',
       'portal_kb_header', 'portal_all_clear_text', 'portal_no_articles_text',
+      'status_label_open', 'status_label_in_progress', 'status_label_waiting',
+      'status_label_resolved', 'status_label_closed',
+      'custom_statuses', 'status_order', 'status_ticket_types',
     ];
     const result = await pool.query(
       `SELECT key, value FROM system_settings WHERE key = ANY($1::text[])`,
@@ -968,94 +912,23 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
-  // ─── Workflows ────────────────────────────────────────────────────────
-
-  // GET /admin/workflows
-  fastify.get('/admin/workflows', { preHandler: [fastify.requirePermission('manage_workflows')] }, async (request, reply) => {
-    const result = await pool.query('SELECT * FROM ticket_workflows ORDER BY from_status, to_status');
-    return reply.send({ data: result.rows });
-  });
-
-  // POST /admin/workflows
-  fastify.post('/admin/workflows', { preHandler: [fastify.requirePermission('manage_workflows')] }, async (request, reply) => {
-    const body = z.object({
-      from_status: z.string(),
-      to_status: z.string(),
-      required_fields: z.array(z.string()).optional().default([]),
-    }).parse(request.body);
-
-    const result = await pool.query(
-      'INSERT INTO ticket_workflows (from_status, to_status, required_fields) VALUES ($1, $2, $3) RETURNING *',
-      [body.from_status, body.to_status, body.required_fields]
-    );
-
-    try {
-      await pool.query(
-        'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
-        [request.user.id, 'create_workflow', 'ticket_workflows', result.rows[0].id, JSON.stringify(body)]
-      );
-    } catch (logErr: any) {
-      fastify.log.error({ err: logErr }, 'Failed to write audit log');
-    }
-
-    return reply.status(201).send({ data: result.rows[0] });
-  });
-
-  // PATCH /admin/workflows/:id
-  fastify.patch('/admin/workflows/:id', { preHandler: [fastify.requirePermission('manage_workflows')] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const body = z.object({
-      from_status: z.string().optional(),
-      to_status: z.string().optional(),
-      required_fields: z.array(z.string()).optional(),
-    }).parse(request.body);
-
-    const fields = Object.entries(body).filter(([, v]) => v !== undefined);
-    if (fields.length === 0) return reply.send({ data: null });
-    const setClauses = fields.map(([k], i) => (k === 'required_fields' ? `${k} = $${i + 2}` : `${k} = $${i + 2}`)).join(', ');
-    const values = fields.map(([, v]) => v);
-    const result = await pool.query(
-      `UPDATE ticket_workflows SET ${setClauses}, updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-    if (result.rows.length === 0) {
-      return reply.status(404).send({ error: 'Workflow not found' });
-    }
-    try {
-      await pool.query(
-        'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
-        [request.user.id, 'update_workflow', 'ticket_workflows', id, JSON.stringify(body)]
-      );
-    } catch (logErr: any) {
-      fastify.log.error({ err: logErr }, 'Failed to write audit log');
-    }
-    return reply.send({ data: result.rows[0] });
-  });
-
-  // DELETE /admin/workflows/:id
-  fastify.delete('/admin/workflows/:id', { preHandler: [fastify.requirePermission('manage_workflows')] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const result = await pool.query('DELETE FROM ticket_workflows WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) {
-      return reply.status(404).send({ error: 'Workflow not found' });
-    }
-    try {
-      await pool.query(
-        'INSERT INTO audit_log (actor_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)',
-        [request.user.id, 'delete_workflow', 'ticket_workflows', id]
-      );
-    } catch (logErr: any) {
-      fastify.log.error({ err: logErr }, 'Failed to write audit log');
-    }
-    return reply.send({ success: true });
-  });
+  // ─── REMOVED: Legacy ticket_workflows CRUD ─────────────────────────────
+  // The legacy `/admin/workflows` status-transition CRUD and `ticket_workflows` table
+  // have been removed. Use Visual Workflows (Workflow Designer) instead.
 
   // ─── Holidays ─────────────────────────────────────────────────────────
+  // Consolidated into business_holidays table
 
   // GET /admin/holidays
   fastify.get('/admin/holidays', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
-    const result = await pool.query('SELECT * FROM holidays ORDER BY date ASC');
-    return reply.send({ data: result.rows });
+    const holidays = await getHolidays();
+    const mapped = holidays.map((h: any) => ({
+      id: h.id,
+      name: h.name,
+      date: h.holiday_date,
+      recurring: h.is_annual,
+    }));
+    return reply.send({ data: mapped });
   });
 
   // POST /admin/holidays
@@ -1065,34 +938,33 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       date: z.string(),
     }).parse(request.body);
 
-    const result = await pool.query(
-      'INSERT INTO holidays (name, date) VALUES ($1, $2::date) RETURNING *',
-      [body.name, body.date]
-    );
+    await addHoliday(body.name, new Date(body.date), false);
+    const holidays = await getHolidays();
+    const created = holidays[holidays.length - 1];
 
     try {
       await pool.query(
         'INSERT INTO audit_log (actor_id, action, entity_type, entity_id, new_data) VALUES ($1, $2, $3, $4, $5)',
-        [request.user.id, 'create_holiday', 'holidays', result.rows[0].id, JSON.stringify(body)]
+        [request.user.id, 'create_holiday', 'business_holidays', created.id, JSON.stringify(body)]
       );
     } catch (logErr: any) {
       fastify.log.error({ err: logErr }, 'Failed to write audit log');
     }
 
-    return reply.status(201).send({ data: result.rows[0] });
+    return reply.status(201).send({ data: { id: created.id, name: created.name, date: created.holiday_date, recurring: created.is_annual } });
   });
 
   // DELETE /admin/holidays/:id
   fastify.delete('/admin/holidays/:id', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const result = await pool.query('DELETE FROM holidays WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) {
+    const { deleted } = await removeHoliday(id);
+    if (!deleted) {
       return reply.status(404).send({ error: 'Holiday not found' });
     }
     try {
       await pool.query(
         'INSERT INTO audit_log (actor_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)',
-        [request.user.id, 'delete_holiday', 'holidays', id]
+        [request.user.id, 'delete_holiday', 'business_holidays', id]
       );
     } catch (logErr: any) {
       fastify.log.error({ err: logErr }, 'Failed to write audit log');

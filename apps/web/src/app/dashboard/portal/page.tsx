@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { api, API_BASE, getToken } from '@/lib/api';
+import { connectSocket } from '@/lib/socket';
 import {
   Search, Sparkles, Send, Plus, AlertTriangle, Package,
   KeyRound, Wifi, Monitor, HelpCircle, ChevronRight,
@@ -307,6 +308,63 @@ export default function SelfServicePortal() {
       .then(res => setMyRequests(res.data || []))
       .catch(() => setMyRequests([]))
       .finally(() => setRequestsLoading(false));
+  }, []);
+
+  // ── Socket listeners for real-time updates ──────────────────────────────────
+  useEffect(() => {
+    const socket = connectSocket();
+    if (!socket) return;
+
+    const handleTicketDeleted = ({ id }: { id: string }) => {
+      setMyTickets(prev => prev.filter(t => t.id !== id));
+    };
+    const handleTicketsDeleted = ({ ids }: { ids: string[] }) => {
+      if (ids) setMyTickets(prev => prev.filter(t => !ids.includes(t.id)));
+    };
+
+    socket.on('ticket:deleted', handleTicketDeleted);
+    socket.on('tickets:deleted', handleTicketsDeleted);
+    socket.on('catalog:request_created', () => {
+      api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
+        .then(res => setMyRequests(res.data || []))
+        .catch(() => {});
+    });
+    socket.on('catalog:request_fulfilled', () => {
+      api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
+        .then(res => setMyRequests(res.data || []))
+        .catch(() => {});
+    });
+    socket.on('catalog:request_cancelled', () => {
+      api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
+        .then(res => setMyRequests(res.data || []))
+        .catch(() => {});
+    });
+    socket.on('approval:updated', () => {
+      api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
+        .then(res => setMyRequests(res.data || []))
+        .catch(() => {});
+    });
+    socket.on('ticket:created', () => {
+      api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
+        .then(res => setMyTickets(res.data?.slice(0, 8) || []))
+        .catch(() => setMyTickets([]));
+    });
+    socket.on('ticket:updated', () => {
+      api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
+        .then(res => setMyTickets(res.data?.slice(0, 8) || []))
+        .catch(() => setMyTickets([]));
+    });
+
+    return () => {
+      socket.off('ticket:deleted', handleTicketDeleted);
+      socket.off('tickets:deleted', handleTicketsDeleted);
+      socket.off('catalog:request_created');
+      socket.off('catalog:request_fulfilled');
+      socket.off('catalog:request_cancelled');
+      socket.off('approval:updated');
+      socket.off('ticket:created');
+      socket.off('ticket:updated');
+    };
   }, []);
 
   // ── Restore last chat session (within 1 hour) ───────────────────────────
@@ -648,6 +706,17 @@ export default function SelfServicePortal() {
     critical: { label: 'Critical', color: '#ef4444' },
   };
 
+  const CATALOG_ICONS: Record<string, any> = {
+    monitor: Monitor, code: Code, key: Key, user: UserIcon,
+    wifi: Wifi, 'help-circle': HelpCircle, package: Package,
+    shield: Shield, lock: KeyRound, book: BookOpen,
+    server: Monitor, database: Package,
+  };
+
+  const getCatalogIcon = (iconName: string) => {
+    return CATALOG_ICONS[iconName] || Package;
+  };
+
   // Merged list of tickets + service requests sorted by created_at desc
   const mergedRequests = useMemo(() => {
     const items: Array<{
@@ -694,17 +763,6 @@ export default function SelfServicePortal() {
     });
     return items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 8);
   }, [myTickets, myRequests]);
-
-  const CATALOG_ICONS: Record<string, any> = {
-    monitor: Monitor, code: Code, key: Key, user: UserIcon,
-    wifi: Wifi, 'help-circle': HelpCircle, package: Package,
-    shield: Shield, lock: KeyRound, book: BookOpen,
-    server: Monitor, database: Package,
-  };
-
-  const getCatalogIcon = (iconName: string) => {
-    return CATALOG_ICONS[iconName] || Package;
-  };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>

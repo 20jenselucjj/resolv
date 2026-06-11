@@ -6,6 +6,7 @@ import {
   X, Maximize2, Minimize2, AlertTriangle, Sparkles, CheckCircle,
   Paperclip, UploadCloud, Loader2, FileText, Trash2
 } from 'lucide-react';
+import { useStatusConfig } from '@/lib/StatusConfigContext';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import { SelectSearch } from '@/components/SelectSearch';
 import { CategoryTreeSelect } from '@/components/CategoryTreeSelect';
@@ -29,13 +30,6 @@ const PRIORITY_OPTIONS = [
   { value: 'critical', label: 'Critical', color: 'var(--priority-critical)' },
 ];
 
-const STATUS_OPTIONS = [
-  { value: 'open',        label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'waiting',     label: 'Waiting' },
-  { value: 'closed',      label: 'Closed' },
-];
-
 const panelLabelStyle: React.CSSProperties = {
   display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)',
   marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -43,6 +37,7 @@ const panelLabelStyle: React.CSSProperties = {
 
 export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { user, addTicket } = useStore();
+  const { statusOptions } = useStatusConfig();
   const [minimized, setMinimized] = useState(false);
   const [form, setForm] = useState(() => {
     const due = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
@@ -507,7 +502,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                       onChange={e => handleStatusChange(e.target.value)}
                       style={{ width: '100%', fontSize: 12, height: 34 }}
                     >
-                      {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      {statusOptions.filter(s => s.value !== 'all').map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </div>
                   <div>

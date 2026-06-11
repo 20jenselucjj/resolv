@@ -1,6 +1,6 @@
 export {
-  STATUS_OPTIONS, PRIORITY_OPTIONS, TICKET_TYPE_OPTIONS,
-  CATEGORY_DOT_COLORS, statusBadgeClass,
+  PRIORITY_OPTIONS, TICKET_TYPE_OPTIONS,
+  CATEGORY_DOT_COLORS,
 } from './constants';
 export type { Attachment } from './types';
 export { categoryColorIndex, formatSize } from './helpers';

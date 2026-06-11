@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Users, LogIn, GitBranch } from 'lucide-react';
+import { Shield, Users, LogIn, GitBranch, Monitor } from 'lucide-react';
 import { SSOTab } from './SSOTab';
 import { DirectorySyncTab } from '../DirectorySyncTab';
+import { AzureAdSyncTab } from './AzureAdSyncTab';
 import { LoginModeSection } from './LoginModeSection';
 import { RoleAssignmentRulesTab } from './RoleAssignmentRulesTab';
 
-type AuthSubTab = 'sso' | 'directory-sync' | 'role-rules' | 'login-mode';
+type AuthSubTab = 'sso' | 'directory-sync' | 'azure-ad' | 'role-rules' | 'login-mode';
 
 interface SubTabConfig {
   id: AuthSubTab;
@@ -17,7 +18,8 @@ interface SubTabConfig {
 
 const SUB_TABS: SubTabConfig[] = [
   { id: 'sso', label: 'SSO Providers', icon: <Shield size={14} /> },
-  { id: 'directory-sync', label: 'Directory Sync', icon: <Users size={14} /> },
+  { id: 'directory-sync', label: 'Google Workspace', icon: <Users size={14} /> },
+  { id: 'azure-ad', label: 'Azure AD / Entra ID', icon: <Monitor size={14} /> },
   { id: 'role-rules', label: 'Role Rules', icon: <GitBranch size={14} /> },
   { id: 'login-mode', label: 'Login Mode', icon: <LogIn size={14} /> },
 ];
@@ -64,8 +66,11 @@ export function AuthenticationTab({
       {/* SSO Providers */}
       {activeSubTab === 'sso' && <SSOTab showAlert={showAlert} />}
 
-      {/* Directory Sync */}
+      {/* Directory Sync — Google Workspace */}
       {activeSubTab === 'directory-sync' && <DirectorySyncTab showAlert={showAlert} />}
+
+      {/* Azure AD / Entra ID Sync */}
+      {activeSubTab === 'azure-ad' && <AzureAdSyncTab showAlert={showAlert} />}
 
       {/* Role Rules */}
       {activeSubTab === 'role-rules' && <RoleAssignmentRulesTab showAlert={showAlert} />}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Ticket, User } from '@/lib/store';
 import { formatDateTime } from '@/lib/date-utils';
@@ -11,9 +11,11 @@ import { UserSearchSelect } from '@/components/UserSearchSelect';
 import { CategoryTreeSelect } from '@/components/CategoryTreeSelect';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { PropField } from './PropField';
-import { STATUS_OPTIONS, PRIORITY_OPTIONS, TICKET_TYPE_OPTIONS, statusBadgeClass } from './constants';
+import { PRIORITY_OPTIONS, TICKET_TYPE_OPTIONS } from './constants';
+import { useStatusConfig } from '@/lib/StatusConfigContext';
 
 import type { Category } from '@/lib/store';
+import { filterStatusesByType } from '@/lib/status-utils';
 
 interface PropertiesCardProps {
   ticket: Ticket;
@@ -29,6 +31,12 @@ interface PropertiesCardProps {
 export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, updateField, handleStatusChange, handleAssignToUser, handleReporterChange }: PropertiesCardProps) {
   const [assets, setAssets] = useState<{id: string; name: string}[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
+  const { statusOptions, statusConfig, statusTicketTypes } = useStatusConfig();
+
+  const filteredStatuses = useMemo(() =>
+    filterStatusesByType(statusOptions.filter(s => s.value !== 'all'), ticket.ticket_type, statusTicketTypes || {}),
+    [statusTicketTypes, statusOptions, ticket.ticket_type]
+  );
 
   useEffect(() => {
     if (isAdminOrAgent) {
@@ -40,7 +48,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
     }
   }, [isAdminOrAgent]);
 
-  const currentStatus = statusBadgeClass[ticket.status] ? undefined : undefined;
+  const currentStatus = statusOptions.find((s) => s.value === ticket.status);
   const currentPriority = PRIORITY_OPTIONS.find((p) => p.value === ticket.priority);
   const currentType = TICKET_TYPE_OPTIONS.find((t) => t.value === ticket.ticket_type) || TICKET_TYPE_OPTIONS[0];
 
@@ -51,14 +59,14 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
         <PropField label="Status">
           {isAdminOrAgent ? (
             <SelectSearch
-              options={STATUS_OPTIONS}
+              options={filteredStatuses}
               value={ticket.status}
               onChange={val => val && handleStatusChange(val)}
               placeholder="Change"
               hideClear
             />
           ) : (
-            <span className={statusBadgeClass[ticket.status] || 'badge'}>{STATUS_OPTIONS.find((s) => s.value === ticket.status)?.label || ticket.status}</span>
+            <span className={statusConfig[ticket.status]?.badgeClass || 'badge'}>{statusOptions.find((s) => s.value === ticket.status)?.label || ticket.status}</span>
           )}
         </PropField>
 
@@ -132,6 +140,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
               onChange={val => updateField('asset_id', val || null)}
               placeholder={loadingAssets ? 'Loading...' : 'Select asset'}
               allowClear
+              showSearch
             />
           ) : ticket.asset_id ? (
              <Link href={`/dashboard/assets/${ticket.asset_id}`} style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>

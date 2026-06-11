@@ -276,12 +276,14 @@ export async function addHoliday(
 /**
  * Remove a business holiday.
  */
-export async function removeHoliday(id: string): Promise<void> {
+export async function removeHoliday(id: string): Promise<{ deleted: boolean }> {
   try {
     const result = await pool.query('DELETE FROM business_holidays WHERE id = $1', [id]);
-    if (result.rowCount === 0) {
+    const deleted = (result.rowCount ?? 0) > 0;
+    if (!deleted) {
       console.warn(`[business-hours] No holiday found with id ${id}`);
     }
+    return { deleted };
   } catch (err: any) {
     console.error('[business-hours] Error removing holiday:', err.message);
     throw err;

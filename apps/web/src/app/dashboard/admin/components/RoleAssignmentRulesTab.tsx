@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Plus, Trash2, Edit2, GripVertical, ArrowUp, ArrowDown, Shield, AlertCircle } from 'lucide-react';
+import { ConditionSection } from './ConditionBuilder';
+import type { RuleCondition, ConditionOperator } from './ConditionBuilder';
 // Inline types (packages/shared not aliased in web tsconfig)
 type UserRole = 'admin' | 'manager' | 'agent' | 'user' | 'readonly';
-type ConditionOperator = 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'in' | 'not_in' | 'starts_with' | 'ends_with' | 'exists' | 'not_exists' | 'gt' | 'gte' | 'lt' | 'lte';
-interface RuleCondition { field: string; operator: ConditionOperator; value: any; }
 interface RoleAssignmentRule {
   id: string; name: string; description?: string; priority: number;
   match_type: 'all' | 'any'; conditions: RuleCondition[]; role: UserRole;
@@ -15,7 +15,7 @@ interface RoleAssignmentRule {
 
 const ROLES: UserRole[] = ['admin', 'manager', 'agent', 'user', 'readonly'];
 
-const OPERATORS = [
+const OPERATORS: ConditionOperator[] = [
   { value: 'equals', label: 'equals' },
   { value: 'not_equals', label: 'not equals' },
   { value: 'contains', label: 'contains' },
@@ -38,74 +38,6 @@ const SUGGESTED_FIELDS = [
 ];
 
 const EMPTY_CONDITION: RuleCondition = { field: '', operator: 'equals', value: '' };
-
-function ConditionRow({
-  condition,
-  index,
-  onChange,
-  onRemove,
-}: {
-  condition: RuleCondition;
-  index: number;
-  onChange: (idx: number, c: RuleCondition) => void;
-  onRemove: (idx: number) => void;
-}) {
-  const update = (field: keyof RuleCondition, value: any) => {
-    onChange(index, { ...condition, [field]: value });
-  };
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      <select
-        className="select"
-        value={condition.field}
-        onChange={e => update('field', e.target.value)}
-        style={{ width: 160, padding: '6px 8px', fontSize: 12 }}
-      >
-        <option value="">Select field…</option>
-        {SUGGESTED_FIELDS.map(f => (
-          <option key={f} value={f}>{f}</option>
-        ))}
-      </select>
-
-      <select
-        className="select"
-        value={condition.operator}
-        onChange={e => update('operator', e.target.value)}
-        style={{ width: 160, padding: '6px 8px', fontSize: 12 }}
-      >
-        {OPERATORS.map(op => (
-          <option key={op.value} value={op.value}>{op.label}</option>
-        ))}
-      </select>
-
-      {!['exists', 'not_exists'].includes(condition.operator) && (
-        <input
-          className="input"
-          value={typeof condition.value === 'string' ? condition.value : JSON.stringify(condition.value ?? '')}
-          onChange={e => {
-            // If operator is 'in' or 'not_in', parse comma-separated values
-            if (['in', 'not_in'].includes(condition.operator)) {
-              update('value', e.target.value.split(',').map(v => v.trim()).filter(Boolean));
-            } else {
-              update('value', e.target.value);
-            }
-          }}
-          placeholder="Value"
-          style={{ flex: 1, padding: '6px 8px', fontSize: 12 }}
-        />
-      )}
-
-      <button
-        onClick={() => onRemove(index)}
-        style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', flexShrink: 0 }}
-        title="Remove condition"
-      >
-        <Trash2 size={14} />
-      </button>
-    </div>
-  );
-}
 
 function RuleEditor({
   rule,
@@ -173,28 +105,16 @@ function RuleEditor({
           </div>
         </div>
 
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Conditions</label>
-            <button onClick={addCondition} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '4px 10px', borderRadius: 'var(--radius-md)',
-              background: 'var(--accent)', color: 'white', border: 'none',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            }}>
-              <Plus size={12} /> Add Condition
-            </button>
-          </div>
-          {conditions.length === 0 ? (
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)' }}>
-              No conditions — this rule will match all users (catch-all). Place it last in priority order.
-            </p>
-          ) : (
-            conditions.map((cond, i) => (
-              <ConditionRow key={i} condition={cond} index={i} onChange={updateCondition} onRemove={removeCondition} />
-            ))
-          )}
-        </div>
+        <ConditionSection
+          conditions={conditions}
+          onAdd={addCondition}
+          onChange={updateCondition}
+          onRemove={removeCondition}
+          fields={SUGGESTED_FIELDS}
+          operators={OPERATORS}
+          hideValueForOperators={['exists', 'not_exists']}
+          emptyLabel="No conditions — this rule will match all users (catch-all). Place it last in priority order."
+        />
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 24, justifyContent: 'flex-end' }}>

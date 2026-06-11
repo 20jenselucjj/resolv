@@ -519,7 +519,16 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
 
       if (updates.length === 0) {
-        await client.query('COMMIT');
+      await client.query('COMMIT');
+
+      // If ticket was resolved/closed and linked to a service request, auto-fulfill it
+      if (body.status === 'resolved' || body.status === 'closed') {
+        pool.query(
+          `UPDATE service_requests SET status = 'fulfilled' WHERE ticket_id = $1 AND status NOT IN ('fulfilled', 'cancelled')`,
+          [id]
+        ).catch(() => {});
+        fastify.io.emit('catalog:request_fulfilled', { ticketId: id });
+      }
         return reply.send({ data: ticket });
       }
 

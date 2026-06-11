@@ -2,7 +2,8 @@
 import { useRouter } from 'next/navigation';
 import { Plus, FileText } from 'lucide-react';
 import { NewTicketPanel } from '@/components/NewTicketPanel';
-import { TYPE_CONFIG, statusConfig } from './constants';
+import { TYPE_CONFIG } from './constants';
+import { useStatusConfig } from '@/lib/StatusConfigContext';
 import { getDueDateColor } from './helpers';
 import { formatDate } from '@/lib/date-utils';
 import type { Ticket, User } from '@/lib/store';
@@ -21,6 +22,7 @@ export function UserTicketView({
   fetchTickets: () => void;
 }) {
   const router = useRouter();
+  const { statusConfig } = useStatusConfig();
   const myTickets = sorted.filter(t =>
     t.created_by_id === user?.id || t.assigned_to_id === user?.id || t.requested_by_name === user?.name
   );

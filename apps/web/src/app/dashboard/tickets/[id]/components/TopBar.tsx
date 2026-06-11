@@ -1,10 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import { ArrowLeft, XCircle, X, Eye, MoreVertical, Printer, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Ticket } from '@/lib/store';
 import { SelectSearch } from '@/components/SelectSearch';
-import { STATUS_OPTIONS, PRIORITY_OPTIONS, CATEGORY_DOT_COLORS, statusBadgeClass } from './constants';
+import { PRIORITY_OPTIONS, CATEGORY_DOT_COLORS } from './constants';
+import { useStatusConfig } from '@/lib/StatusConfigContext';
+import { filterStatusesByType } from '@/lib/status-utils';
 import { categoryColorIndex } from './helpers';
 
 interface TopBarProps {
@@ -30,7 +33,12 @@ export function TopBar({
   showMenu, setShowMenu, sendEmailOnClose, setSendEmailOnClose,
 }: TopBarProps) {
   const router = useRouter();
-  const currentStatus = STATUS_OPTIONS.find((s) => s.value === ticket.status);
+  const { statusOptions, statusConfig, statusTicketTypes } = useStatusConfig();
+  const currentStatus = statusOptions.find((s) => s.value === ticket.status);
+  const filteredStatuses = useMemo(() =>
+    filterStatusesByType(statusOptions.filter(s => s.value !== 'all'), ticket.ticket_type, statusTicketTypes || {}),
+    [statusTicketTypes, statusOptions, ticket.ticket_type]
+  );
   const currentPriority = PRIORITY_OPTIONS.find((p) => p.value === ticket.priority);
 
   return (
@@ -112,7 +120,7 @@ export function TopBar({
       {isAdminOrAgent ? (
         <div style={{ minWidth: 150 }}>
           <SelectSearch
-            options={STATUS_OPTIONS}
+            options={filteredStatuses}
             value={ticket.status}
             onChange={val => val && handleStatusChange(val)}
             placeholder="Change"
@@ -120,7 +128,7 @@ export function TopBar({
           />
         </div>
       ) : (
-        <span className={statusBadgeClass[ticket.status] || 'badge'}>{currentStatus?.label || ticket.status}</span>
+        <span className={statusConfig[ticket.status]?.badgeClass || 'badge'}>{currentStatus?.label || ticket.status}</span>
       )}
 
       {/* More Actions Menu */}

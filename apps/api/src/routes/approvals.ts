@@ -389,6 +389,56 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
            VALUES ($1, $2, 'completed', 'All steps approved')`,
           [id, request.user.id]
         );
+
+        // If this is a catalog request approval, create the ticket
+        if (approvalRequest.entity_type === 'catalog_request') {
+          const srResult = await client.query(
+            `SELECT sr.*, ci.name as item_name, ci.priority as item_priority, ci.ticket_type as item_ticket_type,
+                     u.name as requested_by_name
+             FROM service_requests sr
+             JOIN catalog_items ci ON sr.catalog_item_id = ci.id
+             JOIN users u ON sr.requested_by = u.id
+             WHERE sr.approval_id = $1`,
+            [id]
+          );
+
+          if (srResult.rows.length > 0) {
+            const sr = srResult.rows[0];
+            const answers = typeof sr.answers === 'string' ? JSON.parse(sr.answers) : (sr.answers || {});
+            const answersText = Object.entries(answers)
+              .map(([key, val]) => `${key}: ${val}`)
+              .join('\n');
+            const description = `${sr.item_name}\n\n---\nRequested Item: ${sr.item_name}\n\nRequest Details:\n${answersText}`;
+
+            const ticketResult = await client.query(
+              `INSERT INTO tickets (title, description, priority, ticket_type, created_by_id)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING *`,
+              [`${sr.item_name} — ${sr.requested_by_name || ''}`, description, sr.item_priority || 'medium', sr.item_ticket_type || 'service_request', sr.requested_by]
+            );
+
+            await client.query(
+              `UPDATE service_requests SET status = 'in_progress', ticket_id = $1 WHERE id = $2`,
+              [ticketResult.rows[0].id, sr.id]
+            );
+
+            await client.query(
+              `INSERT INTO ticket_activity (ticket_id, actor_id, action, new_value)
+               VALUES ($1, $2, 'created', 'open')`,
+              [ticketResult.rows[0].id, request.user.id]
+            );
+
+            // Notify the requester
+            await client.query(
+              `INSERT INTO notifications (user_id, type, title, body, ticket_id)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [sr.requested_by, 'catalog_request_approved',
+               `Your request "${sr.item_name}" has been approved`,
+               `Ticket #${ticketResult.rows[0].number} created`,
+               ticketResult.rows[0].id]
+            );
+          }
+        }
       }
 
       await client.query('COMMIT');
@@ -518,6 +568,22 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
          VALUES ($1, $2, $3, 'denied', $4)`,
         [id, currentStep.id, request.user.id, body.comment]
       );
+
+      // If this is a catalog request denial, update the service request status
+      if (approvalRequest.entity_type === 'catalog_request') {
+        await client.query(
+          `UPDATE service_requests SET status = 'rejected' WHERE approval_id = $1`,
+          [id]
+        );
+        // Notify the requester
+        await client.query(
+          `INSERT INTO notifications (user_id, type, title, body)
+           VALUES ($1, $2, $3, $4)`,
+          [approvalRequest.requested_by, 'catalog_request_denied',
+           `Your request "${approvalRequest.title}" was denied`,
+           body.comment || 'No reason provided']
+        );
+      }
 
       await client.query('COMMIT');
 
