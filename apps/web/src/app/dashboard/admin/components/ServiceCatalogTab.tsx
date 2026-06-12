@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import {
   Layers, Plus, Edit2, Trash2, Save, X, ChevronDown, ChevronRight,
@@ -283,6 +283,8 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
   const [itemsLoading, setItemsLoading] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const formRef = useRef<HTMLFormElement>(null);
   const [itemForm, setItemForm] = useState({
     name: '', description: '', short_description: '', category_id: '', icon: '',
     image_url: '', fulfillment_type: 'ticket', approval_required: false,
@@ -310,6 +312,15 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
   };
 
   useEffect(() => { loadCategories(); loadItems(); }, []);
+
+  // Scroll to form when editing an item
+  useEffect(() => {
+    if (editingItemId && formRef.current) {
+      setTimeout(() => {
+        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [editingItemId]);
 
   // ── Category CRUD ────────────────────────────────────────────────────────────
   const handleAddCategory = async (e: React.FormEvent) => {
@@ -413,10 +424,24 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       approval_role: item.approval_role || 'manager',
       priority: item.priority,
       ticket_type: item.ticket_type,
-      custom_fields: Array.isArray(item.custom_fields) ? item.custom_fields : [],
+      custom_fields: Array.isArray(item.custom_fields)
+        ? item.custom_fields.map(f => ({
+            name: f.name ?? '',
+            field_key: f.field_key ?? 'field_' + Date.now(),
+            type: f.type ?? 'text',
+            required: f.required ?? false,
+            options: Array.isArray(f.options) ? f.options : [],
+            placeholder: f.placeholder ?? '',
+          }))
+        : [],
       sort_order: item.sort_order,
     });
   };
+
+  // ── Derived ──────────────────────────────────────────────────────────────────
+  const filteredItems = [...items]
+    .filter(item => !categoryFilter || item.category_id === categoryFilter)
+    .sort((a, b) => a.sort_order - b.sort_order);
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -601,7 +626,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
 
           {/* Item Form (Add / Edit) */}
           {(showAddItem || editingItemId) && (
-            <form onSubmit={editingItemId ? handleEditItem : handleAddItem} style={{
+            <form ref={formRef} onSubmit={editingItemId ? handleEditItem : handleAddItem} style={{
               padding: 20, background: 'var(--bg-secondary)',
               border: '1px solid var(--accent-border)', borderRadius: 12,
               marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12,
@@ -702,7 +727,34 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
             </form>
           )}
 
-          {/* Items List */}
+          {/* Category Filter */}
+          {!itemsLoading && items.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Filter:</label>
+              <select
+                className="select"
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                style={{ fontSize: 12, height: 32, minWidth: 220 }}
+              >
+                <option value="">All Categories</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {categoryFilter && (
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 12, padding: '4px 8px', fontWeight: 600 }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Items List — grouped by category */}
           {itemsLoading ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
           ) : items.length === 0 ? (
@@ -711,119 +763,180 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No items yet</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Add catalog items that users can request.</div>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[...items]
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map((item, index) => {
-                const IconComp = CATEGORY_ICONS[item.icon] || Package;
-                const isEditing = editingItemId === item.id;
-                return (
-                  <div
-                    key={item.id}
-                    draggable={!isEditing}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', item.id);
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'move';
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const draggedId = e.dataTransfer.getData('text/plain');
-                      if (draggedId === item.id) return;
-                      
-                      const newItems = [...items].sort((a, b) => a.sort_order - b.sort_order);
-                      const draggedIdx = newItems.findIndex(i => i.id === draggedId);
-                      const targetIdx = index;
-                      
-                      if (draggedIdx === -1) return;
-                      
-                      const [moved] = newItems.splice(draggedIdx, 1);
-                      newItems.splice(targetIdx, 0, moved);
-                      
-                      setItems(newItems);
-                      
-                      api.post('/catalog/items/reorder', {
-                        order: newItems.map((i, idx) => ({ id: i.id, sort_order: idx }))
-                      }).catch(err => console.error('Failed to save item order:', err));
-                    }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '12px 16px', background: 'var(--card)',
-                      border: '1px solid var(--border)', borderRadius: 12,
-                      opacity: isEditing ? 0.6 : 1,
-                    }}
-                  >
-                    {/* Drag handle */}
-                    {!isEditing && (
-                      <div
-                        style={{
-                          cursor: 'grab', color: 'var(--text-muted)', padding: 4,
-                          display: 'flex', borderRadius: 4, flexShrink: 0,
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <GripVertical size={14} />
-                      </div>
-                    )}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10,
-                      background: item.approval_required ? 'var(--warning-bg)' : 'var(--accent-subtle)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      <IconComp size={16} color={item.approval_required ? 'var(--warning)' : 'var(--accent)'} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {item.name}
-                        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, fontWeight: 600,
-                          background: item.fulfillment_type === 'approval' ? 'var(--warning-bg)' : item.fulfillment_type === 'automated' ? 'var(--success-bg)' : 'var(--bg-tertiary)',
-                          color: item.fulfillment_type === 'approval' ? 'var(--warning)' : item.fulfillment_type === 'automated' ? 'var(--success)' : 'var(--text-muted)',
-                          border: '1px solid var(--border)',
-                        }}>
-                          {item.fulfillment_type === 'approval' ? 'Approval' : item.fulfillment_type === 'automated' ? 'Auto' : 'Ticket'}
-                        </span>
-                        {item.approval_required && (
-                          <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, fontWeight: 600,
-                            background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>
-                            {item.approval_role}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{item.short_description || item.description?.slice(0, 80) || 'No description'}</span>
-                        {item.category_name && (
-                          <span style={{ background: 'var(--bg-tertiary)', padding: '1px 6px', borderRadius: 6, fontSize: 10, fontWeight: 500 }}>
-                            {item.category_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => startEditItem(item)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4, display: 'flex' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button onClick={() => handleDeleteItem(item.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4, display: 'flex' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+          ) : filteredItems.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', border: '2px dashed var(--border)', borderRadius: 12 }}>
+              <Package size={32} color="var(--text-muted)" style={{ margin: '0 auto 12px' }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>No items in this category</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                Try selecting a different category or <button type="button" onClick={() => setCategoryFilter('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, fontSize: 12, textDecoration: 'underline' }}>clear the filter</button>.
+              </div>
             </div>
-          )}
+          ) : (() => {
+            // Group filteredItems by category, sorted by category sort_order
+            const itemsByCat = new Map<string, CatalogItem[]>();
+            for (const it of filteredItems) {
+              const key = it.category_name || 'Uncategorized';
+              if (!itemsByCat.has(key)) itemsByCat.set(key, []);
+              itemsByCat.get(key)!.push(it);
+            }
+
+            // Order category groups by the categories tab's sort_order
+            const catSortOrder = new Map(categories.map((c, i) => [c.name, c.sort_order]));
+            const sortedGroupNames = [...itemsByCat.keys()].sort((a, b) => {
+              const aOrder = catSortOrder.get(a) ?? 9999;
+              const bOrder = catSortOrder.get(b) ?? 9999;
+              return aOrder - bOrder;
+            });
+
+            return sortedGroupNames.map(catName => {
+              const catItems = itemsByCat.get(catName)!;
+              const cat = categories.find(c => c.name === catName);
+              const CatIcon = cat ? (CATEGORY_ICONS[cat.icon] || Package) : Package;
+
+              return (
+                <div key={catName} style={{ marginBottom: 24 }}>
+                  {/* Category header */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 12px', marginBottom: 8,
+                    background: 'var(--bg-secondary)', borderRadius: 8,
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 6,
+                      background: 'var(--accent-subtle)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <CatIcon size={14} color="var(--accent)" />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', flex: 1 }}>
+                      {catName}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {catItems.length} item{catItems.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  {/* Items within this category — drag-to-reorder */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
+                    {catItems.map((item, idx) => {
+                      const ItemIcon = CATEGORY_ICONS[item.icon] || Package;
+                      const isEditing = editingItemId === item.id;
+                      return (
+                        <div
+                          key={item.id}
+                          draggable={!isEditing}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', item.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const draggedId = e.dataTransfer.getData('text/plain');
+                            if (draggedId === item.id) return;
+
+                            // Reorder within this category group
+                            const newOrder = [...catItems];
+                            const draggedIdx = newOrder.findIndex(i => i.id === draggedId);
+                            const targetIdx = idx;
+
+                            if (draggedIdx === -1) return;
+
+                            const [moved] = newOrder.splice(draggedIdx, 1);
+                            newOrder.splice(targetIdx, 0, moved);
+
+                            // Map new sort_order back to all items
+                            const orderMap = new Map(newOrder.map((i, iIdx) => [i.id, iIdx]));
+                            const updatedItems = items.map(i => ({
+                              ...i,
+                              sort_order: orderMap.has(i.id) ? orderMap.get(i.id)! : i.sort_order,
+                            }));
+
+                            setItems(updatedItems);
+
+                            api.post('/catalog/items/reorder', {
+                              order: updatedItems.map(i => ({ id: i.id, sort_order: i.sort_order }))
+                            })
+                              .then(() => { showAlert('Item order saved'); loadItems(); })
+                              .catch(err => { console.error('Failed to save item order:', err); showAlert('Failed to save order', 'error'); });
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 14px', background: 'var(--card)',
+                            border: '1px solid var(--border)', borderRadius: 10,
+                            opacity: isEditing ? 0.6 : 1,
+                          }}
+                        >
+                          {/* Drag handle */}
+                          {!isEditing && (
+                            <div
+                              title="Drag to reorder within this category"
+                              style={{
+                                cursor: 'grab', color: 'var(--text-muted)', padding: 4,
+                                display: 'flex', borderRadius: 4, flexShrink: 0,
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                            >
+                              <GripVertical size={14} />
+                            </div>
+                          )}
+                          <div style={{
+                            width: 36, height: 36, borderRadius: 10,
+                            background: item.approval_required ? 'var(--warning-bg)' : 'var(--accent-subtle)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            <ItemIcon size={16} color={item.approval_required ? 'var(--warning)' : 'var(--accent)'} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {item.name}
+                              <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, fontWeight: 600,
+                                background: item.fulfillment_type === 'approval' ? 'var(--warning-bg)' : item.fulfillment_type === 'automated' ? 'var(--success-bg)' : 'var(--bg-tertiary)',
+                                color: item.fulfillment_type === 'approval' ? 'var(--warning)' : item.fulfillment_type === 'automated' ? 'var(--success)' : 'var(--text-muted)',
+                                border: '1px solid var(--border)',
+                              }}>
+                                {item.fulfillment_type === 'approval' ? 'Approval' : item.fulfillment_type === 'automated' ? 'Auto' : 'Ticket'}
+                              </span>
+                              {item.approval_required && (
+                                <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, fontWeight: 600,
+                                  background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning-border)' }}>
+                                  {item.approval_role}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                              {item.short_description || item.description?.slice(0, 80) || 'No description'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            <button onClick={() => startEditItem(item)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4, display: 'flex' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button onClick={() => handleDeleteItem(item.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4, display: 'flex' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
     </div>
