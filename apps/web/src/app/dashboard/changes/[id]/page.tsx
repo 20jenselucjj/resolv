@@ -94,6 +94,10 @@ export default function ChangeDetailPage() {
   const [showPirInput, setShowPirInput] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [linkedCis, setLinkedCis] = useState<any[]>([]);
+  const [ciSearchQuery, setCiSearchQuery] = useState('');
+  const [ciSearchResults, setCiSearchResults] = useState<any[]>([]);
+  const [showCiPicker, setShowCiPicker] = useState(false);
 
   const isAdmin = user?.role === 'admin';
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
@@ -109,9 +113,48 @@ export default function ChangeDetailPage() {
     }
   };
 
+  const fetchCis = async () => {
+    try {
+      const res = await api.get<{ data: any[] }>(`/changes/${id}/ci-links`);
+      setLinkedCis(res.data);
+    } catch {}
+  };
+
+  const linkCi = async (ciId: string) => {
+    try {
+      await api.post(`/changes/${id}/ci-links`, { ci_id: ciId });
+      await fetchCis();
+    } catch {}
+  };
+
+  const unlinkCi = async (linkId: string) => {
+    try {
+      await api.delete(`/changes/${id}/ci-links/${linkId}`);
+      await fetchCis();
+    } catch {}
+  };
+
+  const searchCis = async (q: string) => {
+    if (q.length < 2) { setCiSearchResults([]); return; }
+    try {
+      const res = await api.get<{ data: any[] }>(`/cmdb?search=${encodeURIComponent(q)}&pageSize=10`);
+      setCiSearchResults(res.data);
+    } catch { setCiSearchResults([]); }
+  };
+
   useEffect(() => {
     if (isAdminOrAgent) fetchChange();
   }, [id, isAdminOrAgent]);
+
+  useEffect(() => {
+    if (id) fetchCis();
+  }, [id]);
+
+  useEffect(() => {
+    if (!ciSearchQuery || ciSearchQuery.length < 2) { setCiSearchResults([]); return; }
+    const timer = setTimeout(() => searchCis(ciSearchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [ciSearchQuery]);
 
   const updateField = async (field: string, value: any) => {
     try {
@@ -495,6 +538,53 @@ export default function ChangeDetailPage() {
               </div>
             </div>
           )}
+          {/* Linked CIs */}
+          <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px 0' }}>
+              Linked Configuration Items
+              {isAdminOrAgent && <span style={{ fontWeight: 400, marginLeft: 8, cursor: 'pointer', fontSize: 11, color: 'var(--accent)' }} onClick={() => setShowCiPicker(!showCiPicker)}>+ Add</span>}
+            </h3>
+            {showCiPicker && (
+              <div style={{ marginBottom: 8, position: 'relative' }}>
+                <input
+                  value={ciSearchQuery}
+                  onChange={e => setCiSearchQuery(e.target.value)}
+                  placeholder="Search CIs..."
+                  className="input"
+                  style={{ width: '100%', fontSize: 13 }}
+                />
+                {ciSearchResults.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 10, maxHeight: 160, overflow: 'auto' }}>
+                    {ciSearchResults.map(ci => (
+                      <button
+                        key={ci.id}
+                        onClick={() => { linkCi(ci.id); setCiSearchQuery(''); setCiSearchResults([]); setShowCiPicker(false); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}
+                      >
+                        {ci.name} <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>({ci.ci_type})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {linkedCis.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>No configuration items linked.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {linkedCis.map(link => (
+                  <span key={link.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600, borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                    {link.ci_name}
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>({link.ci_type})</span>
+                    {isAdminOrAgent && (
+                      <button onClick={() => unlinkCi(link.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1, color: 'var(--text-secondary)', marginLeft: 2 }}>×</button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {change.outage_description && (
             <div style={{ padding: '20px', borderBottom: '1px solid var(--border)' }}>
               <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px 0' }}>Outage Description</h3>

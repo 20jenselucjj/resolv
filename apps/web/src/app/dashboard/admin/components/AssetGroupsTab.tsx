@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Layers, Plus, Edit2, Trash2, Monitor, Search, ArrowUpDown, Settings, DollarSign, Save } from 'lucide-react';
+import { useState } from 'react';
+import { Layers, Plus, Edit2, Trash2, Monitor, Search, ArrowUpDown, Settings, X, User } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface AutoJoinCondition {
@@ -46,15 +46,28 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
   const [defaultsForm, setDefaultsForm] = useState<Record<string, any>>({});
   const [savingDefaults, setSavingDefaults] = useState(false);
 
-  // ─── License Config State ─────────────────────────────────────────────────
-  const [licenseSettings, setLicenseSettings] = useState<Record<string, string>>({
-    license_default_alert_threshold: '90',
-    license_default_renewal_days: '30',
-    license_default_currency: 'USD',
-    license_categories: '',
-  });
-  const [licenseLoading, setLicenseLoading] = useState(false);
-  const [savingLicense, setSavingLicense] = useState<string | null>(null);
+  // ─── User Search for Default Assigned To ─────────────────────────────────
+  const [assignedSearchResults, setAssignedSearchResults] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [showAssignedDropdown, setShowAssignedDropdown] = useState(false);
+  const [assignedSearchTimeout, setAssignedSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedAssignedUser, setSelectedAssignedUser] = useState<{ id: string; name: string; email: string } | null>(null);
+
+  const searchUsers = async (q: string) => {
+    if (q.length < 2) { setAssignedSearchResults([]); return; }
+    try {
+      const res = await api.get<{ data: Array<{ id: string; name: string; email: string }> }>(`/users?search=${encodeURIComponent(q)}&limit=8`);
+      setAssignedSearchResults(res.data || []);
+      setShowAssignedDropdown((res.data?.length || 0) > 0);
+    } catch { setAssignedSearchResults([]); }
+  };
+
+  const handleAssignedSearch = (q: string) => {
+    setSelectedAssignedUser(null);
+    if (assignedSearchTimeout) clearTimeout(assignedSearchTimeout);
+    if (q.length < 2) { setAssignedSearchResults([]); setShowAssignedDropdown(false); return; }
+    const t = setTimeout(() => searchUsers(q), 300);
+    setAssignedSearchTimeout(t);
+  };
 
   const filteredGroups = groups
     .filter(g =>
@@ -125,6 +138,10 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
         [`${g.id}_rules`]: g.auto_join_rules || [],
         [`${g.id}_enabled`]: g.auto_join_enabled || false,
       });
+      // Reset user search
+      setSelectedAssignedUser(null);
+      setAssignedSearchResults([]);
+      setShowAssignedDropdown(false);
     }
   };
 
@@ -145,45 +162,6 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
       showAlert(err?.serverError || err?.message || 'Failed to save defaults', 'error');
     } finally {
       setSavingDefaults(false);
-    }
-  };
-
-  // ─── License Config ──────────────────────────────────────────────────────
-
-  const loadLicenseSettings = useCallback(async () => {
-    setLicenseLoading(true);
-    try {
-      const res = await api.get<{ data: Array<{ key: string; value: string }> }>('/admin/settings');
-      if (res.data) {
-        const keys = ['license_default_alert_threshold', 'license_default_renewal_days', 'license_default_currency', 'license_categories'];
-        const loaded: Record<string, string> = { ...licenseSettings };
-        for (const item of res.data) {
-          if (keys.includes(item.key)) {
-            loaded[item.key] = item.value;
-          }
-        }
-        setLicenseSettings(loaded);
-      }
-    } catch {
-      // Settings endpoint may not be available
-    } finally {
-      setLicenseLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadLicenseSettings();
-  }, [loadLicenseSettings]);
-
-  const handleSaveLicense = async (key: string) => {
-    setSavingLicense(key);
-    try {
-      await api.patch('/admin/settings', { key, value: licenseSettings[key] });
-      showAlert('License setting saved');
-    } catch (err: any) {
-      showAlert(err?.serverError || err?.message || 'Failed to save license setting', 'error');
-    } finally {
-      setSavingLicense(null);
     }
   };
 
@@ -352,6 +330,17 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
                           <Monitor size={11} /> {g.asset_count}
                         </span>
                       )}
+                      {(g.auto_join_enabled) && (
+                        <span style={{
+                          fontSize: '10px', fontWeight: 600,
+                          background: 'rgba(34,197,94,0.12)', color: '#16a34a',
+                          borderRadius: 'var(--radius-full)',
+                          padding: '2px 7px', display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
+                          Auto-join {(g.auto_join_rules?.length || 0) > 0 ? `(${g.auto_join_rules!.length})` : ''}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>{g.description || 'No description'}</div>
                   </div>
@@ -391,11 +380,82 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
 
                       <div>
                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, marginBottom: '4px' }}>Default Assigned To</label>
-                        <input className="input" style={{ padding: '6px 10px', fontSize: 13 }}
-                          value={defaultsForm[`${g.id}_assigned`] || ''}
-                          onChange={e => setDefaultsForm({ ...defaultsForm, [`${g.id}_assigned`]: e.target.value })}
-                          placeholder="User UUID or leave blank" />
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Enter a user's UUID to auto-assign assets in this group.</div>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            className="input"
+                            style={{ padding: '6px 10px', fontSize: 13, paddingRight: 30 }}
+                            value={selectedAssignedUser?.name || defaultsForm[`${g.id}_assigned`] || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (selectedAssignedUser && val !== selectedAssignedUser.name) {
+                                setDefaultsForm({ ...defaultsForm, [`${g.id}_assigned`]: '' });
+                              }
+                              if (!val) { setSelectedAssignedUser(null); setAssignedSearchResults([]); setShowAssignedDropdown(false); return; }
+                              handleAssignedSearch(val);
+                            }}
+                            onFocus={() => {
+                              if (assignedSearchResults.length > 0) setShowAssignedDropdown(true);
+                            }}
+                            placeholder="Search by name or email..."
+                            autoComplete="off"
+                          />
+                          {(selectedAssignedUser || defaultsForm[`${g.id}_assigned`]) && (
+                            <button
+                              onClick={() => {
+                                setDefaultsForm({ ...defaultsForm, [`${g.id}_assigned`]: '' });
+                                setSelectedAssignedUser(null);
+                                setAssignedSearchResults([]);
+                                setShowAssignedDropdown(false);
+                              }}
+                              style={{
+                                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)',
+                                padding: 0, lineHeight: 1,
+                              }}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                          {showAssignedDropdown && assignedSearchResults.length > 0 && (
+                            <div style={{
+                              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                              background: 'var(--card)', border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)', marginTop: 4,
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.15)', maxHeight: 200, overflowY: 'auto',
+                            }}>
+                              {assignedSearchResults.map(u => (
+                                <div
+                                  key={u.id}
+                                  onClick={() => {
+                                    setDefaultsForm({ ...defaultsForm, [`${g.id}_assigned`]: u.id });
+                                    setSelectedAssignedUser(u);
+                                    setAssignedSearchResults([u]);
+                                    setShowAssignedDropdown(false);
+                                  }}
+                                  style={{
+                                    padding: '8px 12px', cursor: 'pointer', fontSize: 12,
+                                    borderBottom: '1px solid var(--border-subtle)',
+                                    transition: 'background 0.1s',
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <User size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+                                  <div>
+                                    <span style={{ fontWeight: 600, color: 'var(--text)' }}>{u.name}</span>
+                                    <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11 }}>{u.email}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                          {selectedAssignedUser
+                            ? `Auto-assigns to ${selectedAssignedUser.name}`
+                            : 'Search for a user to auto-assign assets in this group.'}
+                        </div>
                       </div>
 
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
@@ -497,148 +557,6 @@ export function AssetGroupsTab({ groups, onRefresh, showAlert, setConfirmModal }
         </div>
       )}
 
-      {/* ─── Software License Defaults ───────────────────────────────────── */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 'var(--radius-md)',
-            background: 'rgba(34,197,94,0.12)', color: '#22c55e',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <DollarSign size={18} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <h3 style={sectionTitle}>Software License Defaults</h3>
-            <p style={sectionDesc}>
-              Configure default settings for software license management. These values are used
-              as presets when creating new license records.
-            </p>
-
-            {licenseLoading ? (
-              <div className="skeleton" style={{ height: 200, borderRadius: 'var(--radius-md)' }} />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div>
-                    <label style={labelStyle}>Compliance Alert Threshold (%)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={licenseSettings.license_default_alert_threshold}
-                      onChange={e => setLicenseSettings({ ...licenseSettings, license_default_alert_threshold: e.target.value })}
-                      style={inputStyle}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                      When license usage reaches this percentage, a compliance alert is triggered.
-                    </div>
-                    <button
-                      onClick={() => handleSaveLicense('license_default_alert_threshold')}
-                      className="btn btn-ghost"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 14px', borderRadius: 'var(--radius-md)',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        color: 'var(--accent)', marginTop: 8,
-                      }}
-                      disabled={savingLicense === 'license_default_alert_threshold'}
-                    >
-                      <Save size={14} />
-                      {savingLicense === 'license_default_alert_threshold' ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Default Renewal Notice (days)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={365}
-                      value={licenseSettings.license_default_renewal_days}
-                      onChange={e => setLicenseSettings({ ...licenseSettings, license_default_renewal_days: e.target.value })}
-                      style={inputStyle}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Number of days before a license expires to send a renewal notice.
-                    </div>
-                    <button
-                      onClick={() => handleSaveLicense('license_default_renewal_days')}
-                      className="btn btn-ghost"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 14px', borderRadius: 'var(--radius-md)',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        color: 'var(--accent)', marginTop: 8,
-                      }}
-                      disabled={savingLicense === 'license_default_renewal_days'}
-                    >
-                      <Save size={14} />
-                      {savingLicense === 'license_default_renewal_days' ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div>
-                    <label style={labelStyle}>Default Currency</label>
-                    <select
-                      value={licenseSettings.license_default_currency}
-                      onChange={e => setLicenseSettings({ ...licenseSettings, license_default_currency: e.target.value })}
-                      style={selectStyle}
-                    >
-                      <option value="USD">USD — US Dollar</option>
-                      <option value="EUR">EUR — Euro</option>
-                      <option value="GBP">GBP — British Pound</option>
-                      <option value="CAD">CAD — Canadian Dollar</option>
-                      <option value="AUD">AUD — Australian Dollar</option>
-                    </select>
-                    <button
-                      onClick={() => handleSaveLicense('license_default_currency')}
-                      className="btn btn-ghost"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 14px', borderRadius: 'var(--radius-md)',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        color: 'var(--accent)', marginTop: 8,
-                      }}
-                      disabled={savingLicense === 'license_default_currency'}
-                    >
-                      <Save size={14} />
-                      {savingLicense === 'license_default_currency' ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>License Categories</label>
-                    <textarea
-                      value={licenseSettings.license_categories}
-                      onChange={e => setLicenseSettings({ ...licenseSettings, license_categories: e.target.value })}
-                      style={{ ...inputStyle, minHeight: 72, resize: 'vertical' }}
-                      placeholder="e.g. SaaS, Perpetual, Subscription, OEM, Volume Licensing"
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Comma-separated list of default license categories for new licenses.
-                    </div>
-                    <button
-                      onClick={() => handleSaveLicense('license_categories')}
-                      className="btn btn-ghost"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 14px', borderRadius: 'var(--radius-md)',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        color: 'var(--accent)', marginTop: 8,
-                      }}
-                      disabled={savingLicense === 'license_categories'}
-                    >
-                      <Save size={14} />
-                      {savingLicense === 'license_categories' ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

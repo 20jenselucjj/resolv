@@ -117,6 +117,10 @@ export default function ChangesPage() {
   const [newScheduledStart, setNewScheduledStart] = useState('');
   const [newScheduledEnd, setNewScheduledEnd] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [newCiIds, setNewCiIds] = useState<string[]>([]);
+  const [ciSearchQuery, setCiSearchQuery] = useState('');
+  const [ciSearchResults, setCiSearchResults] = useState<{ id: string; name: string; ci_type: string }[]>([]);
+  const [showCiPicker, setShowCiPicker] = useState(false);
 
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
 
@@ -144,6 +148,20 @@ export default function ChangesPage() {
     if (isAdminOrAgent) fetchChanges();
   }, [fetchChanges, isAdminOrAgent]);
 
+  const searchCis = async (q: string) => {
+    if (q.length < 2) { setCiSearchResults([]); return; }
+    try {
+      const res = await api.get<{ data: any[] }>(`/cmdb?search=${encodeURIComponent(q)}&pageSize=10`);
+      setCiSearchResults(res.data);
+    } catch { setCiSearchResults([]); }
+  };
+
+  useEffect(() => {
+    if (!ciSearchQuery || ciSearchQuery.length < 2) { setCiSearchResults([]); return; }
+    const timer = setTimeout(() => searchCis(ciSearchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [ciSearchQuery]);
+
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
     setSubmitting(true);
@@ -158,6 +176,7 @@ export default function ChangesPage() {
         rollback_plan: newRollbackPlan || null,
         scheduled_start: newScheduledStart || null,
         scheduled_end: newScheduledEnd || null,
+        ci_ids: newCiIds,
       });
       setNewTitle('');
       setNewDesc('');
@@ -168,6 +187,7 @@ export default function ChangesPage() {
       setNewRollbackPlan('');
       setNewScheduledStart('');
       setNewScheduledEnd('');
+      setNewCiIds([]);
       setShowNewPanel(false);
       fetchChanges();
     } catch (err) {
@@ -450,6 +470,46 @@ export default function ChangesPage() {
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Rollback Plan</label>
                 <textarea value={newRollbackPlan} onChange={e => setNewRollbackPlan(e.target.value)} className="textarea" placeholder="Steps to rollback if needed" rows={2} style={{ width: '100%', resize: 'vertical' }} />
+              </div>
+            </div>
+            {/* Linked CIs */}
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Linked Configuration Items</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                {newCiIds.map(ciId => (
+                  <span key={ciId} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12, border: '1px solid var(--border)' }}>
+                    {ciId.slice(0, 8)}...
+                    <button onClick={() => setNewCiIds(prev => prev.filter(id => id !== ciId))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1, color: 'var(--text-secondary)' }}>×</button>
+                  </span>
+                ))}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={ciSearchQuery}
+                  onChange={e => { setCiSearchQuery(e.target.value); setShowCiPicker(true); }}
+                  onFocus={() => setShowCiPicker(true)}
+                  placeholder="Search CIs to link..."
+                  className="input"
+                  style={{ width: '100%', fontSize: 13 }}
+                />
+                {showCiPicker && ciSearchResults.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 10, maxHeight: 180, overflow: 'auto' }}>
+                    {ciSearchResults.map(ci => (
+                      <button
+                        key={ci.id}
+                        onClick={() => {
+                          if (!newCiIds.includes(ci.id)) setNewCiIds(prev => [...prev, ci.id]);
+                          setCiSearchQuery('');
+                          setCiSearchResults([]);
+                          setShowCiPicker(false);
+                        }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}
+                      >
+                        {ci.name} <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>({ci.ci_type})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>

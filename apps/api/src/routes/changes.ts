@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
+import { eventBus } from '../services/event-bus';
 
 const createChangeSchema = z.object({
   title: z.string().min(3).max(500),
@@ -21,6 +22,7 @@ const createChangeSchema = z.object({
   services_affected: z.array(z.string()).default([]),
   outage_required: z.boolean().default(false),
   outage_description: z.string().nullable().optional(),
+  ci_ids: z.array(z.string().uuid()).default([]),
 });
 
 const updateChangeSchema = z.object({
@@ -272,7 +274,24 @@ export default async function changeRoutes(fastify: FastifyInstance) {
 
       await client.query('COMMIT');
 
+      // Link CIs if provided
+      if (body.ci_ids.length > 0) {
+        for (const ciId of body.ci_ids) {
+          await pool.query(
+            `INSERT INTO change_ci_links (change_id, ci_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [rawChange.id, ciId]
+          ).catch(() => {});
+        }
+      }
+
       const change = await fetchChange(rawChange.id);
+
+      eventBus.publish('change.created', {
+        entityType: 'change',
+        entityId: change.id,
+        actorId: request.user.id,
+        data: { change },
+      });
 
       return reply.status(201).send({ data: change });
     } catch (error) {
@@ -434,6 +453,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       // Emit socket event
       fastify.io.emit('change:updated', { changeId: id });
 
+      eventBus.publish('change.updated', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
+
       return reply.send({ data: updatedChange });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -554,6 +580,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       const updatedChange = await fetchChange(id);
       fastify.io.emit('change:updated', { changeId: id, action: 'submitted' });
 
+      eventBus.publish('change.submitted', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
+
       return reply.send({ data: updatedChange });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -618,6 +651,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       const updatedChange = await fetchChange(id);
       fastify.io.emit('change:updated', { changeId: id, action: 'approved' });
 
+      eventBus.publish('change.approved', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
+
       return reply.send({ data: updatedChange });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -668,6 +708,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       const updatedChange = await fetchChange(id);
       fastify.io.emit('change:updated', { changeId: id, action: 'rejected' });
 
+      eventBus.publish('change.rejected', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
+
       return reply.send({ data: updatedChange });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -716,6 +763,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
 
       const updatedChange = await fetchChange(id);
       fastify.io.emit('change:updated', { changeId: id, action: 'started' });
+
+      eventBus.publish('change.started', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
 
       return reply.send({ data: updatedChange });
     } catch (error) {
@@ -767,6 +821,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       const updatedChange = await fetchChange(id);
       fastify.io.emit('change:updated', { changeId: id, action: 'completed' });
 
+      eventBus.publish('change.completed', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
+
       return reply.send({ data: updatedChange });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -817,6 +878,13 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       const updatedChange = await fetchChange(id);
       fastify.io.emit('change:updated', { changeId: id, action: 'rolled_back' });
 
+      eventBus.publish('change.rolled_back', {
+        entityType: 'change',
+        entityId: id,
+        actorId: request.user.id,
+        data: { change: updatedChange },
+      });
+
       return reply.send({ data: updatedChange });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -852,5 +920,122 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     );
 
     return reply.status(201).send({ data: result.rows[0] });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  //  CI Links — link changes to configuration items
+  // ─────────────────────────────────────────────────────────
+
+  // GET /changes/:id/ci-links — list linked CIs
+  fastify.get('/changes/:id/ci-links', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const result = await pool.query(
+      `SELECT cl.*, ci.name as ci_name, ci.ci_type, ci.status as ci_status
+       FROM change_ci_links cl
+       JOIN configuration_items ci ON cl.ci_id = ci.id
+       WHERE cl.change_id = $1
+       ORDER BY ci.name`,
+      [id]
+    );
+    return reply.send({ data: result.rows });
+  });
+
+  // POST /changes/:id/ci-links — link a CI to this change
+  const linkCiSchema = z.object({
+    ci_id: z.string().uuid(),
+    relationship_type: z.string().max(50).default('affects'),
+  });
+
+  fastify.post('/changes/:id/ci-links', { preHandler: [fastify.requirePermission('manage_changes')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = linkCiSchema.parse(request.body);
+
+    const changeCheck = await pool.query('SELECT id FROM changes WHERE id = $1', [id]);
+    if (changeCheck.rows.length === 0) {
+      return reply.status(404).send({ error: 'Change not found' });
+    }
+
+    const ciCheck = await pool.query('SELECT id, name FROM configuration_items WHERE id = $1', [body.ci_id]);
+    if (ciCheck.rows.length === 0) {
+      return reply.status(404).send({ error: 'Configuration item not found' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO change_ci_links (change_id, ci_id, relationship_type)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (change_id, ci_id) DO UPDATE SET relationship_type = $3
+       RETURNING *`,
+      [id, body.ci_id, body.relationship_type]
+    );
+
+    // Log activity
+    await pool.query(
+      `INSERT INTO change_activity (change_id, actor_id, action, new_value)
+       VALUES ($1, $2, 'ci_linked', $3)`,
+      [id, request.user.id, `CI ${ciCheck.rows[0].name} (${body.relationship_type})`]
+    ).catch(() => {});
+
+    return reply.status(201).send({ data: result.rows[0] });
+  });
+
+  // DELETE /changes/:id/ci-links/:linkId — unlink CI
+  fastify.delete('/changes/:id/ci-links/:linkId', { preHandler: [fastify.requirePermission('manage_changes')] }, async (request, reply) => {
+    const { id, linkId } = request.params as { id: string; linkId: string };
+
+    const current = await pool.query('SELECT cl.*, ci.name as ci_name FROM change_ci_links cl JOIN configuration_items ci ON cl.ci_id = ci.id WHERE cl.id = $1 AND cl.change_id = $2', [linkId, id]);
+    if (current.rows.length === 0) {
+      return reply.status(404).send({ error: 'Link not found' });
+    }
+
+    await pool.query('DELETE FROM change_ci_links WHERE id = $1', [linkId]);
+
+    await pool.query(
+      `INSERT INTO change_activity (change_id, actor_id, action, old_value)
+       VALUES ($1, $2, 'ci_unlinked', $3)`,
+      [id, request.user.id, `CI ${current.rows[0].ci_name}`]
+    ).catch(() => {});
+
+    return reply.status(204).send();
+  });
+
+  // GET /changes/:id/impact-analysis — get impact analysis with related CIs
+  fastify.get('/changes/:id/impact-analysis', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    // Get linked CIs
+    const linkedCis = await pool.query(
+      `SELECT cl.*, ci.name, ci.ci_type, ci.status, ci.department, ci.location
+       FROM change_ci_links cl
+       JOIN configuration_items ci ON cl.ci_id = ci.id
+       WHERE cl.change_id = $1
+       ORDER BY ci.name`,
+      [id]
+    );
+
+    // For each linked CI, get relationships
+    const ciIds = linkedCis.rows.map((r: any) => r.ci_id);
+    let relationships: any[] = [];
+    if (ciIds.length > 0) {
+      const relResult = await pool.query(
+        `SELECT r.*,
+                source.name as source_name, source.ci_type as source_type,
+                target.name as target_name, target.ci_type as target_type
+         FROM ci_relationships r
+         LEFT JOIN configuration_items source ON r.source_id = source.id
+         LEFT JOIN configuration_items target ON r.target_id = target.id
+         WHERE r.source_id = ANY($1) OR r.target_id = ANY($1)
+         ORDER BY r.created_at DESC`,
+        [ciIds]
+      );
+      relationships = relResult.rows;
+    }
+
+    return reply.send({
+      data: {
+        linked_cis: linkedCis.rows,
+        relationships,
+        impact_count: linkedCis.rows.length,
+      },
+    });
   });
 }

@@ -7,6 +7,7 @@ import { sendTemplateEmail, isEmailEnabledForEvent } from '../services/outbound-
 import type { EmailAttachment } from '../services/outbound-email';
 import { dispatchNotifications } from '../services/notification-runner';
 import { autoClassifyTicket } from '../services/workflow-engine';
+import { eventBus } from '../services/event-bus';
 import fs from 'fs';
 
 // ─── Email variable helpers ─────────────────────────────────────────────────
@@ -349,6 +350,14 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
       await client.query('COMMIT');
 
+      // Publish event bus event
+      eventBus.publish('ticket.created', {
+        entityType: 'ticket',
+        entityId: ticket.id,
+        actorId: request.user.id,
+        data: { ticket },
+      });
+
       // Fetch custom fields for response
       let customFields: any[] = [];
       try {
@@ -675,6 +684,46 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         }).catch(() => {});
       }
 
+      // Publish event bus events
+      eventBus.publish('ticket.updated', {
+        entityType: 'ticket',
+        entityId: updated.id,
+        actorId: request.user.id,
+        data: { ticket: updated, previousData: { status: ticket.status, priority: ticket.priority, assigned_to_id: ticket.assigned_to_id } },
+      });
+      if (body.status && body.status !== ticket.status) {
+        eventBus.publish('ticket.status_changed', {
+          entityType: 'ticket',
+          entityId: updated.id,
+          actorId: request.user.id,
+          data: { ticket: updated, previousStatus: ticket.status, newStatus: body.status },
+        });
+      }
+      if (body.assigned_to_id !== undefined && body.assigned_to_id !== ticket.assigned_to_id) {
+        eventBus.publish('ticket.assigned', {
+          entityType: 'ticket',
+          entityId: updated.id,
+          actorId: request.user.id,
+          data: { ticket: updated, previousAssignee: ticket.assigned_to_id, newAssignee: body.assigned_to_id },
+        });
+      }
+      if (body.status === 'resolved') {
+        eventBus.publish('ticket.resolved', {
+          entityType: 'ticket',
+          entityId: updated.id,
+          actorId: request.user.id,
+          data: { ticket: updated },
+        });
+      }
+      if (body.status === 'closed') {
+        eventBus.publish('ticket.closed', {
+          entityType: 'ticket',
+          entityId: updated.id,
+          actorId: request.user.id,
+          data: { ticket: updated },
+        });
+      }
+
       return reply.send({ data: updated });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -688,6 +737,12 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
   fastify.delete('/tickets/:id', { preHandler: [fastify.requirePermission('delete_tickets')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await pool.query('DELETE FROM tickets WHERE id = $1', [id]);
+    eventBus.publish('ticket.deleted', {
+      entityType: 'ticket',
+      entityId: id,
+      actorId: request.user.id,
+      data: { id },
+    });
     fastify.io.emit('ticket:deleted', { id });
     fastify.io.emit('reports:data-updated', {});
     return reply.status(204).send();
@@ -891,6 +946,14 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       }
 
       await client.query('COMMIT');
+
+      // Publish event bus event
+      eventBus.publish('comment.added', {
+        entityType: 'ticket',
+        entityId: id,
+        actorId: request.user.id,
+        data: { comment, ticket },
+      });
 
       if (preservedComment) {
         fastify.io.emit(`ticket:comment:${id}`, { comment: preservedComment });

@@ -33,5 +33,8 @@ export { LoginModeSection } from './LoginModeSection';
 export { NotificationSettingsTab } from './NotificationSettingsTab';
 export { ToggleSwitch } from './ToggleSwitch';
 export { RoleAssignmentRulesTab } from './RoleAssignmentRulesTab';
+export { CmdbTab } from './CmdbTab';
+export { WebhooksTab } from './WebhooksTab';
+export { LicenseComplianceTab } from './LicenseComplianceTab';
 export { ConditionSection, ConditionRow } from './ConditionBuilder';
 export type { RuleCondition, ConditionOperator } from './ConditionBuilder';

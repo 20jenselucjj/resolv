@@ -51,6 +51,9 @@ import softwarePackageRoutes from './routes/software-packages';
 import agentVersionRoutes from './routes/agent-versions';
 import roleRulesRoutes from './routes/role-rules';
 import approvalRoutingRulesRoutes from './routes/approval-routing-rules';
+import cmdbRoutes from './routes/cmdb';
+import webhookRoutes, { startWebhookListener } from './routes/webhooks';
+import majorIncidentRoutes from './routes/major-incidents';
 import { startInboundListener } from './services/inbound-email';
 import { startScheduledNotifications, stopScheduledNotifications } from './services/scheduled-notifications';
 import { startReportScheduler, stopReportScheduler } from './services/report-scheduler';
@@ -251,6 +254,9 @@ async function start() {
   await fastify.register(agentVersionRoutes, { prefix: '/api' });
   await fastify.register(roleRulesRoutes, { prefix: '/api' });
   await fastify.register(approvalRoutingRulesRoutes, { prefix: '/api' });
+  await fastify.register(cmdbRoutes, { prefix: '/api' });
+  await fastify.register(webhookRoutes, { prefix: '/api' });
+  await fastify.register(majorIncidentRoutes, { prefix: '/api' });
 
   // Health check (under /api prefix so the frontend api helper can reach it)
   fastify.get('/api/health', async (request, reply) => {
@@ -361,6 +367,14 @@ async function start() {
   startInboundListener().catch(err => {
     fastify.log.error('[index] Failed to start inbound email listener:', err.message);
   });
+
+  // Start webhook event listener (dispatches HTTP callbacks for events)
+  try {
+    startWebhookListener();
+    fastify.log.info('[index] Webhook event listener started');
+  } catch (err: any) {
+    fastify.log.error('[index] Failed to start webhook listener:', err.message);
+  }
 
   // Start scheduled notification runner (due date reminders, SLA warnings, escalations, surveys)
   startScheduledNotifications().catch(err => {

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
+import { eventBus } from '../services/event-bus';
 
 const createProblemSchema = z.object({
   title: z.string().min(3).max(500),
@@ -208,6 +209,13 @@ export default async function problemRoutes(fastify: FastifyInstance) {
 
       await client.query('COMMIT');
 
+      eventBus.publish('problem.identified', {
+        entityType: 'problem',
+        entityId: problem.id,
+        actorId: request.user.id,
+        data: { problem },
+      });
+
       return reply.status(201).send({ data: problem });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -308,7 +316,24 @@ export default async function problemRoutes(fastify: FastifyInstance) {
         [id]
       );
 
-      return reply.send({ data: updatedResult.rows[0] });
+      const updatedProblem = updatedResult.rows[0];
+
+      eventBus.publish('problem.updated', {
+        entityType: 'problem',
+        entityId: id,
+        actorId: request.user.id,
+        data: { problem: updatedProblem, previousData: { status: problem.status, priority: problem.priority } },
+      });
+      if (body.status === 'resolved') {
+        eventBus.publish('problem.resolved', {
+          entityType: 'problem',
+          entityId: id,
+          actorId: request.user.id,
+          data: { problem: updatedProblem },
+        });
+      }
+
+      return reply.send({ data: updatedProblem });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

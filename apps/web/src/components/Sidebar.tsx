@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Search,
   Bell, BookOpen, Shield, LayoutGrid, BarChart2,
   Sparkles, Monitor, AlertTriangle, CheckSquare,
-  GitBranch, Users, Phone, Key,
+  GitBranch, Users, Key,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -45,8 +45,8 @@ const navSections: NavSection[] = [
   {
     title: 'Operations',
     items: [
-      { href: '/dashboard/changes',      icon: GitBranch,      label: 'Changes',     agentAndAbove: true },
-      { href: '/dashboard/problems',     icon: AlertTriangle,  label: 'Problems',     agentAndAbove: true },
+      { href: '/dashboard/changes',          icon: GitBranch,      label: 'Changes',         agentAndAbove: true },
+      { href: '/dashboard/problems',         icon: AlertTriangle,  label: 'Problems',         agentAndAbove: true },
     ],
   },
   {

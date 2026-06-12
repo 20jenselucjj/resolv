@@ -28,6 +28,7 @@ import {
   CustomFieldsTab, ServiceCatalogTab, WorkflowDesignerTab,
   AuthenticationTab, NotificationSettingsTab,
   ProblemMgmtTab, ChangeMgmtTab, ApprovalWorkflowsTab,
+  CmdbTab, WebhooksTab, LicenseComplianceTab,
 } from './components';
 import { ConfirmModal, Alert, Modal } from './components/SharedUI';
 import type {
@@ -65,12 +66,15 @@ const TAB_SUBTITLES: Record<string, string> = {
   ai: 'Configure the AI assistant, manage knowledge training sources, and RAG settings',
   'problem-mgmt': 'Configure problem management templates, auto-linking rules, and known error lifecycle',
   'change-mgmt': 'Configure change types, risk framework, and plan templates',
+  'cmdb': 'Manage configuration items, CI relationships, and the configuration management database',
+  'webhooks': 'Configure outbound webhook integrations and manage event delivery to external systems',
   'approval-workflows': 'Configure approval step templates, escalation rules, due date defaults, and routing rules',
   'notification-settings': 'Configure notification triggers, event alerts, and delivery channels for tickets and ITSM processes',
   'asset-groups': 'Manage asset groups, categories, software licenses, and compliance defaults',
   'portal-customization': 'Customize the self-service portal branding, hero, quick actions, and end-user experience',
   'canned-responses': 'Create and manage saved reply templates for faster, consistent ticket responses',
   'agent-settings': 'Configure and deploy the Windows desktop agent for asset discovery and monitoring',
+  'license-compliance': 'Configure software license compliance thresholds, renewal notices, default currency, and license categories',
   settings: 'Manage global system configuration, integrations, and application-wide settings',
 };
 
@@ -145,12 +149,15 @@ export default function AdminPage() {
     { tab: 'portal-customization', keywords: ['portal', 'self-service portal', 'branding', 'hero', 'customize', 'customization', 'quick actions', 'company name', 'subtitle', 'end user', 'user portal'] },
     { tab: 'canned-responses', keywords: ['canned responses', 'canned', 'saved replies', 'saved reply', 'responses', 'quick replies', 'templates', 'reply templates', 'shortcuts'] },
     { tab: 'ai', keywords: ['ai', 'ai assistant', 'assistant', 'openai', 'gpt', 'model', 'temperature', 'tokens', 'api key', 'system prompt', 'provider', 'base url', 'allowed roles', 'ai training', 'training', 'knowledge', 'rag', 'retrieval', 'vector', 'embedding', 'chunks', 'qa pairs', 'q&a', 'sources', 'documents', 'ingest', 'semantic', 'hybrid', 'keyword', 'similarity', 'top k', 'chunk size', 'chunk overlap', 'citation', 'analytics', 'test', 'evaluate', 'rag settings', 'knowledge sources', 'ticket sync', 'kb sync'] },
-    { tab: 'asset-groups', keywords: ['asset groups', 'asset management', 'groups', 'asset categories', 'asset classification', 'group color', 'organize assets', 'software licenses', 'license defaults', 'compliance', 'currency', 'license categories'] },
+    { tab: 'asset-groups', keywords: ['asset groups', 'asset classification', 'classification', 'groups', 'asset categories', 'group color', 'organize assets', 'auto-join', 'auto join rules'] },
+    { tab: 'license-compliance', keywords: ['license', 'compliance', 'software license', 'license defaults', 'currency', 'alert threshold', 'renewal notice', 'categories', 'SaaS', 'perpetual', 'subscription', 'financial', 'cost'] },
     { tab: 'agent-settings', keywords: ['agent', 'desktop agent', 'agent settings', 'agent secret', 'deploy agent', 'download agent', 'agent key', 'agent deployment', 'gpo', 'silent install', 'agent installation', 'asset discovery', 'agent config'] },
     { tab: 'audit-log', keywords: ['audit', 'log', 'history', 'trail', 'audit log', 'operations', 'changes', 'who', 'actor', 'events'] },
     { tab: 'settings', keywords: ['settings', 'system settings', 'configuration', 'config', 'system', 'general', 'integrations key', 'variables', 'global', 'notifications', 'notification settings', 'alerts', 'channels', 'email alerts', 'in-app', 'notify', 'events', 'triggers'] },
     { tab: 'backup-restore', keywords: ['backup', 'restore', 'database backup', 'dump', 'disaster recovery', 'export', 'sql dump'] },
     { tab: 'problem-mgmt', keywords: ['problem', 'problem management', 'root cause', 'known error', 'kedb', 'auto-link', 'incident link', 'problem lifecycle', 'known error database', 'workaround', 'problem template', 'RCA'] },
+    { tab: 'cmdb', keywords: ['cmdb', 'configuration management', 'configuration item', 'ci', 'cmdb management', 'relationship', 'dependency', 'ci type', 'ci status', 'configuration database', 'asset management', 'inventory', 'service map', 'it infrastructure'] },
+    { tab: 'webhooks', keywords: ['webhook', 'webhooks', 'integration', 'event', 'callback', 'outbound', 'notification', 'endpoint', 'delivery', 'http hook', 'api hook', 'event driven', 'webhook config', 'webhook settings'] },
     { tab: 'change-mgmt', keywords: ['change', 'change management', 'risk', 'risk framework', 'maintenance window', 'blackout', 'PIR', 'post implementation', 'implementation plan', 'rollback', 'standard change', 'normal change', 'emergency change', 'auto approve'] },
     { tab: 'approval-workflows', keywords: ['approval', 'approval workflow', 'approve', 'deny', 'escalation', 'due date', 'approval chain', 'approval step', 'approval template', 'pending approval', 'approval notification', 'routing rules', 'approver', 'manager approval', 'approval conditions', 'approval routing', 'approval rule', 'step template'] },
     { tab: 'notification-settings', keywords: ['notification', 'notifications', 'notification channels', 'email notification', 'in-app', 'alert', 'alerts', 'event notification', 'ticket notification', 'SLA breach notification', 'problem notification', 'change notification', 'approval notification', 'license notification'] },
@@ -192,17 +199,18 @@ export default function AdminPage() {
       ]
     },
     {
-      group: 'ITSM & OPERATIONS',
+      group: 'ITSM PROCESSES',
       items: [
+        { id: 'cmdb', label: 'CMDB', icon: <Server size={15} /> },
         { id: 'problem-mgmt', label: 'Problem Management', icon: <Bug size={15} /> },
         { id: 'change-mgmt', label: 'Change Management', icon: <Wrench size={15} /> },
-        { id: 'approval-workflows', label: 'Approval Workflows', icon: <CheckSquare size={15} /> },
       ]
     },
     {
       group: 'AUTOMATION',
       items: [
         { id: 'workflow-designer', label: 'Workflow Designer', icon: <GitBranch size={15} /> },
+        { id: 'approval-workflows', label: 'Approval Workflows', icon: <CheckSquare size={15} /> },
       ]
     },
     {
@@ -211,6 +219,7 @@ export default function AdminPage() {
         { id: 'email', label: 'Email', icon: <Mail size={15} /> },
         { id: 'portal-customization', label: 'Self-Service Portal', icon: <LayoutGrid size={15} /> },
         { id: 'notification-settings', label: 'Notifications', icon: <Bell size={15} /> },
+      { id: 'webhooks', label: 'Webhooks', icon: <Activity size={15} /> },
       ]
     },
     {
@@ -222,7 +231,8 @@ export default function AdminPage() {
     {
       group: 'ASSETS',
       items: [
-        { id: 'asset-groups', label: 'Asset Management', icon: <Monitor size={15} /> },
+        { id: 'asset-groups', label: 'Asset Groups & Classification', icon: <Monitor size={15} /> },
+        { id: 'license-compliance', label: 'License Compliance', icon: <Shield size={15} /> },
         { id: 'agent-settings', label: 'Desktop Agent', icon: <Download size={15} /> },
       ]
     },
@@ -551,6 +561,9 @@ export default function AdminPage() {
           {activeTab === 'agent-settings' && (
             <AgentSettingsTab showAlert={showAlert} />
           )}
+          {activeTab === 'license-compliance' && (
+            <LicenseComplianceTab showAlert={showAlert} />
+          )}
 
           {activeTab === 'audit-log' && (
             <AuditLogTab
@@ -575,10 +588,16 @@ export default function AdminPage() {
           {activeTab === 'backup-restore' && <BackupRestoreTab showAlert={showAlert} />}
           {activeTab === 'service-catalog' && <ServiceCatalogTab showAlert={showAlert} />}
           {activeTab === 'problem-mgmt' && <ProblemMgmtTab showAlert={showAlert} />}
+          {activeTab === 'cmdb' && (
+            <CmdbTab
+              showAlert={showAlert}
+              setConfirmModal={setConfirmModal}
+            />
+          )}
           {activeTab === 'change-mgmt' && <ChangeMgmtTab showAlert={showAlert} />}
           {activeTab === 'approval-workflows' && <ApprovalWorkflowsTab showAlert={showAlert} />}
           {activeTab === 'notification-settings' && <NotificationSettingsTab showAlert={showAlert} />}
-          
+          {activeTab === 'webhooks' && <WebhooksTab showAlert={showAlert} />}
         </div>
       </div>
 
