@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { RichTextEditor } from '@/components/RichTextEditor';
+import { WYSIWYGEditor } from '@/components/WYSIWYGEditor';
 import { 
   ArrowLeft, AlertTriangle, FileText, 
   Type, Layout, Globe, Save, Link as LinkIcon, Clock, Check
@@ -272,12 +272,11 @@ export default function NewArticlePage() {
                 <Clock size={14} /> ~{readingTime} min read
               </div>
             </div>
-            <RichTextEditor
+            <WYSIWYGEditor
               value={form.body}
               onChange={(val) => setForm({ ...form, body: val })}
               height={450}
               placeholder="Write your article content here..."
-              preview="live"
             />
           </div>
 

@@ -28,6 +28,10 @@ interface PropertiesCardProps {
   handleReporterChange: (userId: string | null) => Promise<void>;
 }
 
+function GroupDivider() {
+  return <div style={{ gridColumn: '1 / -1', height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />;
+}
+
 export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, updateField, handleStatusChange, handleAssignToUser, handleReporterChange }: PropertiesCardProps) {
   const [assets, setAssets] = useState<{id: string; name: string}[]>([]);
   const [loadingAssets, setLoadingAssets] = useState(false);
@@ -53,9 +57,16 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
   const currentType = TICKET_TYPE_OPTIONS.find((t) => t.value === ticket.ticket_type) || TICKET_TYPE_OPTIONS[0];
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '24px' }}>
-      <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 16px 0' }}>Properties</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 16px' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Properties</h3>
+        {ticket.sla_breached && (
+          <span className="badge-sla-breached" style={{ fontSize: 10 }}>SLA BREACHED</span>
+        )}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+
+        {/* ── Status & Priority ── */}
         <PropField label="Status">
           {isAdminOrAgent ? (
             <SelectSearch
@@ -87,6 +98,29 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           )}
         </PropField>
 
+        {/* SLA status row */}
+        {ticket.sla_policy_id && (
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="sla-bar" style={{ flex: 1, height: 4 }}>
+              <div
+                className={`sla-bar-fill ${ticket.sla_breached ? 'sla-breached' : 'sla-ok'}`}
+                style={{ width: ticket.sla_breached ? '100%' : '68%' }}
+              />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: ticket.sla_breached ? 'var(--danger)' : 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              {ticket.sla_breached ? 'SLA Breached' : 'SLA On Track'}
+            </span>
+            {ticket.first_response_at && (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                · First response: {formatDateTime(ticket.first_response_at)}
+              </span>
+            )}
+          </div>
+        )}
+
+        <GroupDivider />
+
+        {/* ── Assignment ── */}
         <PropField label="Assignee">
           {isAdminOrAgent ? (
             <div className="select-wrapper" style={{ width: '100%' }}>
@@ -100,18 +134,30 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           ) : <span style={{ fontSize: 13 }}>{ticket.assigned_to_name || 'Unassigned'}</span>}
         </PropField>
 
-        <PropField label="Category">
+        <PropField label="Reporter">
           {isAdminOrAgent ? (
-            <CategoryTreeSelect
-              categories={categories}
-              value={ticket.category_id || null}
-              onChange={val => updateField('category_id', val)}
-              placeholder="Select category"
-              allowClear
-            />
-          ) : <span style={{ fontSize: 13 }}>{ticket.category_name || 'None'}</span>}
+            <div className="select-wrapper" style={{ width: '100%' }}>
+              <UserSearchSelect
+                users={allUsers}
+                value={ticket.created_by_id}
+                onChange={handleReporterChange}
+                placeholder="Select reporter..."
+                hideClear
+              />
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', background: `hsl(${( (ticket.created_by_name?.charCodeAt(0) ?? 0) * 37 || 200) % 360}, 55%, 45%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>
+                {ticket.created_by_name?.[0]?.toUpperCase()}
+              </div>
+              <span style={{ fontSize: 13, color: 'var(--text)' }}>{ticket.created_by_name}</span>
+            </div>
+          )}
         </PropField>
 
+        <GroupDivider />
+
+        {/* ── Classification ── */}
         <PropField label="Type">
           {isAdminOrAgent ? (
             <SelectSearch
@@ -129,6 +175,21 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           )}
         </PropField>
 
+        <PropField label="Category">
+          {isAdminOrAgent ? (
+            <CategoryTreeSelect
+              categories={categories}
+              value={ticket.category_id || null}
+              onChange={val => updateField('category_id', val)}
+              placeholder="Select category"
+              allowClear
+            />
+          ) : <span style={{ fontSize: 13 }}>{ticket.category_name || 'None'}</span>}
+        </PropField>
+
+        <GroupDivider />
+
+        {/* ── Context ── */}
         <PropField label="Linked Asset">
           {isAdminOrAgent ? (
             <SelectSearch
@@ -165,33 +226,29 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           )}
         </PropField>
 
-        <PropField label="Reporter">
-          {isAdminOrAgent ? (
-            <div className="select-wrapper" style={{ width: '100%' }}>
-              <UserSearchSelect
-                users={allUsers}
-                value={ticket.created_by_id}
-                onChange={handleReporterChange}
-                placeholder="Select reporter..."
-                hideClear
-              />
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', background: `hsl(${( (ticket.created_by_name?.charCodeAt(0) ?? 0) * 37 || 200) % 360}, 55%, 45%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>
-                {ticket.created_by_name?.[0]?.toUpperCase()}
-              </div>
-              <span style={{ fontSize: 13, color: 'var(--text)' }}>{ticket.created_by_name}</span>
-            </div>
-          )}
-        </PropField>
+        <GroupDivider />
 
-        <PropField label="Created Date">
+        {/* ── Timestamps ── */}
+        <PropField label="Created">
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDateTime(ticket.created_at)}</span>
         </PropField>
+
+        <PropField label="Updated">
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{formatDateTime(ticket.updated_at)}</span>
+        </PropField>
+
+        {ticket.location && (
+          <>
+            <GroupDivider />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <PropField label="Location">
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{ticket.location}</span>
+              </PropField>
+            </div>
+          </>
+        )}
+
       </div>
-
-
     </div>
   );
 }

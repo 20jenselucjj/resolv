@@ -338,6 +338,8 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     };
     reply.header('Content-Type', mimeTypes[ext] || 'application/octet-stream');
     reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    reply.header('Access-Control-Allow-Origin', '*');
     return reply.send(fs.createReadStream(filePath));
   });
 

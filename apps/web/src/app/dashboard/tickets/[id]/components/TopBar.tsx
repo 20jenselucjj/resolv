@@ -69,6 +69,17 @@ export function TopBar({
             {ticket.category_name}
           </div>
         )}
+        {ticket.sla_policy_id && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '2px 8px', borderRadius: '12px', fontSize: 11, fontWeight: 600,
+            background: ticket.sla_breached ? 'var(--danger-bg)' : 'var(--bg-tertiary)',
+            color: ticket.sla_breached ? 'var(--danger)' : 'var(--text-muted)',
+            border: `1px solid ${ticket.sla_breached ? 'var(--danger-border)' : 'var(--border)'}`,
+          }}>
+            {ticket.sla_breached ? 'SLA Breached' : 'SLA On Track'}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1 }} />

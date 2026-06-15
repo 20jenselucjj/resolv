@@ -823,6 +823,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       body: z.string().min(1),
       is_internal: z.boolean().default(false),
       send_email: z.boolean().optional(),
+      parent_id: z.string().uuid().optional(),
     }).parse(request.body);
 
     // Restrict is_internal
@@ -844,15 +845,26 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
+    // If parent_id is specified, verify it exists and belongs to this ticket
+    if (body.parent_id) {
+      const parentCheck = await pool.query(
+        `SELECT id FROM ticket_comments WHERE id = $1 AND ticket_id = $2`,
+        [body.parent_id, id]
+      );
+      if (parentCheck.rows.length === 0) {
+        return reply.status(400).send({ error: 'Parent comment not found or does not belong to this ticket' });
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
       const result = await client.query(
-        `INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO ticket_comments (ticket_id, author_id, body, is_internal, parent_id)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
-        [id, request.user.id, body.body, is_internal]
+        [id, request.user.id, body.body, is_internal, body.parent_id || null]
       );
 
       const comment = {

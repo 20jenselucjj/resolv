@@ -72,6 +72,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('resolv:new-ticket', handler);
   }, []);
 
+  // Keyboard shortcut: C key opens New Ticket panel (when not focused on an input)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'c' && !(e.target as HTMLElement).matches('input,textarea,select,button') && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        setNewTicketOpen(true);
+        setAiOpen(false);
+        setNotificationsOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   useEffect(() => {
     if (!mounted || !authReady) return;
     // Redirect to login if no token (either from store or sessionStorage) and no refresh token

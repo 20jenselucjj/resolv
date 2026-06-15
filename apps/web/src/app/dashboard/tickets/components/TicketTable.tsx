@@ -184,7 +184,7 @@ export function TicketTable({
                   style={{
                     animationDelay: `${Math.min(idx * 0.02, 0.2)}s`,
                     borderBottom: '1px solid var(--border-subtle)',
-                    background: isSelected ? 'var(--accent-subtle)' : 'transparent',
+                    background: isSelected ? 'var(--accent-subtle)' : (idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary)'),
                     cursor: 'pointer',
                   }}
                   onClick={() => router.push(`/dashboard/tickets/${t.id}`)}

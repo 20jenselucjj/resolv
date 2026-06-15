@@ -48,6 +48,7 @@ export interface Comment {
   is_system?: boolean;
   is_edited?: boolean;
   type?: 'comment' | 'system';
+  parent_id?: string | null;
   created_at: string;
 }
 
@@ -72,8 +73,11 @@ export interface Ticket {
   ticket_type?: 'incident' | 'service_request' | 'problem' | 'change';
   due_date?: string | null;
   close_notes?: string | null;
+  sla_policy_id?: string | null;
   sla_breached?: boolean;
   first_response_at?: string | null;
+  satisfaction_rating?: number | null;
+  satisfaction_comment?: string | null;
   closed_at?: string | null;
   asset_id?: string | null;
   asset_name?: string | null;

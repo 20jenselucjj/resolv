@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api, getToken } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
-import { RichTextEditor } from '@/components/RichTextEditor';
+import { WYSIWYGEditor } from '@/components/WYSIWYGEditor';
 import {
   ArrowLeft, Eye, ThumbsUp, ThumbsDown, 
   Calendar, Edit3, Trash2, Tag, BookOpen,
@@ -819,11 +819,10 @@ export default function ArticleDetailPage() {
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 8 }}>
                 Article Body
               </label>
-              <RichTextEditor
+              <WYSIWYGEditor
                 value={editForm.body}
                 onChange={(val) => setEditForm(prev => ({ ...prev, body: val }))}
                 height={500}
-                preview="live"
               />
             </div>
           ) : (

@@ -4,7 +4,7 @@ import MDEditor, { commands } from '@uiw/react-md-editor';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { API_BASE, getToken } from '@/lib/api';
 import { useStore } from '@/lib/store';
-import { Loader2, Image as ImageIcon, UploadCloud } from 'lucide-react';
+import { Loader2, Image as ImageIcon, UploadCloud, Eye } from 'lucide-react';
 
 interface RichTextEditorProps {
   value: string;
@@ -20,10 +20,12 @@ export function RichTextEditorInner({
   onChange,
   height = 400,
   placeholder,
-  preview = 'live',
+  preview: _preview,
   allowImageUpload = true
 }: RichTextEditorProps) {
-  const { theme } = useStore();
+  const store = useStore();
+  const theme = (store as any).theme || 'light';
+  const [showPreview, setShowPreview] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
@@ -72,7 +74,6 @@ export function RichTextEditorInner({
       e.preventDefault();
       e.stopPropagation();
       dragCounterRef.current++;
-      // Only show overlay for image files
       if (e.dataTransfer?.types.includes('Files')) {
         setDragOver(true);
       }
@@ -157,9 +158,18 @@ export function RichTextEditorInner({
     },
   };
 
+  // Preview toggle button
+  const previewToggleCommand: commands.ICommand = {
+    name: 'preview-toggle',
+    keyCommand: 'preview-toggle',
+    buttonProps: { 'aria-label': showPreview ? 'Hide preview' : 'Show preview', title: showPreview ? 'Hide preview' : 'Show preview' },
+    icon: <Eye size={14} />,
+    execute: () => setShowPreview((prev) => !prev),
+  };
+
   const allCommands = allowImageUpload
-    ? [...commands.getCommands(), commands.divider, imageUploadCommand]
-    : commands.getCommands();
+    ? [...commands.getCommands(), commands.divider, imageUploadCommand, previewToggleCommand]
+    : [...commands.getCommands(), commands.divider, previewToggleCommand];
 
   return (
     <div
@@ -167,7 +177,7 @@ export function RichTextEditorInner({
       style={{ position: 'relative', minHeight: height }}
       data-color-mode={theme}
     >
-      {/* Drag-over overlay — rendered above the editor */}
+      {/* Drag-over overlay */}
       {dragOver && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 50,
@@ -200,18 +210,39 @@ export function RichTextEditorInner({
         </div>
       )}
 
-      <MDEditor
-        value={value}
-        onChange={(val) => onChange(val || '')}
-        height={height}
-        preview={preview}
-        commands={allCommands}
-        extraCommands={[]}
-        textareaProps={{
-          placeholder: placeholder || 'Write your content in Markdown... Drag and drop images here.',
-        }}
-        visibleDragbar={true}
-      />
+      {/* Edit pane — markdown textarea only */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+        <MDEditor
+          value={value}
+          onChange={(val) => onChange(val || '')}
+          height={height}
+          preview="edit"
+          commands={allCommands}
+          extraCommands={[]}
+          textareaProps={{
+            placeholder: placeholder || 'Write your content in Markdown... Drag and drop images here.',
+          }}
+          visibleDragbar={false}
+        />
+      </div>
+
+      {/* Live preview below — shows rendered images inline */}
+      {showPreview && value.trim() && (
+        <div style={{
+          marginTop: 8,
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          padding: '16px',
+          background: 'var(--card)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+            Preview
+          </div>
+          <div data-color-mode={theme} style={{ color: 'var(--text)' }}>
+            <MDEditor.Markdown source={value} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

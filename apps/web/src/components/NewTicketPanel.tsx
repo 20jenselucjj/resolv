@@ -10,18 +10,18 @@ import { useStatusConfig } from '@/lib/StatusConfigContext';
 import { UserSearchSelect } from '@/components/UserSearchSelect';
 import { SelectSearch } from '@/components/SelectSearch';
 import { CategoryTreeSelect } from '@/components/CategoryTreeSelect';
+import { WYSIWYGEditor } from '@/components/WYSIWYGEditor';
 
-const TICKET_TYPE_OPTIONS = [
+const DRAFT_KEY = 'resolv_new_ticket_draft';
+
+const TYPE_OPTIONS_DROPDOWN = [
   { value: 'incident',        label: 'Incident' },
   { value: 'service_request', label: 'Service Request' },
   { value: 'problem',         label: 'Problem' },
   { value: 'change',          label: 'Change' },
 ];
 
-const USER_TICKET_TYPE_OPTIONS = [
-  { value: 'incident',        label: 'Incident' },
-  { value: 'service_request', label: 'Service Request' },
-];
+const USER_TYPE_OPTIONS_DROPDOWN = TYPE_OPTIONS_DROPDOWN.filter(t => t.value === 'incident' || t.value === 'service_request');
 
 const PRIORITY_OPTIONS = [
   { value: 'low',      label: 'Low',      color: 'var(--priority-low)' },
@@ -35,26 +35,38 @@ const panelLabelStyle: React.CSSProperties = {
   marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em',
 };
 
+function getDefaultForm() {
+  const due = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    title: '',
+    description: '',
+    priority: 'medium',
+    ticket_type: 'incident',
+    category_id: '',
+    assigned_to_id: '',
+    created_by_id: '',
+    due_date: `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}T${pad(due.getHours())}:${pad(due.getMinutes())}`,
+    status: 'open',
+  };
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { user, addTicket } = useStore();
   const { statusOptions } = useStatusConfig();
   const [minimized, setMinimized] = useState(false);
-  const [form, setForm] = useState(() => {
-    const due = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const formatted = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}T${pad(due.getHours())}:${pad(due.getMinutes())}`;
-    return {
-      title: '',
-      description: '',
-      priority: 'medium',
-      ticket_type: 'incident',
-      category_id: '',
-      assigned_to_id: '',
-      created_by_id: '',
-      due_date: formatted,
-      status: 'open',
-    };
-  });
+  const [form, setForm] = useState(getDefaultForm);
   const [categories, setCategories] = useState<Category[]>([]);
   const [agents, setAgents] = useState<User[]>([]);
   const [allUsersList, setAllUsersList] = useState<User[]>([]);
@@ -74,6 +86,10 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const objectUrls = useRef<Map<number, string>>(new Map());
+  const [draftRestored, setDraftRestored] = useState<{ timestamp: number } | null>(null);
 
   function handleDragEnter(e: React.DragEvent) {
     e.preventDefault();
@@ -109,6 +125,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
     }
   }
 
+  // Fetch data on mount / user change
   useEffect(() => {
     api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {});
     if (user?.role !== 'user') {
@@ -122,15 +139,90 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
     }
   }, [user]);
 
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.form && parsed.timestamp) {
+          const restoredForm = parsed.form;
+          setForm(restoredForm);
+          setDraftRestored({ timestamp: parsed.timestamp });
+        }
+      }
+    } catch (e) {
+      // Ignore corrupted drafts
+    }
+  }, []);
+
+  // Clear draft on unmount (intentional close). On crash/refresh the
+  // cleanup never runs so the draft persists for recovery.
+  useEffect(() => {
+    return () => {
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  // Ensure ticket_type is valid for the current user role
+  useEffect(() => {
+    const allowedTypes = user?.role === 'user' ? ['incident', 'service_request'] : ['incident', 'service_request', 'problem', 'change'];
+    if (!allowedTypes.includes(form.ticket_type)) {
+      setForm(f => ({ ...f, ticket_type: 'incident' }));
+    }
+  }, [user?.role]);
+
+  // Debounced draft auto-save
+  useEffect(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, timestamp: Date.now() }));
+      } catch (e) {
+        // localStorage might be full
+      }
+    }, 500);
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [form]);
+
+  // Clean up object URLs when attachment list changes
+  useEffect(() => {
+    const oldMap = objectUrls.current;
+    const newMap = new Map<number, string>();
+    attachedFiles.forEach((file, i) => {
+      if (file.type.startsWith('image/')) {
+        newMap.set(i, URL.createObjectURL(file));
+      }
+    });
+    objectUrls.current = newMap;
+    oldMap.forEach(url => URL.revokeObjectURL(url));
+    return () => {
+      newMap.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [attachedFiles]);
+
+  // Escape to close + Ctrl/Cmd+Enter to submit
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !(e.target as HTMLElement).matches('input,textarea,select')) {
         onClose();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (!minimized) {
+          e.preventDefault();
+          formRef.current?.requestSubmit();
+        }
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, minimized]);
 
   // Close template dropdown on outside click
   useEffect(() => {
@@ -260,6 +352,9 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
         setUploadingFiles(false);
       }
 
+      // Clear draft on successful creation
+      try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+
       addTicket(created);
       onCreated();
       onClose();
@@ -268,6 +363,14 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
       setLoading(false);
     }
   }
+
+  function handleDiscardDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+    setDraftRestored(null);
+    setForm(getDefaultForm());
+  }
+
+  const typeOptions = user?.role === 'user' ? USER_TYPE_OPTIONS_DROPDOWN : TYPE_OPTIONS_DROPDOWN;
 
   return (
     <>
@@ -290,6 +393,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
           pointerEvents: minimized ? 'none' : 'auto',
         }}
       />
+
       {/* Panel */}
       <div style={{
         position: 'fixed',
@@ -308,7 +412,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
         transition: 'width 0.25s cubic-bezier(0.16,1,0.3,1), max-height 0.25s cubic-bezier(0.16,1,0.3,1)',
         animation: 'slideUpPanel 0.3s cubic-bezier(0.16,1,0.3,1)',
       }}>
-        {/* Header - SysAid style */}
+        {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
           padding: minimized ? '8px 12px' : '10px 16px',
@@ -321,20 +425,6 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
         >
           {!minimized && (
             <>
-              {/* Type dropdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Type</span>
-                <select
-                  className="select"
-                  value={form.ticket_type}
-                  onChange={e => setForm(f => ({ ...f, ticket_type: e.target.value }))}
-                  style={{ height: 28, fontSize: 12, padding: '0 24px 0 8px', minWidth: 130 }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  {(user?.role === 'user' ? USER_TICKET_TYPE_OPTIONS : TICKET_TYPE_OPTIONS).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-
               {/* Template dropdown — agents+ only */}
               {user?.role !== 'user' && templates.length > 0 && (
                 <div ref={dropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -348,7 +438,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {selectedTemplate
                         ? (templates.find(t => t.id === selectedTemplate)?.name || 'Select Template')
-                        : `Standard ${TICKET_TYPE_OPTIONS.find(t => t.value === form.ticket_type)?.label || 'Incident'}`}
+                        : `Standard ${TYPE_OPTIONS_DROPDOWN.find(t => t.value === form.ticket_type)?.label || 'Incident'}`}
                     </span>
                     <span style={{ fontSize: 8, color: 'var(--text-muted)' }}>▾</span>
                   </button>
@@ -367,7 +457,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                           border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text)',
                         }}
                       >
-                        Standard {TICKET_TYPE_OPTIONS.find(t => t.value === form.ticket_type)?.label || 'Incident'}
+                        Standard {TYPE_OPTIONS_DROPDOWN.find(t => t.value === form.ticket_type)?.label || 'Incident'}
                       </button>
                       {templates.map(t => (
                         <div key={t.id} style={{ display: 'flex', alignItems: 'center' }}>
@@ -402,7 +492,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowSaveTemplate(true); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 4, marginLeft: 'auto' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 4 }}
                   title="Save as Template"
                 >
                   <Sparkles size={14} />
@@ -416,6 +506,9 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
               {form.title || 'New Ticket'}
             </span>
           )}
+
+          {/* Spacer pushes controls to the right */}
+          {!minimized && <div style={{ flex: 1 }} />}
 
           {/* Window controls */}
           <button
@@ -437,31 +530,85 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
         {/* Body */}
         {!minimized && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form ref={formRef} onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {/* Title */}
-              <div>
-                <label style={panelLabelStyle}>Title <span style={{ color: 'var(--danger)' }}>*</span></label>
-                <input
-                  autoFocus
-                  className="input"
-                  value={form.title}
-                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Brief description of the issue"
-                  style={{ fontSize: 14, height: 38, fontWeight: 500 }}
-                />
+              {/* Draft restore banner */}
+              {draftRestored && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 10px',
+                  background: 'var(--accent-subtle)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 11,
+                  fontWeight: 500,
+                }}>
+                  <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>📝</span>
+                    <span>Draft restored from <strong>{formatRelativeTime(draftRestored.timestamp)}</strong>. Create?</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDraftRestored(null)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: '4px 8px', display: 'flex',
+                      fontSize: 11, fontWeight: 600, borderRadius: 4,
+                    }}
+                    title="Keep draft"
+                  >
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDiscardDraft}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: 2, display: 'flex',
+                    }}
+                    title="Discard draft"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+
+              {/* Type + Title — inline row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 8 }}>
+                <div>
+                  <label style={panelLabelStyle}>Type</label>
+                  <select
+                    className="select"
+                    value={form.ticket_type}
+                    onChange={e => setForm(f => ({ ...f, ticket_type: e.target.value }))}
+                    style={{ width: '100%', fontSize: 11, height: 32 }}
+                  >
+                    {typeOptions.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={panelLabelStyle}>Title <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input
+                    autoFocus
+                    className="input"
+                    value={form.title}
+                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Brief description of the issue"
+                    style={{ fontSize: 13, height: 32, fontWeight: 500 }}
+                  />
+                </div>
               </div>
 
-              {/* Description */}
+              {/* Description — Rich Text Editor */}
               <div>
                 <label style={panelLabelStyle}>Description</label>
-                <textarea
-                  className="textarea"
+                <WYSIWYGEditor
                   value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  onChange={(val) => setForm(f => ({ ...f, description: val }))}
+                  height={240}
                   placeholder="Describe the issue in detail..."
-                  rows={4}
-                  style={{ fontSize: 12, resize: 'vertical', minHeight: 80 }}
                 />
               </div>
 
@@ -576,7 +723,15 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                           background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                           fontSize: 11
                         }}>
-                          <FileText size={11} color="var(--text-muted)" />
+                          {file.type.startsWith('image/') && objectUrls.current.has(i) ? (
+                            <img
+                              src={objectUrls.current.get(i)}
+                              alt=""
+                              style={{ width: 64, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                            />
+                          ) : (
+                            <FileText size={11} color="var(--text-muted)" />
+                          )}
                           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)', fontSize: 11 }}>{file.name}</span>
                           <span style={{ color: 'var(--text-muted)', fontSize: 10, flexShrink: 0 }}>{(file.size / 1024).toFixed(0)} KB</span>
                           <button type="button" onClick={() => setAttachedFiles(prev => prev.filter((_, j) => j !== i))}
