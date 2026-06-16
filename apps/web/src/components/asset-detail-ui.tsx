@@ -716,8 +716,8 @@ export function EncryptionCard({ encryption }: { encryption: Array<{ drive_lette
               { label: 'Encrypted', value: `${pct}%` },
             ]} />
             <div style={{ marginTop: 8 }}>
-              <div style={{ height: 6, borderRadius: 3, background: '#e5e7eb', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: isEncrypted ? '#22c55e' : '#ef4444', borderRadius: 3, transition: 'width 0.3s' }} />
+              <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: isEncrypted ? 'var(--success)' : 'var(--danger)', borderRadius: 3, transition: 'width 0.3s' }} />
               </div>
             </div>
           </div>
@@ -734,17 +734,17 @@ export function BatteryCard({ hw }: { hw: AssetHardware }): React.JSX.Element {
 
   const health = Number(hw.battery_health_percent) || 0;
   const remaining = Number(hw.battery_remaining_percent) || 0;
-  const healthColor = health >= 80 ? '#22c55e' : health >= 50 ? '#f59e0b' : '#ef4444';
+  const healthColor = health >= 80 ? 'var(--success)' : health >= 50 ? 'var(--warning)' : 'var(--danger)';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Health bar */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>Battery Health</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Battery Health</span>
           <span style={{ fontSize: 13, fontWeight: 600, color: healthColor }}>{health.toFixed(1)}%</span>
         </div>
-        <div style={{ height: 8, borderRadius: 4, background: '#e5e7eb', overflow: 'hidden' }}>
+        <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${health}%`, background: healthColor, borderRadius: 4, transition: 'width 0.3s' }} />
         </div>
       </div>
@@ -752,11 +752,11 @@ export function BatteryCard({ hw }: { hw: AssetHardware }): React.JSX.Element {
       {/* Charge bar */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>Charge Level {hw.battery_is_charging ? '⚡' : ''}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Charge Level {hw.battery_is_charging ? '⚡' : ''}</span>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{remaining.toFixed(1)}%</span>
         </div>
-        <div style={{ height: 8, borderRadius: 4, background: '#e5e7eb', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${remaining}%`, background: '#3b82f6', borderRadius: 4, transition: 'width 0.3s' }} />
+        <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${remaining}%`, background: 'var(--accent)', borderRadius: 4, transition: 'width 0.3s' }} />
         </div>
       </div>
 
@@ -772,13 +772,13 @@ export function BatteryCard({ hw }: { hw: AssetHardware }): React.JSX.Element {
 
 export function CommandStatusBadge({ status }: { status: string }): React.JSX.Element {
   const config: Record<string, { bg: string; color: string; label: string }> = {
-    pending: { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
-    dispatched: { bg: '#dbeafe', color: '#1e40af', label: 'Dispatched' },
-    in_progress: { bg: '#e0e7ff', color: '#3730a3', label: 'Running' },
-    completed: { bg: '#dcfce7', color: '#166534', label: 'Completed' },
-    failed: { bg: '#fee2e2', color: '#991b1b', label: 'Failed' },
-    cancelled: { bg: '#f3f4f6', color: '#4b5563', label: 'Cancelled' },
-    expired: { bg: '#f3f4f6', color: '#6b7280', label: 'Expired' },
+    pending: { bg: 'var(--warning-bg)', color: 'var(--warning)', label: 'Pending' },
+    dispatched: { bg: 'var(--accent-subtle)', color: 'var(--accent)', label: 'Dispatched' },
+    in_progress: { bg: 'var(--accent-subtle)', color: 'var(--accent)', label: 'Running' },
+    completed: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Completed' },
+    failed: { bg: 'var(--danger-bg)', color: 'var(--danger)', label: 'Failed' },
+    cancelled: { bg: 'var(--bg-tertiary)', color: 'var(--text-muted)', label: 'Cancelled' },
+    expired: { bg: 'var(--bg-tertiary)', color: 'var(--text-muted)', label: 'Expired' },
   };
   const c = config[status] || config.pending;
   return (
@@ -855,7 +855,7 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
           </div>
         </div>
         {cancelToast && (
-          <div style={{ ...toastStyle, background: cancelToast.tone === 'success' ? '#166534' : '#991b1b', color: '#fff' }}>
+          <div style={{ ...toastStyle, background: cancelToast.tone === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)', color: 'var(--text)' }}>
             {cancelToast.message}
           </div>
         )}
@@ -868,15 +868,15 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {commands.map((cmd) => {
         const typeInfo = COMMAND_TYPES.find(t => t.value === cmd.command_type);
-        const rowBg = cmd.status === 'failed' ? '#fef2f2'
-          : cmd.status === 'completed' && cmd.exit_code === 0 ? '#f0fdf4'
-          : '#fff';
+        const rowBg = cmd.status === 'failed' ? 'var(--danger-bg)'
+          : cmd.status === 'completed' && cmd.exit_code === 0 ? 'var(--success-bg)'
+          : 'var(--bg)';
         return (
           <div
             key={cmd.id}
             onClick={() => onSelect?.(cmd)}
             style={{
-              padding: 14, borderRadius: 8, border: '1px solid #e5e7eb',
+              padding: 14, borderRadius: 8, border: '1px solid var(--border)',
               background: rowBg,
               cursor: 'pointer',
               transition: 'box-shadow 0.15s ease',
@@ -892,21 +892,21 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {(cmd.status === 'pending' || cmd.status === 'dispatched') && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleCancel(cmd.id); }}
-                    disabled={cancellingId === cmd.id}
-                    style={{
-                      padding: '4px 10px', borderRadius: 6,
-                      border: '1px solid ' + (cmd.status === 'dispatched' ? '#f59e0b' : '#ef4444'),
-                      background: cancellingId === cmd.id ? (cmd.status === 'dispatched' ? '#fef3c7' : '#fecaca') : '#fff',
-                      color: cmd.status === 'dispatched' ? '#b45309' : '#ef4444',
-                      fontSize: 11, fontWeight: 600, cursor: cancellingId === cmd.id ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {cancellingId === cmd.id ? 'Cancelling...' : (cmd.status === 'dispatched' ? 'Force Cancel' : 'Cancel')}
-                  </button>
-                )}
-                <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleCancel(cmd.id); }}
+                      disabled={cancellingId === cmd.id}
+                      style={{
+                        padding: '4px 10px', borderRadius: 6,
+                        border: '1px solid ' + (cmd.status === 'dispatched' ? 'var(--warning)' : 'var(--danger)'),
+                        background: cancellingId === cmd.id ? (cmd.status === 'dispatched' ? 'var(--warning-bg)' : 'var(--danger-bg)') : 'var(--bg-secondary)',
+                        color: cmd.status === 'dispatched' ? 'var(--warning)' : 'var(--danger)',
+                        fontSize: 11, fontWeight: 600, cursor: cancellingId === cmd.id ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {cancellingId === cmd.id ? 'Cancelling...' : (cmd.status === 'dispatched' ? 'Force Cancel' : 'Cancel')}
+                    </button>
+                  )}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   {cmd.created_at ? formatDateTime(cmd.created_at) : ''}
                 </span>
               </div>
@@ -916,18 +916,18 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
             {(cmd.status === 'completed' || cmd.status === 'failed') && (
               <div style={{ marginTop: 8, fontSize: 12 }}>
                 {cmd.exit_code != null && (
-                  <span style={{ color: cmd.exit_code === 0 ? '#166534' : '#991b1b', marginRight: 12 }}>
+                  <span style={{ color: cmd.exit_code === 0 ? 'var(--success)' : 'var(--danger)', marginRight: 12 }}>
                     Exit code: {cmd.exit_code}
                   </span>
                 )}
                 {cmd.error_message && (
-                  <span style={{ color: '#991b1b', marginRight: 12 }}>{cmd.error_message}</span>
+                  <span style={{ color: 'var(--danger)', marginRight: 12 }}>{cmd.error_message}</span>
                 )}
                 {cmd.created_by_name && (
-                  <span style={{ color: '#6b7280', marginRight: 12 }}>by {cmd.created_by_name}</span>
+                  <span style={{ color: 'var(--text-muted)', marginRight: 12 }}>by {cmd.created_by_name}</span>
                 )}
                 {cmd.dispatched_at && cmd.completed_at && (
-                  <span style={{ color: '#6b7280' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>
                     Duration: {Math.round((new Date(cmd.completed_at).getTime() - new Date(cmd.dispatched_at).getTime()) / 1000)}s
                   </span>
                 )}
@@ -935,7 +935,7 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
             )}
 
             {/* Timestamps for all commands */}
-            <div style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {cmd.dispatched_at && (<span>Dispatched: {formatDateTime(cmd.dispatched_at)}</span>)}
               {cmd.started_at && (<span>Started: {formatDateTime(cmd.started_at)}</span>)}
               {cmd.completed_at && (<span>Completed: {formatDateTime(cmd.completed_at)}</span>)}
@@ -950,8 +950,8 @@ export function CommandsPanel({ commands, onRefresh, assetId, onSelect }: {
         position: 'fixed', bottom: 24, right: 24, zIndex: 300,
         padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        background: cancelToast.tone === 'success' ? '#166534' : '#991b1b',
-        color: '#fff', display: 'flex', alignItems: 'center', gap: 8,
+        background: cancelToast.tone === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)',
+        color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8,
       }}>
         {cancelToast.message}
       </div>
@@ -1449,17 +1449,17 @@ export function UsbDevicesPanel({ devices }: { devices: UsbDevice[] }): React.JS
       {visibleDevices.map((dev) => (
         <div key={dev.id} style={{
           padding: '10px 14px', borderRadius: 8,
-          border: '1px solid #e5e7eb', background: '#fafafa',
+          border: '1px solid var(--border)', background: 'var(--bg-secondary)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <div>
             <div style={{ fontWeight: 500, fontSize: 13 }}>{dev.device_name || 'Unknown Device'}</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
               {[dev.manufacturer, dev.device_type].filter(Boolean).join(' · ') || 'No details'}
             </div>
           </div>
           {dev.serial && (
-            <span style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>SN: {dev.serial}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>SN: {dev.serial}</span>
           )}
         </div>
       ))}
@@ -1467,8 +1467,8 @@ export function UsbDevicesPanel({ devices }: { devices: UsbDevice[] }): React.JS
         <button
           onClick={() => setExpanded(!expanded)}
           style={{
-            padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e7eb',
-            background: '#fff', color: '#6b7280', fontSize: 12, fontWeight: 500,
+            padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 500,
             cursor: 'pointer', marginTop: 4,
           }}
         >

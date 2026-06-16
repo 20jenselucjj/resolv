@@ -60,7 +60,7 @@ export default function ForcePasswordChangePage() {
   if (!token) return null;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: '#0F172A' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', backgroundColor: 'var(--bg)' }}>
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(8px); }
@@ -75,8 +75,8 @@ export default function ForcePasswordChangePage() {
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         .fade-in { animation: fadeIn 0.6s ease-out forwards; }
         .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
-        .btn-primary:hover:not(:disabled) { background-color: #1d4ed8 !important; }
-        .input-field:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--accent-hover) !important; }
+        .input-field:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent) !important; }
       `}</style>
 
       <div style={{
@@ -108,19 +108,19 @@ export default function ForcePasswordChangePage() {
               }}>
                 <CheckCircle size={28} color="#22c55e" />
               </div>
-              <h2 style={{ color: '#ffffff', fontSize: 22, fontWeight: 700, margin: '0 0 8px 0' }}>
+              <h2 style={{ color: 'var(--text)', fontSize: 22, fontWeight: 700, margin: '0 0 8px 0' }}>
                 Password Updated
               </h2>
-              <p style={{ color: '#94A3B8', fontSize: 14, margin: 0 }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
                 Redirecting to dashboard...
               </p>
             </div>
           ) : (
             <>
-              <h2 style={{ color: '#ffffff', fontSize: 24, fontWeight: 700, margin: '0 0 8px 0', textAlign: 'center' }}>
+              <h2 style={{ color: 'var(--text)', fontSize: 24, fontWeight: 700, margin: '0 0 8px 0', textAlign: 'center' }}>
                 Set Your Password
               </h2>
-              <p style={{ color: '#94A3B8', fontSize: 14, margin: '0 0 32px 0', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 32px 0', textAlign: 'center' }}>
                 This is a temporary password. Please create a new one to continue.
               </p>
 
@@ -128,13 +128,13 @@ export default function ForcePasswordChangePage() {
                 <div className="shake" style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '12px 16px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  backgroundColor: 'var(--danger-bg)',
+                  border: '1px solid var(--danger-border)',
                   borderRadius: '8px',
-                  color: '#ef4444',
-                  fontSize: '14px',
-                  marginBottom: '20px',
-                  width: '100%',
+color: 'var(--danger)',
+                   fontSize: '14px',
+                   marginBottom: '20px',
+                   width: '100%',
                 }}>
                   <AlertTriangle size={18} />
                   <span>{error}</span>
@@ -143,7 +143,7 @@ export default function ForcePasswordChangePage() {
 
               <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94A3B8', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     New Password
                   </label>
                   <div style={{ position: 'relative' }}>
@@ -155,8 +155,8 @@ export default function ForcePasswordChangePage() {
                       placeholder="At least 8 characters"
                       style={{
                         height: '44px', width: '100%', borderRadius: '6px',
-                        border: '1px solid #334155', padding: '0 40px 0 12px',
-                        backgroundColor: '#1E293B', color: '#ffffff', fontSize: '15px',
+                        border: '1px solid var(--border)', padding: '0 40px 0 12px',
+                        backgroundColor: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '15px',
                         outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
                       }}
                       className="input-field"
@@ -166,7 +166,7 @@ export default function ForcePasswordChangePage() {
                       onClick={() => setShowPassword(!showPassword)}
                       style={{
                         position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '4px',
+                        background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px',
                       }}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -175,7 +175,7 @@ export default function ForcePasswordChangePage() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94A3B8', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Confirm Password
                   </label>
                   <input
@@ -186,8 +186,8 @@ export default function ForcePasswordChangePage() {
                     placeholder="Re-enter your new password"
                     style={{
                       height: '44px', width: '100%', borderRadius: '6px',
-                      border: '1px solid #334155', padding: '0 12px',
-                      backgroundColor: '#1E293B', color: '#ffffff', fontSize: '15px',
+                      border: '1px solid var(--border)', padding: '0 12px',
+                      backgroundColor: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '15px',
                       outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
                     }}
                     className="input-field"
@@ -199,7 +199,7 @@ export default function ForcePasswordChangePage() {
                   disabled={loading}
                   className="btn-primary"
                   style={{
-                    backgroundColor: '#2563EB', color: '#ffffff', border: 'none',
+                    backgroundColor: 'var(--accent)', color: 'var(--text)', border: 'none',
                     borderRadius: '6px', height: '44px', fontSize: '15px', fontWeight: 600,
                     cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.8 : 1,
                     marginTop: '8px', display: 'flex', alignItems: 'center',

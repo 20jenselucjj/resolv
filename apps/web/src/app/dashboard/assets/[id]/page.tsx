@@ -522,10 +522,10 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
 
   const isAssetOnline = asset?.agent_status === 'online';
 
-  const statusColor = isAssetOnline ? 'var(--success, #22c55e)' : 'var(--text-muted)';
+  const statusColor = isAssetOnline ? 'var(--success)' : 'var(--text-muted)';
   const statusLabel = isAssetOnline ? 'Online' : 'Offline';
 
-  const agentDotColor = isAssetOnline ? '#22c55e' : '#9ca3af';
+  const agentDotColor = isAssetOnline ? 'var(--success)' : 'var(--text-muted)';
 
   const filteredSoftware = useMemo(() => {
     if (!softwareSearch.trim()) return software;
@@ -707,9 +707,9 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
             zIndex: 100,
             padding: '12px 20px',
             borderRadius: 'var(--radius-md)',
-            border: `1px solid ${toast.tone === 'success' ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)'}`,
-            background: toast.tone === 'success' ? '#f0fdf4' : '#fef2f2',
-            color: toast.tone === 'success' ? '#166534' : '#991b1b',
+            border: `1px solid ${toast.tone === 'success' ? 'var(--success)' : 'var(--danger)'}`,
+            background: toast.tone === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)',
+            color: toast.tone === 'success' ? 'var(--success)' : 'var(--danger)',
             fontSize: 13,
             fontWeight: 600,
             boxShadow: 'var(--shadow-md)',
@@ -797,7 +797,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
 
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {scriptError && (
-                <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13 }}>
+                <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)', fontSize: 13 }}>
                   {scriptError}
                 </div>
               )}
@@ -916,13 +916,13 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                 <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Status</span>
                 <span style={{
                   padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                  background: selectedCommand.status === 'completed' ? '#dcfce7' : selectedCommand.status === 'failed' ? '#fef2f2' : selectedCommand.status === 'cancelled' ? '#f3f4f6' : selectedCommand.status === 'dispatched' ? '#dbeafe' : '#fef9c3',
-                  color: selectedCommand.status === 'completed' ? '#166534' : selectedCommand.status === 'failed' ? '#991b1b' : selectedCommand.status === 'cancelled' ? '#6b7280' : selectedCommand.status === 'dispatched' ? '#1e40af' : '#854d0e'
+                  background: selectedCommand.status === 'completed' ? 'var(--success-bg)' : selectedCommand.status === 'failed' ? 'var(--danger-bg)' : selectedCommand.status === 'cancelled' ? 'var(--bg-tertiary)' : selectedCommand.status === 'dispatched' ? 'var(--accent-subtle)' : 'var(--warning-bg)',
+                  color: selectedCommand.status === 'completed' ? 'var(--success)' : selectedCommand.status === 'failed' ? 'var(--danger)' : selectedCommand.status === 'cancelled' ? 'var(--text-muted)' : selectedCommand.status === 'dispatched' ? 'var(--accent)' : 'var(--warning)'
                 }}>
                   {selectedCommand.status === 'completed' && selectedCommand.exit_code === 0 ? 'Completed' : selectedCommand.status.charAt(0).toUpperCase() + selectedCommand.status.slice(1)}
                 </span>
                 {selectedCommand.exit_code != null && (
-                  <span style={{ fontSize: 12, color: selectedCommand.exit_code === 0 ? '#166534' : '#991b1b' }}>
+                  <span style={{ fontSize: 12, color: selectedCommand.exit_code === 0 ? 'var(--success)' : 'var(--danger)' }}>
                     Exit code: {selectedCommand.exit_code}
                   </span>
                 )}
@@ -931,18 +931,18 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               {/* Agent-offline warning for pending commands */}
               {selectedCommand.status === 'pending' && asset?.agent_status !== 'online' && (
                 <div style={{
-                  padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                  background: '#fef9c3', border: '1px solid #fde68a',
-                  display: 'flex', alignItems: 'flex-start', gap: 10
-                }}>
-                  <Clock size={16} color='#854d0e' style={{ marginTop: 1, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#854d0e', marginBottom: 2 }}>Agent Offline</div>
-                    <div style={{ fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
-                      This command won't run until the agent connects. Deploy the agent to this machine and it will pick up pending commands automatically.
+                    padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                    background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+                    display: 'flex', alignItems: 'flex-start', gap: 10
+                  }}>
+                    <Clock size={16} color='var(--warning)' style={{ marginTop: 1, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)', marginBottom: 2 }}>Agent Offline</div>
+                      <div style={{ fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
+                        This command won't run until the agent connects. Deploy the agent to this machine and it will pick up pending commands automatically.
+                      </div>
                     </div>
                   </div>
-                </div>
               )}
 
               {/* Stale-dispatched warning — command was picked up by agent but never reported back */}
@@ -950,21 +950,21 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                 const elapsed = Date.now() - new Date(selectedCommand.dispatched_at).getTime();
                 if (elapsed < 120000) return null; // Only warn after 2+ minutes
                 return (
-                  <div style={{
-                    padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                    background: '#fef9c3', border: '1px solid #fde68a',
-                    display: 'flex', alignItems: 'flex-start', gap: 10
-                  }}>
-                    <AlertTriangle size={16} color='#b45309' style={{ marginTop: 1, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#b45309', marginBottom: 2 }}>Command appears stuck</div>
-                      <div style={{ fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
-                        The agent picked up this command {Math.round(elapsed / 1000)}s ago but hasn't reported a result.
-                        The agent process may have crashed or lost connectivity. You can force-cancel this command and retry.
+                    <div style={{
+                      padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                      background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+                      display: 'flex', alignItems: 'flex-start', gap: 10
+                    }}>
+                      <AlertTriangle size={16} color='var(--warning)' style={{ marginTop: 1, flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)', marginBottom: 2 }}>Command appears stuck</div>
+                        <div style={{ fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
+                          The agent picked up this command {Math.round(elapsed / 1000)}s ago but hasn't reported a result.
+                          The agent process may have crashed or lost connectivity. You can force-cancel this command and retry.
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
+                  );
               })()}
 
               {/* Timestamps */}
@@ -1007,8 +1007,8 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               {/* Error message */}
               {selectedCommand.error_message && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#991b1b', marginBottom: 6 }}>Error</div>
-                  <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 13, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--danger)', marginBottom: 6 }}>Error</div>
+                  <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)', fontSize: 13, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
                     {selectedCommand.error_message}
                   </div>
                 </div>
@@ -1045,7 +1045,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                       Copy
                     </button>
                   </div>
-                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: selectedCommand.status === 'failed' ? '#fef2f2' : '#f9fafb', border: '1px solid #e5e7eb', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', lineHeight: 1.5, color: 'var(--text)' }}>
+                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: selectedCommand.status === 'failed' ? 'var(--danger-bg)' : 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', lineHeight: 1.5, color: 'var(--text)' }}>
                     {selectedCommand.stdout}
                   </pre>
                 </div>
@@ -1055,12 +1055,12 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               {selectedCommand.stderr && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#991b1b' }}>Error Output (stderr)</div>
-                    <button onClick={() => { navigator.clipboard.writeText(selectedCommand.stderr || ''); }} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#991b1b', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: BODY_FONT }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--danger)' }}>Error Output (stderr)</div>
+                    <button onClick={() => { navigator.clipboard.writeText(selectedCommand.stderr || ''); }} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: BODY_FONT }}>
                       Copy
                     </button>
                   </div>
-                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', lineHeight: 1.5, color: '#991b1b' }}>
+                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', lineHeight: 1.5, color: 'var(--danger)' }}>
                     {selectedCommand.stderr}
                   </pre>
                 </div>
@@ -1493,7 +1493,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               {hw.cpu_usage_percent != null && (
                 <ProgressBar
                   percent={clampPercent(hw.cpu_usage_percent)}
-                  color={hw.cpu_usage_percent > 80 ? '#ef4444' : hw.cpu_usage_percent > 50 ? '#f59e0b' : '#3b82f6'}
+                  color={hw.cpu_usage_percent > 80 ? 'var(--danger)' : hw.cpu_usage_percent > 50 ? 'var(--warning)' : 'var(--accent)'}
                   label="CPU Usage"
                   meta={`${hw.cpu_usage_percent}%`}
                 />
@@ -1519,7 +1519,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               {hw.ram_used_gb != null && hw.ram_total_gb != null && hw.ram_total_gb > 0 && (
                 <ProgressBar
                   percent={clampPercent((hw.ram_used_gb / hw.ram_total_gb) * 100)}
-                  color="#3b82f6"
+                  color="var(--accent)"
                   label="Memory Usage"
                   meta={`${formatGb(hw.ram_used_gb)} / ${formatGb(hw.ram_total_gb)}`}
                 />
@@ -1545,7 +1545,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               {diskSummary.total > 0 && (
                 <ProgressBar
                   percent={clampPercent((diskSummary.used / diskSummary.total) * 100)}
-                  color={diskSummary.used / diskSummary.total > 0.85 ? '#ef4444' : '#22c55e'}
+                  color={diskSummary.used / diskSummary.total > 0.85 ? 'var(--danger)' : 'var(--success)'}
                   label="Disk Usage"
                   meta={`${formatGb(diskSummary.used)} / ${formatGb(diskSummary.total)}`}
                 />
@@ -2010,7 +2010,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                             borderRadius: 'var(--radius-md)',
                             border: '1px solid var(--border)',
                             background: 'var(--bg)',
-                            color: '#ef4444',
+                            color: 'var(--danger)',
                             cursor: 'pointer',
                             transition: 'background 140ms ease'
                           }}
@@ -2060,7 +2060,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                       borderRadius: 'var(--radius-md)',
                       background: 'var(--bg)',
                       border: `1px solid var(--border)`,
-                      borderLeft: `3px solid ${adapter.is_active ? '#22c55e' : '#d1d5db'}`
+                      borderLeft: `3px solid ${adapter.is_active ? 'var(--success)' : 'var(--border)'}`
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -2298,7 +2298,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     {u.is_current && (
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success, #22c55e)', marginBottom: 2 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', marginBottom: 2 }}>
                         Current Session
                       </div>
                     )}
@@ -2348,7 +2348,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Shield size={16} color={encryption.length > 0 ? 'var(--success, #22c55e)' : 'var(--text-muted)'} />
+                <Shield size={16} color={encryption.length > 0 ? 'var(--success)' : 'var(--text-muted)'} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Disk Encryption</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -2398,7 +2398,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Usb size={16} color={usbDevices.length > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)'} />
+                <Usb size={16} color={usbDevices.length > 0 ? 'var(--warning)' : 'var(--text-muted)'} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>USB Devices</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -2423,7 +2423,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Power size={16} color={isAssetOnline ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)'} />
+                <Power size={16} color={isAssetOnline ? 'var(--success)' : 'var(--danger)'} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Agent Status</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>

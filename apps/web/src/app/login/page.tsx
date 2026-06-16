@@ -37,6 +37,9 @@ function LoginForm() {
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState('');
+  const [forgotResetLink, setForgotResetLink] = useState<string | null>(null);
+  const [forgotEmailSent, setForgotEmailSent] = useState(true);
+  const [forgotFallbackMessage, setForgotFallbackMessage] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -243,12 +246,21 @@ function LoginForm() {
     e.preventDefault();
     setForgotLoading(true);
     setForgotError('');
+    setForgotResetLink(null);
     try {
-      await api.post('/auth/forgot-password', { email: forgotEmail });
+      const res = await api.post<{ message: string; resetLink?: string; emailSent?: boolean; fallbackMessage?: string }>('/auth/forgot-password', { email: forgotEmail });
       setForgotSuccess(true);
+      if (res.resetLink) {
+        setForgotResetLink(res.resetLink);
+        setForgotEmailSent(res.emailSent ?? true);
+        setForgotFallbackMessage(res.fallbackMessage || '');
+      } else {
+        setForgotEmailSent(true);
+      }
     } catch {
-      // Even if the endpoint doesn't exist yet, show success to prevent email enumeration
+      // Even if the endpoint fails, show success to prevent email enumeration
       setForgotSuccess(true);
+      setForgotEmailSent(true);
     } finally {
       setForgotLoading(false);
     }
@@ -284,17 +296,17 @@ function LoginForm() {
           animation: fadeIn 0.6s ease-out forwards;
         }
         .btn-primary:hover:not(:disabled) {
-          background-color: #1d4ed8 !important;
+          background-color: var(--accent-hover) !important;
         }
         .btn-sso:hover {
-          background-color: #f8fafc !important;
+          background-color: var(--bg-elevated) !important;
         }
         .link-hover:hover {
           text-decoration: underline;
         }
         .input-field:focus {
-          border-color: #3b82f6 !important;
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+          border-color: var(--accent) !important;
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent) !important;
         }
       `}</style>
 
@@ -302,7 +314,7 @@ function LoginForm() {
         {/* LEFT PANEL - FORM (45%) */}
         <div style={{
           width: '45%',
-          backgroundColor: '#0F172A',
+          backgroundColor: 'var(--bg)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
@@ -314,7 +326,7 @@ function LoginForm() {
             
             {/* Logo area - centered above form */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '32px' }}>
-              <Image src="/logo.png" alt="Resolv Logo" width={160} height={40} priority style={{ width: '160px', height: '40px', objectFit: 'contain' }} />
+              <Image src="/logo.png" alt="Resolv Logo" width={280} height={153} priority style={{ width: '280px', height: '153px', objectFit: 'contain' }} />
             </div>
 
             {/* Auto-redirect UI for SSO-only mode */}
@@ -324,21 +336,21 @@ function LoginForm() {
                   <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                     <Building2 size={28} color="#60a5fa" />
                   </div>
-                  <h1 style={{ color: '#ffffff', fontSize: 22, fontWeight: 700, margin: '0 0 8px 0' }}>
+                  <h1 style={{ color: 'var(--text)', fontSize: 22, fontWeight: 700, margin: '0 0 8px 0' }}>
                     Signing you in...
                   </h1>
-                  <p style={{ color: '#94A3B8', fontSize: 14, margin: '0 0 16px 0' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 16px 0' }}>
                     Authenticating with SSO in {redirectCountdown} second{redirectCountdown !== 1 ? 's' : ''}
                   </p>
-                  <div style={{ width: 200, height: 3, borderRadius: 2, background: '#334155', margin: '0 auto 20px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${((3 - redirectCountdown) / 3) * 100}%`, borderRadius: 2, background: 'linear-gradient(90deg, #2563eb, #60a5fa)', transition: 'width 1s linear' }} />
+                  <div style={{ width: 200, height: 3, borderRadius: 2, background: 'var(--border)', margin: '0 auto 20px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${((3 - redirectCountdown) / 3) * 100}%`, borderRadius: 2, background: 'linear-gradient(90deg, var(--accent), var(--accent-mid))', transition: 'width 1s linear' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
                     <button
                       onClick={handleSsoSwitchAccount}
-                      style={{ background: 'none', border: 'none', color: '#60A5FA', fontSize: 13, cursor: 'pointer', padding: '8px 16px', transition: 'color 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.color = '#93c5fd'}
-                      onMouseLeave={e => e.currentTarget.style.color = '#60A5FA'}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent-mid)', fontSize: 13, cursor: 'pointer', padding: '8px 16px', transition: 'color 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-mid)'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--accent-mid)'}
                     >
                       Sign in with a different account
                     </button>
@@ -349,12 +361,12 @@ function LoginForm() {
 
             {ssoConfigLoading ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                <div style={{ width: 40, height: 40, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#60a5fa', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 24px' }} />
-                <p style={{ color: '#64748B', fontSize: 14, margin: 0 }}>Checking configuration...</p>
+                <div style={{ width: 40, height: 40, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-mid)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 24px' }} />
+                <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0 }}>Checking configuration...</p>
               </div>
             ) : !autoRedirecting && (
             <div style={{ width: '100%' }}>
-              <h1 style={{ color: '#ffffff', fontSize: '28px', fontWeight: 700, margin: '0 0 24px 0', textAlign: 'center' }}>
+              <h1 style={{ color: 'var(--text)', fontSize: '28px', fontWeight: 700, margin: '0 0 24px 0', textAlign: 'center' }}>
                 {mode === 'login' ? 'Sign In' : 'Create Account'}
               </h1>
 
@@ -362,10 +374,10 @@ function LoginForm() {
               <div className="shake" style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '12px 16px',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                backgroundColor: 'var(--danger-bg)',
+                border: '1px solid var(--danger-border)',
                 borderRadius: '8px',
-                color: '#ef4444',
+                color: 'var(--danger)',
                 fontSize: '14px',
                 marginBottom: '20px'
               }}>
@@ -411,7 +423,7 @@ function LoginForm() {
                       type="button"
                       onClick={() => setShowForgotModal(true)}
                       className="link-hover"
-                      style={{ background: 'none', border: 'none', color: '#60A5FA', fontSize: '13px', cursor: 'pointer', padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent-mid)', fontSize: '13px', cursor: 'pointer', padding: 0 }}
                     >
                       Forgot password?
                     </button>
@@ -431,12 +443,12 @@ function LoginForm() {
                     onClick={() => setShowPassword(!showPassword)}
                     style={{
                       position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '4px',
+                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       transition: 'color 0.15s ease',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#94A3B8'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -450,9 +462,9 @@ function LoginForm() {
                     id="remember" 
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#2563EB' }} 
+                    style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--accent)' }} 
                   />
-                  <label htmlFor="remember" style={{ color: '#94A3B8', fontSize: '14px', cursor: 'pointer' }}>
+                  <label htmlFor="remember" style={{ color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer' }}>
                     Remember me
                   </label>
                 </div>
@@ -463,8 +475,8 @@ function LoginForm() {
                 disabled={loading}
                 className="btn-primary"
                 style={{
-                  backgroundColor: '#2563EB',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--accent)',
+                  color: 'var(--text)',
                   border: 'none',
                   borderRadius: '6px',
                   height: '44px',
@@ -494,18 +506,18 @@ function LoginForm() {
                 {/* Show "or" divider only when both password form and SSO are visible */}
                 {loginMode !== 'sso_only' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ height: '1px', flex: 1, backgroundColor: '#334155' }} />
-                    <span style={{ color: '#64748B', fontSize: '13px' }}>or</span>
-                    <div style={{ height: '1px', flex: 1, backgroundColor: '#334155' }} />
+                    <div style={{ height: '1px', flex: 1, backgroundColor: 'var(--border)' }} />
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>or</span>
+                    <div style={{ height: '1px', flex: 1, backgroundColor: 'var(--border)' }} />
                   </div>
                 )}
                 
                 {loginMode === 'sso_only' && (
                   <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-                    <p style={{ color: '#94A3B8', fontSize: '14px', margin: '0 0 4px 0' }}>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: '0 0 4px 0' }}>
                       Sign in with your organization account
                     </p>
-                    <p style={{ color: '#64748B', fontSize: '12px', margin: 0 }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '12px', margin: 0 }}>
                       Use your company credentials to access the system.
                     </p>
                   </div>
@@ -516,9 +528,9 @@ function LoginForm() {
                   className="btn-sso"
                   style={{
                     width: '100%',
-                    backgroundColor: '#ffffff',
-                    color: '#0F172A',
-                    border: '1px solid #E2E8F0',
+                    backgroundColor: 'var(--bg-elevated)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border)',
                     borderRadius: '6px',
                     height: '44px',
                     fontSize: '15px',
@@ -542,7 +554,7 @@ function LoginForm() {
               <button
                 onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
                 className="link-hover"
-                style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '14px', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer' }}
               >
                 {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign in'}
               </button>
@@ -553,7 +565,7 @@ function LoginForm() {
 
           </div>
 
-          <div style={{ position: 'absolute', bottom: '24px', color: '#475569', fontSize: '13px' }}>
+          <div style={{ position: 'absolute', bottom: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
             © 2025 Resolv
           </div>
         </div>
@@ -561,7 +573,7 @@ function LoginForm() {
         {/* RIGHT PANEL - BRAND VISUAL (55%) */}
         <div style={{
           width: '55%',
-          background: 'linear-gradient(135deg, #1E3A8A 0%, #1E40AF 60%, #2563EB 100%)',
+          background: 'linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 70%, black) 60%, var(--accent-mid) 100%)',
           position: 'relative',
           overflow: 'hidden',
           display: 'flex',
@@ -594,7 +606,7 @@ function LoginForm() {
 
           {/* Content */}
           <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '40px' }} className="fade-in">
-            <h2 style={{ color: '#ffffff', fontSize: '36px', fontWeight: 700, margin: '0 0 16px 0', letterSpacing: '-0.5px' }}>
+            <h2 style={{ color: 'var(--text)', fontSize: '36px', fontWeight: 700, margin: '0 0 16px 0', letterSpacing: '-0.5px' }}>
               IT Service Management
             </h2>
           </div>
@@ -609,8 +621,8 @@ function LoginForm() {
           backdropFilter: 'blur(4px)'
         }}>
           <div className="fade-in" style={{
-            backgroundColor: '#1E293B',
-            border: '1px solid #334155',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
             borderRadius: '12px',
             padding: '32px',
             width: '100%',
@@ -618,23 +630,44 @@ function LoginForm() {
             position: 'relative'
           }}>
             <button 
-              onClick={() => { setShowForgotModal(false); setForgotSuccess(false); setForgotEmail(''); }}
-              style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', transition: 'color 0.15s ease' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#ffffff'}
-              onMouseLeave={e => e.currentTarget.style.color = '#94A3B8'}
+              onClick={() => { setShowForgotModal(false); setForgotSuccess(false); setForgotEmail(''); setForgotResetLink(null); }}
+              style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'color 0.15s ease' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
             >
               <X size={20} />
             </button>
             
-            <h3 style={{ margin: '0 0 8px 0', color: '#ffffff', fontSize: '20px', fontWeight: 600 }}>Reset Password</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)', fontSize: '20px', fontWeight: 600 }}>Reset Password</h3>
             
             {forgotSuccess ? (
-              <p style={{ color: '#A7F3D0', fontSize: '15px', lineHeight: '1.5', margin: '16px 0 0 0' }}>
-                If that email exists, you'll receive a reset link shortly.
-              </p>
+              <>
+                {forgotResetLink && !forgotEmailSent ? (
+                  <>
+                    {forgotFallbackMessage && (
+                      <p style={{ color: 'var(--warning)', fontSize: '14px', lineHeight: '1.5', margin: '16px 0 8px 0', backgroundColor: 'rgba(234,179,8,0.1)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(234,179,8,0.2)' }}>
+                        {forgotFallbackMessage}
+                      </p>
+                    )}
+                    <div style={{ marginTop: '12px' }}>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px 0' }}>Your reset link:</p>
+                      <a href={forgotResetLink} style={{ display: 'block', wordBreak: 'break-all', color: 'var(--accent)', fontSize: '13px', lineHeight: '1.5', padding: '10px 14px', backgroundColor: 'var(--bg)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                        {forgotResetLink}
+                      </a>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '12px', margin: '8px 0 0 0' }}>
+                        This link expires in 1 hour. Save it — you won't see it again after closing this window.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ color: 'var(--success)', fontSize: '15px', lineHeight: '1.5', margin: '16px 0 0 0' }}>
+                    If that email exists, you'll receive a reset link shortly.
+                  </p>
+                )}
+              </>
             ) : (
               <>
-                <p style={{ color: '#94A3B8', fontSize: '14px', marginBottom: '24px', marginTop: 0 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', marginTop: 0 }}>
                   Enter your email address and we'll send you a link to reset your password.
                 </p>
                 <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -654,8 +687,8 @@ function LoginForm() {
                     disabled={forgotLoading}
                     className="btn-primary"
                     style={{
-                      backgroundColor: '#2563EB',
-                      color: '#ffffff',
+                      backgroundColor: 'var(--accent)',
+                      color: 'var(--text)',
                       border: 'none',
                       borderRadius: '6px',
                       height: '44px',
@@ -688,7 +721,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0F172A', color: '#94A3B8' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text-secondary)' }}>
         Loading...
       </div>
     }>
@@ -701,7 +734,7 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: '13px',
   fontWeight: 500,
-  color: '#94A3B8',
+  color: 'var(--text-secondary)',
   marginBottom: '6px',
 };
 
@@ -709,10 +742,10 @@ const inputStyle: React.CSSProperties = {
   height: '44px',
   width: '100%',
   borderRadius: '6px',
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   padding: '0 12px',
-  backgroundColor: '#1E293B',
-  color: '#ffffff',
+  backgroundColor: 'var(--bg-secondary)',
+  color: 'var(--text)',
   fontSize: '15px',
   outline: 'none',
   transition: 'border-color 0.2s, box-shadow 0.2s',

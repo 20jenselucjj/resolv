@@ -268,13 +268,13 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 textDecoration: 'none',
                 fontSize: 13,
                 fontWeight: 600,
-                transition: 'background var(--transition)',
-                border: 'none',
+                transition: 'all var(--transition)',
+                border: '1px solid var(--sidebar-border)',
                 cursor: 'pointer',
                 width: '100%',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--sidebar-btn-bg) 90%, white)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--sidebar-btn-bg)')}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-text-muted)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--sidebar-btn-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-border)'; }}
               >
                 <Plus size={14} />
                 New Ticket
@@ -297,7 +297,7 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 cursor: 'pointer',
                 boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
               >
                 <div style={{ display: 'none' }}>⌘J</div>
@@ -312,12 +312,12 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 color: 'var(--sidebar-btn-text)',
                 borderRadius: 'var(--radius-md)',
                 textDecoration: 'none',
-                transition: 'background var(--transition)',
-                border: 'none',
+                transition: 'all var(--transition)',
+                border: '1px solid var(--sidebar-border)',
                 cursor: 'pointer',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--sidebar-btn-bg) 90%, white)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--sidebar-btn-bg)')}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-text-muted)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--sidebar-btn-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-border)'; }}
               >
                 <Plus size={15} />
               </button>
@@ -416,8 +416,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-text-muted)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-secondary)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--sidebar-border)'; }}
               >
                 <LayoutGrid size={13} style={{ flexShrink: 0 }} />
                 {!isMobileCollapsed && <span style={{ fontSize: 12, fontWeight: 500 }}>Self Service</span>}
@@ -430,8 +430,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 onNotificationsOpen?.();
                 onMobileClose?.();
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-text-muted)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-secondary)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--sidebar-border)'; }}
             >
               <Bell size={13} />
               {unreadCount > 0 && (
@@ -464,8 +464,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 }}
                 data-tooltip="Settings"
                 style={{ ...iconBtnStyle }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-text-muted)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-secondary)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--sidebar-border)'; }}
               >
                 <Settings size={13} style={{ flexShrink: 0 }} />
               </button>
@@ -527,10 +527,10 @@ const iconBtnStyle: React.CSSProperties = {
   height: 28,
   padding: 0,
   background: 'transparent',
-  border: '1px solid transparent',
+  border: '1px solid var(--sidebar-border)',
   borderRadius: 'var(--radius-md)',
   cursor: 'pointer',
-  color: 'var(--sidebar-text-muted)',
+  color: 'var(--sidebar-text-secondary)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',

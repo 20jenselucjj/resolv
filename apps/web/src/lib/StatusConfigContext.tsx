@@ -48,11 +48,11 @@ export interface StatusConfigContextValue {
 // ---------------------------------------------------------------------------
 
 const ADMIN_COLOR_MAP: Record<string, { color: string; bg: string }> = {
-  default: { color: '#6b7280', bg: '#f3f4f6' },
-  accent:  { color: '#3b82f6', bg: '#eff6ff' },
+  default: { color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' },
+  accent:  { color: 'var(--accent)', bg: 'var(--accent-subtle)' },
   success: { color: '#10b981', bg: '#d1fae5' },
-  warning: { color: '#f59e0b', bg: '#fef3c7' },
-  danger:  { color: '#ef4444', bg: '#fee2e2' },
+  warning: { color: '#f59e0b', bg: 'var(--warning-bg)' },
+  danger:  { color: '#ef4444', bg: 'var(--danger-bg)' },
 };
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -77,11 +77,11 @@ const DEFAULT_STATUS_ORDER = ['open', 'in_progress', 'waiting', 'resolved', 'clo
 
 // Built-in hex defaults when no admin overrides exist.
 const BUILTIN_HEX: Record<string, { color: string; bg: string }> = {
-  open:        { color: '#6b7280', bg: '#f3f4f6' },
-  in_progress: { color: '#f59e0b', bg: '#fef3c7' },
-  waiting:     { color: '#6b7280', bg: '#f3f4f6' },
+  open:        { color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' },
+  in_progress: { color: '#f59e0b', bg: 'var(--warning-bg)' },
+  waiting:     { color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' },
   resolved:    { color: '#10b981', bg: '#d1fae5' },
-  closed:      { color: '#6b7280', bg: '#f3f4f6' },
+  closed:      { color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' },
 };
 
 // ---------------------------------------------------------------------------

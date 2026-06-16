@@ -8,6 +8,7 @@ import { pool } from '../db/pool';
 import { JwtPayload } from '../plugins/auth';
 import { oauthStates } from './oauth';
 import { getLoginMode, getEmergencyKey, verifyEmergencyKey } from './directory-sync/helpers';
+import { sendEmail } from '../services/email-transport';
 
 // Create refresh_tokens table if not exists
 pool.query(`
@@ -24,7 +25,7 @@ pool.query(`
 
 // ─── IP-based rate limiter (in-memory) ────────────────────────────────────
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const IP_MAX_ATTEMPTS = 5;
+const IP_MAX_ATTEMPTS = 15;
 const IP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 function checkRateLimit(ip: string): { blocked: boolean; remaining: number } {
@@ -76,11 +77,11 @@ async function getMaxFailedAttempts(): Promise<number> {
     const { rows } = await pool.query(
       "SELECT value FROM system_settings WHERE key = 'max_failed_attempts'"
     );
-    cachedMaxAttempts = rows.length > 0 ? parseInt(rows[0].value, 10) || 5 : 5;
+    cachedMaxAttempts = rows.length > 0 ? parseInt(rows[0].value, 10) || 8 : 8;
     maxAttemptsCacheTime = Date.now();
     return cachedMaxAttempts;
   } catch {
-    return 5; // fallback default
+    return 8; // fallback default
   }
 }
 
@@ -377,24 +378,77 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const { email } = z.object({ email: z.string().email() }).parse(request.body);
 
+      const WEB_URL = process.env.WEB_URL || 'http://localhost:3000';
+
       // Check if email exists (for internal logging only)
-      const result = await pool.query('SELECT id, name FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+      const result = await pool.query('SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1)', [email]);
       const userExists = result.rows.length > 0;
+
+      let emailSent = false;
+      let resetLink: string | undefined;
 
       if (userExists) {
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
-        passwordResets.set(token, { email: result.rows[0].email, expiresAt });
 
-        const protocol = request.protocol;
-        const host = request.headers.host || request.hostname;
-        const resetLink = `${protocol}://${host}/reset-password?token=${token}`;
+        const user = result.rows[0];
+        passwordResets.set(token, { email: user.email, expiresAt });
+
+        resetLink = `${WEB_URL}/reset-password?token=${token}`;
         fastify.log.info(`Password reset link for ${email}: ${resetLink}`);
         clearAttempts(ip);
+
+        // Try to send the reset email
+        const emailBody = `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+            <div style="text-align:center;margin-bottom:32px">
+              <img src="${WEB_URL}/logo.png" alt="Resolv" style="height:40px" />
+            </div>
+            <h2 style="margin:0 0 8px;color:#111827;font-size:22px">Reset your password</h2>
+            <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 24px">
+              We received a request to reset the password for your Resolv account. 
+              Click the button below to set a new password. This link expires in 1 hour.
+            </p>
+            <div style="text-align:center;margin-bottom:32px">
+              <a href="${resetLink}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600">Reset Password</a>
+            </div>
+            <p style="color:#9ca3af;font-size:13px;line-height:1.5;margin:0">
+              If you didn't request this, you can safely ignore this email. 
+              Your password won't change unless you click the link above.
+            </p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0" />
+            <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0">
+              Resolv IT Service Management &mdash; ${WEB_URL}
+            </p>
+          </div>`;
+
+        const emailResult = await sendEmail({
+          to: user.email,
+          toName: user.name || undefined,
+          subject: 'Reset your Resolv password',
+          body: emailBody,
+        });
+
+        emailSent = emailResult.success;
+
+        if (!emailResult.success) {
+          fastify.log.warn(`Failed to send password reset email to ${email}: ${emailResult.error}`);
+        }
       }
 
-      // Always return the same message regardless of whether email exists
-      return reply.send({ message: 'If that email exists, you\'ll receive a reset link shortly.' });
+      // Always return the same message to prevent email enumeration
+      const response: Record<string, any> = {
+        message: 'If that email exists, you\'ll receive a reset link shortly.',
+      };
+
+      // If email sending failed and user exists, return the link as fallback
+      if (userExists && !emailSent && resetLink) {
+        response.resetLink = resetLink;
+        response.emailSent = false;
+        response.fallbackMessage = 'Email delivery is not configured. Use the link below to reset your password.';
+      }
+
+      return reply.send(response);
     } catch (err: any) {
       if (err.name === 'ZodError') {
         return reply.status(400).send({ error: 'Validation error', details: err.message });

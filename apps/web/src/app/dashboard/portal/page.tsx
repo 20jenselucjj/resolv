@@ -113,11 +113,11 @@ interface ServiceRequest {
 // ─── Quick Actions (Dynamic) ──────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  open:        { label: 'Open',        color: '#3b82f6', bg: '#eff6ff',  icon: Circle },
-  in_progress: { label: 'In Progress', color: '#f59e0b', bg: '#fffbeb',  icon: RefreshCw },
-  closed:      { label: 'Closed',      color: '#10b981', bg: '#ecfdf5',  icon: CheckCircle2 },
-  resolved:    { label: 'Closed',      color: '#10b981', bg: '#ecfdf5',  icon: CheckCircle2 },
-  pending:     { label: 'Pending',     color: '#8b5cf6', bg: '#f5f3ff',  icon: Clock },
+  open:        { label: 'Open',        color: 'var(--accent)', bg: 'var(--accent-subtle)',  icon: Circle },
+  in_progress: { label: 'In Progress', color: 'var(--warning)', bg: 'var(--warning-bg)',  icon: RefreshCw },
+  closed:      { label: 'Closed',      color: 'var(--success)', bg: 'var(--success-bg)',  icon: CheckCircle2 },
+  resolved:    { label: 'Closed',      color: 'var(--success)', bg: 'var(--success-bg)',  icon: CheckCircle2 },
+  pending:     { label: 'Pending',     color: 'var(--purple)', bg: 'var(--purple-bg)',  icon: Clock },
 };
 
 // ─── Formatted Message ─────────────────────────────────────────────────────────
@@ -154,12 +154,12 @@ export default function SelfServicePortal() {
   const [portalSettings, setPortalSettings] = useState<Record<string, string>>({});
 
   const quickActions = useMemo(() => [
-    { icon: AlertTriangle, label: portalSettings.portal_qa_1_label || 'Report an Issue',   color: '#ef4444', bg: '#fef2f2', border: '#fecaca', prompt: portalSettings.portal_qa_1_prompt || 'I need to report an issue with my computer or software.' },
-    { icon: KeyRound,      label: portalSettings.portal_qa_2_label || 'Password / Access', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', prompt: portalSettings.portal_qa_2_prompt || 'I need help with a password reset or access to a system.' },
-    { icon: Monitor,       label: portalSettings.portal_qa_3_label || 'Hardware Request',  color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', prompt: portalSettings.portal_qa_3_prompt || 'I need to request new hardware or equipment.' },
-    { icon: Package,       label: portalSettings.portal_qa_4_label || 'Software Request',  color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', prompt: portalSettings.portal_qa_4_prompt || 'I need a software license or application installed.' },
-    { icon: Wifi,          label: portalSettings.portal_qa_5_label || 'Network / VPN',     color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', prompt: portalSettings.portal_qa_5_prompt || 'I am having network connectivity or VPN issues.' },
-    { icon: HelpCircle,    label: portalSettings.portal_qa_6_label || 'Something Else',    color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb', prompt: portalSettings.portal_qa_6_prompt || 'I need help with something not listed here.' },
+    { icon: AlertTriangle, label: portalSettings.portal_qa_1_label || 'Report an Issue',   color: 'var(--danger)', bg: 'var(--danger-bg)', border: 'var(--danger-border)', prompt: portalSettings.portal_qa_1_prompt || 'I need to report an issue with my computer or software.' },
+    { icon: KeyRound,      label: portalSettings.portal_qa_2_label || 'Password / Access', color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)', prompt: portalSettings.portal_qa_2_prompt || 'I need help with a password reset or access to a system.' },
+    { icon: Monitor,       label: portalSettings.portal_qa_3_label || 'Hardware Request',  color: 'var(--accent)', bg: 'var(--accent-subtle)', border: 'var(--accent-border)', prompt: portalSettings.portal_qa_3_prompt || 'I need to request new hardware or equipment.' },
+    { icon: Package,       label: portalSettings.portal_qa_4_label || 'Software Request',  color: 'var(--purple)', bg: 'var(--purple-bg)', border: 'var(--purple-border)', prompt: portalSettings.portal_qa_4_prompt || 'I need a software license or application installed.' },
+    { icon: Wifi,          label: portalSettings.portal_qa_5_label || 'Network / VPN',     color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)', prompt: portalSettings.portal_qa_5_prompt || 'I am having network connectivity or VPN issues.' },
+    { icon: HelpCircle,    label: portalSettings.portal_qa_6_label || 'Something Else',    color: 'var(--text-muted)', bg: 'var(--bg-tertiary)', border: 'var(--border)', prompt: portalSettings.portal_qa_6_prompt || 'I need help with something not listed here.' },
   ], [portalSettings]);
 
   // Search for KB
@@ -684,26 +684,26 @@ export default function SelfServicePortal() {
 
   // Status config for service requests
   const SR_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-    submitted:        { label: 'Submitted',     color: '#3b82f6', bg: '#eff6ff' },
-    pending_approval: { label: 'Pending Approval', color: '#f59e0b', bg: '#fffbeb' },
-    approved:         { label: 'Approved',      color: '#10b981', bg: '#ecfdf5' },
-    rejected:         { label: 'Rejected',      color: '#ef4444', bg: '#fef2f2' },
-    in_progress:      { label: 'In Progress',   color: '#8b5cf6', bg: '#f5f3ff' },
-    fulfilled:        { label: 'Fulfilled',     color: '#059669', bg: '#ecfdf5' },
-    cancelled:        { label: 'Cancelled',     color: '#6b7280', bg: '#f9fafb' },
+    submitted:        { label: 'Submitted',     color: 'var(--accent)', bg: 'var(--accent-subtle)' },
+    pending_approval: { label: 'Pending Approval', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+    approved:         { label: 'Approved',      color: 'var(--success)', bg: 'var(--success-bg)' },
+    rejected:         { label: 'Rejected',      color: 'var(--danger)', bg: 'var(--danger-bg)' },
+    in_progress:      { label: 'In Progress',   color: 'var(--purple)', bg: 'var(--purple-bg)' },
+    fulfilled:        { label: 'Fulfilled',     color: 'var(--success)', bg: 'var(--success-bg)' },
+    cancelled:        { label: 'Cancelled',     color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' },
   };
 
   const FULFILLMENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    ticket:    { label: 'Ticket',    color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
-    approval:  { label: 'Approval',  color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
-    automated: { label: 'Automated', color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0' },
+    ticket:    { label: 'Ticket',    color: 'var(--accent)', bg: 'var(--accent-subtle)', border: 'var(--accent-border)' },
+    approval:  { label: 'Approval',  color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)' },
+    automated: { label: 'Automated', color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)' },
   };
 
   const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
-    low:      { label: 'Low',      color: '#6b7280' },
-    medium:   { label: 'Medium',   color: '#3b82f6' },
-    high:     { label: 'High',     color: '#f59e0b' },
-    critical: { label: 'Critical', color: '#ef4444' },
+    low:      { label: 'Low',      color: 'var(--text-muted)' },
+    medium:   { label: 'Medium',   color: 'var(--accent)' },
+    high:     { label: 'High',     color: 'var(--warning)' },
+    critical: { label: 'Critical', color: 'var(--danger)' },
   };
 
   const CATALOG_ICONS: Record<string, any> = {
@@ -776,19 +776,19 @@ export default function SelfServicePortal() {
         .qa-btn { transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
         .qa-btn:hover { box-shadow: var(--shadow-md); background: var(--bg-secondary) !important; border-color: var(--accent-border) !important; transform: translateY(-2px); }
         .qa-btn:active { transform: translateY(0) scale(0.98); }
-        .typing-dot { width:6px; height:6px; border-radius:50%; background:#2563eb; animation: typingBounce 1.2s infinite ease-in-out; }
-        .ssp-input:focus { border-color: var(--accent-mid) !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important; }
+        .typing-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); animation: typingBounce 1.2s infinite ease-in-out; }
+        .ssp-input:focus { border-color: var(--accent-mid) !important; box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.12) !important; }
         .msg-in { animation: fadeInUp 0.25s cubic-bezier(0.4,0,0.2,1) forwards; }
         .page-section { animation: fadeInUp 0.5s cubic-bezier(0.4,0,0.2,1) forwards; opacity:0; }
         .kb-card { transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
         .kb-card:hover { background: var(--bg-secondary); border-color: var(--accent-border) !important; box-shadow: var(--shadow-md); transform: translateY(-3px); }
         .kb-card:hover .kb-arrow { transform: translateX(4px); }
-        .suggestion-chip:hover { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(37,99,235,0.2); }
+        .suggestion-chip:hover { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(var(--accent-rgb),0.2); }
       `}</style>
 
       {/* ── Hero Header ─────────────────────────────────────────────────────── */}
       <div style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 35%, #1e40af 65%, #2563eb 100%)',
+        background: 'linear-gradient(135deg,var(--bg) 0%,var(--accent) 35%,color-mix(in srgb,var(--accent) 80%,black) 65%,var(--accent-mid) 100%)',
         padding: '24px 32px',
       }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -844,21 +844,21 @@ export default function SelfServicePortal() {
           }}>
             {/* Chat header */}
             <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-              <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <Sparkles size={15} color="white" />
               </div>
               <div>
                   <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', display:'flex', alignItems:'center', gap:6 }}>
                   {portalSettings.portal_chat_header || 'Resolv AI'}
-                  <span style={{ width:6, height:6, borderRadius:'50%', background:'#10b981', display:'inline-block' }} />
+                  <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--success)', display:'inline-block' }} />
                 </div>
-                <div style={{ fontSize:11, color:'var(--text-muted)' }}>{portalSettings.portal_chat_subtitle || 'Always here to help'}</div>
+                <div style={{ fontSize:11, color:'var(--success)' }}>{portalSettings.portal_chat_subtitle || 'Always here to help'}</div>
               </div>
               <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
                 <div ref={historyRef} style={{ position:'relative' }}>
                   <button
                     onClick={() => { loadHistorySessions(); setShowHistory(h => !h); }}
-                    style={{ background:'none', border:'none', cursor:'pointer', color: showHistory ? '#2563eb' : 'var(--text-muted)', display:'flex', padding:4, borderRadius:4, transition:'color 0.15s ease' }}
+                    style={{ background:'none', border:'none', cursor:'pointer', color: showHistory ? 'var(--accent)' : 'var(--success)', display:'flex', padding:4, borderRadius:4, transition:'color 0.15s ease' }}
                     title="Chat history"
                   >
                     <History size={14} />
@@ -870,14 +870,14 @@ export default function SelfServicePortal() {
                       borderRadius:12, boxShadow:'0 8px 30px rgba(0,0,0,0.12)',
                       overflow:'hidden', zIndex:50,
                     }}>
-                      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-subtle)', fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-subtle)', fontSize:12, fontWeight:700, color:'var(--success)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
                         Recent Chats
                       </div>
                       <div style={{ maxHeight:280, overflowY:'auto' }}>
                         {historyLoading ? (
-                          <div style={{ padding:20, textAlign:'center' }}><Loader2 size={16} className="animate-spin" color="#2563eb" /></div>
+                          <div style={{ padding:20, textAlign:'center' }}><Loader2 size={16} className="animate-spin" color="var(--accent)" /></div>
                         ) : historySessions.length === 0 ? (
-                          <div style={{ padding:'20px 14px', textAlign:'center', fontSize:12, color:'var(--text-muted)' }}>No previous chats</div>
+                          <div style={{ padding:'20px 14px', textAlign:'center', fontSize:12, color:'var(--success)' }}>No previous chats</div>
                         ) : historySessions.map(s => (
                           <button
                             key={s.id}
@@ -892,16 +892,16 @@ export default function SelfServicePortal() {
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
                             <span style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.title || 'New Chat'}</span>
-                            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(s.updated_at || s.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+                            <span style={{ fontSize:11, color:'var(--success)' }}>{new Date(s.updated_at || s.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); localStorage.removeItem('portal_session_id'); localStorage.removeItem('portal_session_time'); }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
+                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); localStorage.removeItem('portal_session_id'); localStorage.removeItem('portal_session_time'); }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--success)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--success)'}
                 >
                   <Plus size={12} /> New chat
                 </button>
@@ -912,11 +912,11 @@ export default function SelfServicePortal() {
             <div ref={messagesContainerRef} style={{ flex:1, overflowY:'auto', padding:'16px', display:'flex', flexDirection:'column', gap:16 }}>
               {!chatStarted ? (
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', textAlign:'center', padding:'0 20px' }}>
-                  <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14, boxShadow:'0 8px 20px rgba(37,99,235,0.25)' }}>
+                  <div style={{ width:52, height:52, borderRadius:14, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:14, boxShadow:'0 8px 20px rgba(var(--accent-rgb),0.25)' }}>
                     <Sparkles size={24} color="white" />
                   </div>
                   <h3 style={{ fontSize:16, fontWeight:700, margin:'0 0 6px', color:'var(--text)' }}>{portalSettings.portal_chat_empty_title || 'Ask me anything'}</h3>
-                  <p style={{ fontSize:13, color:'var(--text-muted)', margin:'0 0 20px', lineHeight:1.5 }}>
+                  <p style={{ fontSize:13, color:'var(--success)', margin:'0 0 20px', lineHeight:1.5 }}>
                     {portalSettings.portal_chat_empty_description || 'I can help you troubleshoot issues, find answers, or submit a ticket on your behalf.'}
                   </p>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'center' }}>
@@ -927,7 +927,7 @@ export default function SelfServicePortal() {
                       { label: portalSettings.portal_chip_4_label || 'Track my ticket', prompt: portalSettings.portal_chip_4_prompt || 'Track my ticket' },
                     ] as const).map(chip => (
                       <button key={chip.label} onClick={() => sendMessage(chip.prompt)} style={{ padding:'6px 12px', background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:20, fontSize:12, fontWeight:500, color:'var(--text)', cursor:'pointer', transition:'all 0.15s ease' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#2563eb'; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'var(--accent)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
                       >
                         {chip.label}
@@ -940,13 +940,13 @@ export default function SelfServicePortal() {
                   {messages.map(msg => (
                     <div key={msg.id} className="msg-in" style={{ display:'flex', flexDirection:'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                       {msg.role === 'user' ? (
-                        <div style={{ background:'#2563eb', color:'white', padding:'10px 14px', borderRadius:'16px 16px 4px 16px', fontSize:14, lineHeight:1.5, maxWidth:'85%', boxShadow:'0 1px 3px rgba(0,0,0,0.15)' }}>
+                        <div style={{ background:'var(--accent)', color:'white', padding:'10px 14px', borderRadius:'16px 16px 4px 16px', fontSize:14, lineHeight:1.5, maxWidth:'85%', boxShadow:'0 1px 3px rgba(0,0,0,0.15)' }}>
                           {msg.content}
                         </div>
                       ) : (
                         <>
                           <div style={{ display:'flex', gap:10, maxWidth:'95%', alignItems:'flex-start' }}>
-                            <div style={{ width:26, height:26, borderRadius:6, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 }}>
+                            <div style={{ width:26, height:26, borderRadius:6, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:2 }}>
                               <Sparkles size={12} color="white" />
                             </div>
                             <div style={{ background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)', borderRadius:'4px 16px 16px 16px', padding:'10px 14px', flex:1 }}>
@@ -980,7 +980,7 @@ export default function SelfServicePortal() {
                   ))}
                   {aiLoading && (
                     <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                      <div style={{ width:26, height:26, borderRadius:6, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <div style={{ width:26, height:26, borderRadius:6, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         <Sparkles size={12} color="white" />
                       </div>
                       <div style={{ display:'flex', gap:4, alignItems:'center', background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)', borderRadius:'4px 16px 16px 16px', padding:'12px 16px' }}>
@@ -1003,7 +1003,7 @@ export default function SelfServicePortal() {
               style={{
                 padding:'12px 14px', borderTop:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', flexShrink:0,
                 position:'relative',
-                outline: dragOver ? '2px dashed #2563eb' : 'none',
+                outline: dragOver ? '2px dashed var(--accent)' : 'none',
                 outlineOffset: dragOver ? -2 : 0,
                 transition: 'outline 0.15s ease',
               }}
@@ -1012,10 +1012,10 @@ export default function SelfServicePortal() {
               {dragOver && (
                 <div style={{
                   position:'absolute', inset:0, zIndex:10,
-                  background:'rgba(37,99,235,0.06)',
+                  background:'rgba(var(--accent-rgb),0.06)',
                   borderRadius:10,
                   display:'flex', alignItems:'center', justifyContent:'center',
-                  gap:8, fontSize:14, fontWeight:600, color:'#2563eb',
+                  gap:8, fontSize:14, fontWeight:600, color:'var(--accent)',
                   pointerEvents:'none',
                 }}>
                   <UploadCloud size={20} /> Drop files here
@@ -1028,7 +1028,7 @@ export default function SelfServicePortal() {
                   background:'rgba(16,185,129,0.08)',
                   borderRadius:10,
                   display:'flex', alignItems:'center', justifyContent:'center',
-                  gap:8, fontSize:14, fontWeight:600, color:'#10b981',
+                  gap:8, fontSize:14, fontWeight:600, color:'var(--success)',
                   pointerEvents:'none',
                   animation:'fadeInUp 0.2s ease-out',
                 }}>
@@ -1042,7 +1042,7 @@ export default function SelfServicePortal() {
                   background:'var(--bg-secondary)',
                   border:'1px solid var(--border-subtle)',
                 }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.04em' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--success)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.04em' }}>
                     {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} attached
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
@@ -1053,27 +1053,27 @@ export default function SelfServicePortal() {
                         background:'var(--card)',
                         border:'1px solid var(--border)',
                       }}>
-                        <div style={{ width:24, height:24, borderRadius:4, background:'rgba(37,99,235,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          <FileText size={13} color="#2563eb" />
+                        <div style={{ width:24, height:24, borderRadius:4, background:'rgba(var(--accent-rgb),0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <FileText size={13} color="var(--accent)" />
                         </div>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={f.filename}>
                             {truncateFilename(f.filename)}
                           </div>
                         </div>
-                        <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0, whiteSpace:'nowrap' }}>{formatSize(f.size)}</span>
+                        <span style={{ fontSize:11, color:'var(--success)', flexShrink:0, whiteSpace:'nowrap' }}>{formatSize(f.size)}</span>
                         <button
                           onClick={() => removeAiFile(f.id)}
                           style={{
                             width:20, height:20, borderRadius:4,
                             background:'transparent', border:'none',
                             cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
-                            color:'var(--text-muted)', flexShrink:0,
+                            color:'var(--success)', flexShrink:0,
                             transition:'all 0.15s ease',
                           }}
                           title="Remove file"
                           onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
                         >
                           <X size={13} />
                         </button>
@@ -1083,7 +1083,7 @@ export default function SelfServicePortal() {
                 </div>
               )}
               <div style={{ display:'flex', gap:8, alignItems:'flex-end', background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:10, padding:'6px 6px 6px 4px', transition:'border-color 0.2s' }}
-                onFocusCapture={e => (e.currentTarget.style.borderColor = '#2563eb')}
+                onFocusCapture={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
                 onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               >
                 {/* File upload button */}
@@ -1092,14 +1092,14 @@ export default function SelfServicePortal() {
                   disabled={uploadingFile}
                   style={{
                     width:30, height:30, borderRadius:6, flexShrink:0,
-                    background:'transparent', color:'var(--text-muted)',
+                    background:'transparent', color:'var(--success)',
                     border:'none', display:'flex', alignItems:'center', justifyContent:'center',
                     cursor: uploadingFile ? 'default' : 'pointer',
                     transition:'all 0.15s ease',
                   }}
                   title="Attach file"
                   onMouseEnter={e => { if (!uploadingFile) { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; } }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
                 >
                   {uploadingFile ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={15} />}
                 </button>
@@ -1117,14 +1117,14 @@ export default function SelfServicePortal() {
                 <button
                   onClick={() => sendMessage()}
                   disabled={!inputText.trim() || aiLoading}
-                  style={{ width:32, height:32, borderRadius:8, border:'none', cursor: inputText.trim() && !aiLoading ? 'pointer' : 'default', background: inputText.trim() && !aiLoading ? 'linear-gradient(135deg,#2563eb,#4f46e5)' : 'var(--bg-tertiary)', color: inputText.trim() && !aiLoading ? 'white' : 'var(--text-muted)', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s', flexShrink:0 }}
+                  style={{ width:32, height:32, borderRadius:8, border:'none', cursor: inputText.trim() && !aiLoading ? 'pointer' : 'default', background: inputText.trim() && !aiLoading ? 'linear-gradient(135deg,var(--accent),var(--accent-mid))' : 'var(--bg-tertiary)', color: inputText.trim() && !aiLoading ? 'white' : 'var(--success)', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s', flexShrink:0 }}
                   onMouseEnter={e => { if (inputText.trim() && !aiLoading) e.currentTarget.style.opacity = '0.85'; }}
                   onMouseLeave={e => { if (inputText.trim() && !aiLoading) e.currentTarget.style.opacity = '1'; }}
                 >
                   <Send size={14} style={{ marginLeft:1 }} />
                 </button>
               </div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5, textAlign:'center' }}>{portalSettings.portal_input_hint || 'Enter to send · Shift+Enter for new line'}</div>
+              <div style={{ fontSize:11, color:'var(--success)', marginTop:5, textAlign:'center' }}>{portalSettings.portal_input_hint || 'Enter to send · Shift+Enter for new line'}</div>
             </div>
           </div>
 
@@ -1135,7 +1135,7 @@ export default function SelfServicePortal() {
             <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
               <div style={{ padding:'16px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     <Plus size={14} color="white" />
                   </div>
                   <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_section_header || 'Report an Issue or Request Service'}</span>
@@ -1143,14 +1143,14 @@ export default function SelfServicePortal() {
               </div>
               {!showTicketForm ? (
                 <div style={{ padding:20 }}>
-                  <p style={{ fontSize:13, color:'var(--text-muted)', margin:'0 0 16px', lineHeight:1.6 }}>
+                  <p style={{ fontSize:13, color:'var(--success)', margin:'0 0 16px', lineHeight:1.6 }}>
                     {portalSettings.portal_section_description || "Can't find what you need? Submit a support request and our team will help you."}
                   </p>
                   <button
                     onClick={() => setShowTicketForm(true)}
-                    style={{ width:'100%', padding:'12px', background:'linear-gradient(135deg,#2563eb,#4f46e5)', color:'white', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)', boxShadow:'0 4px 14px rgba(37,99,235,0.25)' }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(37,99,235,0.35)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.25)'; }}
+                    style={{ width:'100%', padding:'12px', background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', color:'white', border:'none', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'all 0.2s cubic-bezier(0.4,0,0.2,1)', boxShadow:'0 4px 14px rgba(var(--accent-rgb),0.25)' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(var(--accent-rgb),0.35)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(var(--accent-rgb),0.25)'; }}
                   >
                     <Plus size={15} /> {portalSettings.portal_button_text || 'Get Help'}
                   </button>
@@ -1161,7 +1161,7 @@ export default function SelfServicePortal() {
                     <CheckCircle2 size={24} color="var(--success)" />
                   </div>
                   <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_success_title || 'Ticket submitted!'}</div>
-                  <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:6, lineHeight:1.5 }}>{portalSettings.portal_success_subtitle || "We'll follow up based on your urgency."}</div>
+                  <div style={{ fontSize:13, color:'var(--success)', marginTop:6, lineHeight:1.5 }}>{portalSettings.portal_success_subtitle || "We'll follow up based on your urgency."}</div>
                 </div>
               ) : (
                 <div
@@ -1174,10 +1174,10 @@ export default function SelfServicePortal() {
                   {ticketDragOver && (
                     <div style={{
                       position:'absolute', inset:0, zIndex:10,
-                      background:'rgba(37,99,235,0.08)',
-                      border:'2px dashed #2563eb', borderRadius:8, margin:8,
+                      background:'rgba(var(--accent-rgb),0.08)',
+                      border:'2px dashed var(--accent)', borderRadius:8, margin:8,
                       display:'flex', alignItems:'center', justifyContent:'center',
-                      gap:8, fontSize:14, fontWeight:600, color:'#2563eb',
+                      gap:8, fontSize:14, fontWeight:600, color:'var(--accent)',
                       pointerEvents:'none',
                     }}>
                       <UploadCloud size={20} /> Drop files to attach
@@ -1214,18 +1214,18 @@ export default function SelfServicePortal() {
                   />
                   {ticketFiles.length > 0 && (
                     <div style={{ display:'flex', flexDirection:'column', gap:6, padding:10, borderRadius:8, background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2 }}>Attachments</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:'var(--success)', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2 }}>Attachments</div>
                       {ticketFiles.map((file, i) => (
                         <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, background:'var(--card)', border:'1px solid var(--border)', fontSize:12 }}>
-                          <div style={{ width:22, height:22, borderRadius:4, background:'rgba(37,99,235,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <FileText size={12} color="#2563eb" />
+                          <div style={{ width:22, height:22, borderRadius:4, background:'rgba(var(--accent-rgb),0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <FileText size={12} color="var(--accent)" />
                           </div>
                           <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'var(--text)', fontWeight:500 }}>{file.name}</span>
-                          <span style={{ color:'var(--text-muted)', flexShrink:0, fontSize:11 }}>{(file.size / 1024).toFixed(0)}KB</span>
+                          <span style={{ color:'var(--success)', flexShrink:0, fontSize:11 }}>{(file.size / 1024).toFixed(0)}KB</span>
                           <button type="button" onClick={() => setTicketFiles(prev => prev.filter((_, j) => j !== i))}
-                            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:2, display:'flex', borderRadius:4, transition:'all 0.15s ease' }}
+                            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--success)', padding:2, display:'flex', borderRadius:4, transition:'all 0.15s ease' }}
                             onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
                           >
                             <X size={12} />
                           </button>
@@ -1236,9 +1236,9 @@ export default function SelfServicePortal() {
                   <button
                     type="button"
                     onClick={() => ticketFileInputRef.current?.click()}
-                    style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, border:'1.5px dashed var(--border)', background:'var(--bg-secondary)', color:'var(--text-muted)', cursor:'pointer', fontSize:12, justifyContent:'center', fontWeight:500, transition:'all 0.2s ease' }}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, border:'1.5px dashed var(--border)', background:'var(--bg-secondary)', color:'var(--success)', cursor:'pointer', fontSize:12, justifyContent:'center', fontWeight:500, transition:'all 0.2s ease' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-subtle)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--success)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
                   >
                     <UploadCloud size={14} />
                     {ticketFiles.length > 0 ? `${ticketFiles.length} file(s) attached` : 'Attach screenshots or files'}
@@ -1247,9 +1247,9 @@ export default function SelfServicePortal() {
                   <input type="hidden" name="ticket_type" value="incident" />
                   {ticketError && <div style={{ fontSize:12, color:'var(--danger)', padding:'8px 12px', background:'var(--danger-bg)', borderRadius:8, border:'1px solid var(--danger-border)' }}>{ticketError}</div>}
                   <div style={{ display:'flex', gap:10, marginTop:4 }}>
-                    <button type="submit" disabled={ticketLoading} className="btn btn-primary" style={{ flex:1, fontSize:13, height:40, borderRadius:10, boxShadow:'0 4px 14px rgba(37,99,235,0.2)', transition:'all 0.2s ease' }}
-                      onMouseEnter={e => { if (!ticketLoading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(37,99,235,0.3)'; } }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.2)'; }}
+                    <button type="submit" disabled={ticketLoading} className="btn btn-primary" style={{ flex:1, fontSize:13, height:40, borderRadius:10, boxShadow:'0 4px 14px rgba(var(--accent-rgb),0.2)', transition:'all 0.2s ease' }}
+                      onMouseEnter={e => { if (!ticketLoading) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(var(--accent-rgb),0.3)'; } }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(var(--accent-rgb),0.2)'; }}
                     >
                       {ticketLoading ? <Loader2 size={14} className="animate-spin" /> : 'Submit Ticket'}
                     </button>
@@ -1264,7 +1264,7 @@ export default function SelfServicePortal() {
             <div className="ssp-card" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)' }}>
               <div style={{ padding:'16px 18px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     <Layers size={14} color="white" />
                   </div>
                   <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_requests_header || 'My Tickets'}</span>
@@ -1278,14 +1278,14 @@ export default function SelfServicePortal() {
               </div>
               <div style={{ padding:'10px', maxHeight:400, overflowY:'auto' }}>
                 {ticketsLoading || requestsLoading ? (
-                  <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
+                  <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="var(--accent)" /></div>
                 ) : mergedRequests.length === 0 ? (
                   <div style={{ padding:'28px 20px', textAlign:'center' }}>
                     <div style={{ width:44, height:44, borderRadius:'50%', background:'var(--success-bg)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
                       <CheckCircle2 size={20} color="var(--success)" />
                     </div>
                     <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_requests_empty || 'No requests yet'}</div>
-                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, lineHeight:1.5 }}>{portalSettings.portal_requests_empty_desc || 'Submit a ticket above or browse the service catalog.'}</div>
+                    <div style={{ fontSize:12, color:'var(--success)', marginTop:4, lineHeight:1.5 }}>{portalSettings.portal_requests_empty_desc || 'Submit a ticket above or browse the service catalog.'}</div>
                   </div>
                 ) : mergedRequests.map(item => {
                   if (item.type === 'ticket') {
@@ -1300,7 +1300,7 @@ export default function SelfServicePortal() {
                         </div>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
-                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{item.subtitle}</div>
+                          <div style={{ fontSize:11, color:'var(--success)', marginTop:2 }}>{item.subtitle}</div>
                         </div>
                         <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0, letterSpacing:'0.02em' }}>{s.label}</span>
                       </a>
@@ -1320,7 +1320,7 @@ export default function SelfServicePortal() {
                           <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {item.title}
                           </div>
-                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{item.subtitle}</div>
+                          <div style={{ fontSize:11, color:'var(--success)', marginTop:2 }}>{item.subtitle}</div>
                         </div>
                         <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:srStatus.bg, color:srStatus.color, flexShrink:0, letterSpacing:'0.02em' }}>{srStatus.label}</span>
                       </div>
@@ -1336,13 +1336,13 @@ export default function SelfServicePortal() {
         <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom:24, animationDelay:'0.3s' }}>
           <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <ShoppingCart size={14} color="white" />
               </div>
               <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_catalog_header || 'Service Catalog'}</span>
             </div>
             <div style={{ position:'relative', flex:1, maxWidth:280 }}>
-              <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+              <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--success)', pointerEvents:'none' }} />
               <input
                 value={catalogSearch}
                 onChange={e => setCatalogSearch(e.target.value)}
@@ -1358,16 +1358,16 @@ export default function SelfServicePortal() {
           </div>
           <div style={{ padding:16 }}>
             {catalogLoading ? (
-              <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="#2563eb" /></div>
+              <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="var(--accent)" /></div>
             ) : catalogCategories.length === 0 ? (
               <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
                 <Package size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
-                <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>{portalSettings.portal_catalog_empty || 'No services available yet'}</div>
+                <div style={{ fontSize:13, fontWeight:500, color:'var(--success)' }}>{portalSettings.portal_catalog_empty || 'No services available yet'}</div>
               </div>
             ) : catalogSearch && catalogItems.filter(i => i.is_active && (i.name.toLowerCase().includes(catalogSearch.toLowerCase()) || (i.short_description && i.short_description.toLowerCase().includes(catalogSearch.toLowerCase())))).length === 0 ? (
                 <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
                   <Search size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
-                  <div style={{ fontSize:13, fontWeight:500, color:'var(--text-muted)' }}>{portalSettings.portal_catalog_no_results || 'No services match your search'}</div>
+                  <div style={{ fontSize:13, fontWeight:500, color:'var(--success)' }}>{portalSettings.portal_catalog_no_results || 'No services match your search'}</div>
                   <button onClick={() => setCatalogSearch('')} style={{ marginTop:8, fontSize:12, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:600, textDecoration:'underline' }}>Clear search</button>
                 </div>
               ) : (
@@ -1379,14 +1379,14 @@ export default function SelfServicePortal() {
                   return (
                     <div key={category.id}>
                       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14, paddingBottom:12, borderBottom:'1.5px solid var(--border-subtle)' }}>
-                        <div style={{ width:34, height:34, borderRadius:10, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 2px 8px rgba(37,99,235,0.2)' }}>
+                        <div style={{ width:34, height:34, borderRadius:10, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 2px 8px rgba(var(--accent-rgb),0.2)' }}>
                           <CatIcon size={16} color="white" />
                         </div>
                         <div>
                           <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{category.name}</div>
-                          {category.description && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:1 }}>{category.description}</div>}
+                          {category.description && <div style={{ fontSize:12, color:'var(--success)', marginTop:1 }}>{category.description}</div>}
                         </div>
-                        <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', background:'var(--bg-secondary)', padding:'2px 10px', borderRadius:10, marginLeft:'auto', whiteSpace:'nowrap' }}>{catItems.length} item{catItems.length !== 1 ? 's' : ''}</span>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--success)', background:'var(--bg-secondary)', padding:'2px 10px', borderRadius:10, marginLeft:'auto', whiteSpace:'nowrap' }}>{catItems.length} item{catItems.length !== 1 ? 's' : ''}</span>
                       </div>
                       <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
                         {catItems.map(item => {
@@ -1421,7 +1421,7 @@ export default function SelfServicePortal() {
                               <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.3 }}>{item.name}</div>
                               {/* Description */}
                               {item.short_description && (
-                                <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+                                <div style={{ fontSize:11, color:'var(--success)', lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
                                   {item.short_description}
                                 </div>
                               )}
@@ -1451,20 +1451,20 @@ export default function SelfServicePortal() {
         <div className="ssp-card page-section" style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow-sm)', marginBottom: isAdmin ? 24 : 0, animationDelay:'0.35s' }}>
           <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-subtle)', background:'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,#2563eb,#4f46e5)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:'linear-gradient(135deg,var(--accent),var(--accent-mid))', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <BookOpen size={14} color="white" />
               </div>
               <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_kb_header || 'Knowledge Base'}</span>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ position:'relative' }}>
-                <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+                <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--success)', pointerEvents:'none' }} />
                 <input
                   value={kbSearch}
                   onChange={e => setKbSearch(e.target.value)}
                   placeholder="Search articles..."
                   style={{ padding:'6px 10px 6px 30px', border:'1px solid var(--border)', borderRadius:8, fontSize:12, background:'var(--bg)', color:'var(--text)', outline:'none', width:180, transition:'border-color 0.2s, box-shadow 0.2s' }}
-                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.08)'; }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(var(--accent-rgb),0.08)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
                 />
               </div>
@@ -1478,7 +1478,7 @@ export default function SelfServicePortal() {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16, padding:16 }}>
             {kbArticles.length === 0 ? (
-              <div style={{ gridColumn:'1/-1', padding:'32px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>{portalSettings.portal_no_articles_text || 'No articles found.'}</div>
+              <div style={{ gridColumn:'1/-1', padding:'32px', textAlign:'center', color:'var(--success)', fontSize:13 }}>{portalSettings.portal_no_articles_text || 'No articles found.'}</div>
             ) : kbArticles.map((article, i) => (
               <a
                 key={article.id}
@@ -1506,7 +1506,7 @@ export default function SelfServicePortal() {
                 <div style={{ minWidth:0, flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, color:'var(--text)' }}>{article.title}</div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted)', fontWeight:500 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--success)', fontWeight:500 }}>
                   Read article <ArrowRight size={11} style={{ transition:'transform 0.2s ease' }} className="kb-arrow" />
                 </div>
               </a>
@@ -1537,13 +1537,13 @@ export default function SelfServicePortal() {
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{selectedItem.name}</div>
                 {selectedItem.short_description && (
-                  <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{selectedItem.short_description}</div>
+                  <div style={{ fontSize:12, color:'var(--success)', marginTop:2 }}>{selectedItem.short_description}</div>
                 )}
               </div>
               <button onClick={() => setShowRequestModal(false)}
-                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:4, borderRadius:4, display:'flex' }}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--success)', padding:4, borderRadius:4, display:'flex' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
               >
                 <X size={16} />
               </button>
@@ -1555,7 +1555,7 @@ export default function SelfServicePortal() {
                   <CheckCircle2 size={24} color="var(--success)" />
                 </div>
                 <div style={{ fontSize:16, fontWeight:700, color:'var(--text)' }}>Request Submitted!</div>
-                <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:6, lineHeight:1.5 }}>
+                <div style={{ fontSize:13, color:'var(--success)', marginTop:6, lineHeight:1.5 }}>
                   {selectedItem.approval_required
                     ? 'Your request has been submitted for approval. You will be notified of the decision.'
                     : 'Your request has been submitted and a ticket has been created for fulfillment.'}
@@ -1564,7 +1564,7 @@ export default function SelfServicePortal() {
             ) : (
               <form onSubmit={submitServiceRequest} style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
                 {selectedItem.description && (
-                  <div style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.5, padding:'12px', background:'var(--bg-secondary)', borderRadius:8, border:'1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize:13, color:'var(--success)', lineHeight:1.5, padding:'12px', background:'var(--bg-secondary)', borderRadius:8, border:'1px solid var(--border-subtle)' }}>
                     {selectedItem.description}
                   </div>
                 )}
@@ -1673,9 +1673,9 @@ export default function SelfServicePortal() {
                 <div style={{ display:'flex', gap:10, marginTop:4 }}>
                   <button type="submit" disabled={requestSubmitting}
                     className="btn btn-primary"
-                    style={{ flex:1, fontSize:13, height:40, borderRadius:10, boxShadow:'0 4px 14px rgba(37,99,235,0.2)', transition:'all 0.2s ease' }}
-                    onMouseEnter={e => { if (!requestSubmitting) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(37,99,235,0.3)'; } }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.2)'; }}
+                    style={{ flex:1, fontSize:13, height:40, borderRadius:10, boxShadow:'0 4px 14px rgba(var(--accent-rgb),0.2)', transition:'all 0.2s ease' }}
+                    onMouseEnter={e => { if (!requestSubmitting) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(var(--accent-rgb),0.3)'; } }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(var(--accent-rgb),0.2)'; }}
                   >
                     {requestSubmitting ? <Loader2 size={14} className="animate-spin" /> : selectedItem.approval_required ? 'Submit for Approval' : 'Submit Request'}
                   </button>

@@ -42,10 +42,10 @@ export const toast = {
 };
 
 const TOAST_CONFIG = {
-  success: { icon: CheckCircle2, color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', titleColor: '#065f46' },
-  error:   { icon: XCircle,      color: '#ef4444', bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b' },
-  warning: { icon: AlertTriangle,color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e' },
-  info:    { icon: Info,         color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', titleColor: '#1e40af' },
+  success: { icon: CheckCircle2, color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)', titleColor: 'var(--success)' },
+  error:   { icon: XCircle,      color: 'var(--danger)', bg: 'var(--danger-bg)', border: 'var(--danger-border)', titleColor: 'var(--danger)' },
+  warning: { icon: AlertTriangle,color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'var(--warning-border)', titleColor: 'var(--warning)' },
+  info:    { icon: Info,         color: 'var(--info)', bg: 'var(--info-bg)', border: 'var(--info-border)', titleColor: 'var(--info)' },
 };
 
 export function ToastContainer() {
