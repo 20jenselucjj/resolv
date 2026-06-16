@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import {
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { SelectSearch } from '@/components/SelectSearch';
+import { SkeletonTable } from '@/components/Skeleton';
 import {
   Asset, AssetFormState, AssetGroup, AssetListResponse, AssetGroupsResponse,
   ASSET_TYPE_LABELS, DEFAULT_VIEWS, EMPTY_FORM, PAGE_SIZE,
@@ -28,6 +29,355 @@ import {
 } from '@/components/assets-list-utils';
 import { AssetFormModal } from '@/components/assets-form-modal';
 import { Avatar, ProgressMini, StatCard } from '@/components/assets-list-ui';
+
+// ─── AssetRow Component ───────────────────────────────────────────────────
+const AssetRow = memo(function AssetRow({
+  asset,
+  isSelected,
+  visibleColumns,
+  canManage,
+  controlButtonStyle,
+  menuOpenId,
+  onRowClick,
+  onToggleSelect,
+  onMenuOpen,
+  onEdit,
+  onDelete,
+}: {
+  asset: Asset;
+  isSelected: boolean;
+  visibleColumns: Set<ColumnId>;
+  canManage: boolean;
+  controlButtonStyle: CSSProperties;
+  menuOpenId: string | null;
+  onRowClick: (id: string) => void;
+  onToggleSelect: (id: string) => void;
+  onMenuOpen: (assetId: string, event: React.MouseEvent<HTMLButtonElement>) => void;
+  onEdit: (asset: Asset) => void;
+  onDelete: (assetId: string) => void;
+}) {
+  const TypeIcon = getTypeIcon(asset.asset_type);
+  const statusTone = getStatusTone(asset.status);
+  const hasSerial = Boolean(asset.serial_number);
+  const diskPercent = asset.disk_total_gb && asset.disk_used_gb != null
+    ? Math.max(0, Math.min(100, (asset.disk_used_gb / asset.disk_total_gb) * 100))
+    : null;
+
+  return (
+    <tr
+      style={{
+        borderBottom: '1px solid var(--border)',
+        background: isSelected ? 'var(--accent-subtle)' : 'transparent',
+        cursor: 'pointer',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(event) => {
+        if (!isSelected) event.currentTarget.style.background = 'var(--bg-secondary)';
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = isSelected ? 'var(--accent-subtle)' : 'transparent';
+      }}
+      onClick={() => onRowClick(asset.id)}
+    >
+      <td style={{ padding: '12px 12px' }} onClick={(event) => event.stopPropagation()}>
+        <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(asset.id)} />
+      </td>
+
+      {COLUMN_DEFINITIONS.filter(c => visibleColumns.has(c.id)).map(col => {
+        switch (col.id) {
+          case 'asset':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', minWidth: 220 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', marginTop: 5, flexShrink: 0, background: getAgentDotColor(asset.agent_status), boxShadow: asset.agent_status === 'online' ? '0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent)' : 'none' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{asset.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {asset.display_name || [asset.manufacturer, asset.model].filter(Boolean).join(' ') || getAgentLabel(asset)}
+                    </div>
+                  </div>
+                </div>
+              </td>
+            );
+
+          case 'status':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '4px 10px', borderRadius: 999,
+                  background: statusTone.background, border: `1px solid ${statusTone.border}`,
+                  color: statusTone.color, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                }}>
+                  {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
+                </span>
+              </td>
+            );
+
+          case 'type':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px', borderRadius: 999,
+                  background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                  color: 'var(--text)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                }}>
+                  <TypeIcon size={12} />
+                  {getTypeLabel(asset.asset_type)}
+                </span>
+              </td>
+            );
+
+          case 'location':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', minWidth: 110 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{asset.location || '-'}</div>
+                {asset.department && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{asset.department}</div>}
+              </td>
+            );
+
+          case 'network':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', minWidth: 130 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'monospace' }}>{asset.ip_address || '-'}</div>
+                {(asset.hostname || asset.serial_number) && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{asset.hostname || asset.serial_number}</div>}
+              </td>
+            );
+
+          case 'os':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', minWidth: 100 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{asset.os_name || '-'}</div>
+              </td>
+            );
+
+          case 'os_version':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', minWidth: 100 }}>
+                <div style={{ fontSize: 12, color: 'var(--text)' }}>{asset.os_version || '-'}</div>
+                {asset.os_arch && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{asset.os_arch}</div>}
+              </td>
+            );
+
+          case 'serial_number':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontFamily: 'monospace' }}>{asset.serial_number || '-'}</div>
+              </td>
+            );
+
+          case 'cpu':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+              </td>
+            );
+
+          case 'ram':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+              </td>
+            );
+
+          case 'disk':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <ProgressMini value={diskPercent} tone="var(--success)" />
+                {asset.disk_total_gb != null && (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{asset.disk_used_gb ?? 0} / {asset.disk_total_gb} GB</div>
+                )}
+              </td>
+            );
+
+          case 'manufacturer':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.manufacturer || '-'}</span>
+              </td>
+            );
+
+          case 'model':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.model || '-'}</span>
+              </td>
+            );
+
+          case 'hostname':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.hostname || '-'}</span>
+              </td>
+            );
+
+          case 'mac_address':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.mac_address || '-'}</span>
+              </td>
+            );
+
+          case 'domain':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.domain || '-'}</span>
+              </td>
+            );
+
+          case 'department':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.department || '-'}</span>
+              </td>
+            );
+
+          case 'company':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.company || '-'}</span>
+              </td>
+            );
+
+          case 'owner':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Avatar name={asset.assigned_to_name} avatarUrl={asset.assigned_to_avatar} />
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.assigned_to_name || 'Unassigned'}</span>
+                </div>
+              </td>
+            );
+
+          case 'group':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                {asset.group_name ? (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '4px 10px', borderRadius: 999,
+                    background: asset.group_color ? `color-mix(in srgb, ${asset.group_color} 14%, var(--bg-secondary))` : 'var(--accent-subtle)',
+                    border: `1px solid ${asset.group_color || 'var(--accent-border)'}`,
+                    color: asset.group_color || 'var(--accent)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                  }}>
+                    {asset.group_name}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span>
+                )}
+              </td>
+            );
+
+          case 'vendor':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.vendor || '-'}</span>
+              </td>
+            );
+
+          case 'purchase_date':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{formatDate(asset.purchase_date)}</span>
+              </td>
+            );
+
+          case 'warranty_expiry':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{formatDate(asset.warranty_expiry)}</span>
+              </td>
+            );
+
+          case 'purchase_cost':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{formatCost(asset.purchase_cost)}</span>
+              </td>
+            );
+
+          case 'agent_status':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 12, fontWeight: 600,
+                  color: asset.agent_status === 'online' ? 'var(--success)' : asset.agent_status === 'offline' ? 'var(--text-muted)' : 'var(--warning)',
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: getAgentDotColor(asset.agent_status) }} />
+                  {asset.agent_status ? asset.agent_status.charAt(0).toUpperCase() + asset.agent_status.slice(1) : 'Unknown'}
+                </span>
+              </td>
+            );
+
+          case 'agent_version':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px' }}>
+                <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.agent_version || '-'}</span>
+              </td>
+            );
+
+          case 'tags':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', maxWidth: 200 }}>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {(asset.tags || []).slice(0, 3).map(tag => (
+                    <span key={tag} style={{
+                      padding: '2px 8px', borderRadius: 999,
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                      fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)',
+                    }}>{tag}</span>
+                  ))}
+                  {(asset.tags || []).length > 3 && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 4px' }}>+{asset.tags!.length - 3}</span>
+                  )}
+                  {(!asset.tags || asset.tags.length === 0) && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span>}
+                </div>
+              </td>
+            );
+
+          case 'last_seen':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: 12 }}>
+                {timeAgo(asset.agent_last_seen)}
+              </td>
+            );
+
+          case 'created_at':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(asset.created_at)}</span>
+              </td>
+            );
+
+          case 'updated_at':
+            return (
+              <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(asset.updated_at)}</span>
+              </td>
+            );
+
+          default:
+            return <td key={col.id} style={{ padding: '12px 12px' }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span></td>;
+        }
+      })}
+
+      <td style={{ padding: '12px 12px' }} onClick={(event) => event.stopPropagation()}>
+        <button
+          onClick={(event) => { onMenuOpen(asset.id, event); }}
+          style={{
+            width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+            background: 'var(--bg)', color: 'var(--text-muted)', cursor: 'pointer',
+          }}
+        >
+          <MoreHorizontal size={15} />
+        </button>
+      </td>
+    </tr>
+  );
+});
 
 export default function AssetsPage() {
   const router = useRouter();
@@ -810,18 +1160,8 @@ export default function AssetsPage() {
           }}
         >
           {loading ? (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-muted)',
-                fontSize: 14,
-                padding: 48
-              }}
-            >
-              Loading assets…
+            <div style={{ padding: 24 }}>
+              <SkeletonTable rows={8} columns={6} />
             </div>
           ) : assets.length === 0 ? (
             <div
@@ -897,344 +1237,28 @@ export default function AssetsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {assets.map((asset) => {
-                      const TypeIcon = getTypeIcon(asset.asset_type);
-                      const statusTone = getStatusTone(asset.status);
-                      const hasSerial = Boolean(asset.serial_number);
-                      const isSelected = selected.has(asset.id);
-                      const diskPercent = asset.disk_total_gb && asset.disk_used_gb != null
-                        ? Math.max(0, Math.min(100, (asset.disk_used_gb / asset.disk_total_gb) * 100))
-                        : null;
-
-                      return (
-                        <tr
-                          key={asset.id}
-                          style={{
-                            borderBottom: '1px solid var(--border)',
-                            background: isSelected ? 'var(--accent-subtle)' : 'transparent',
-                            cursor: 'pointer',
-                            transition: 'background 0.1s',
-                          }}
-                          onMouseEnter={(event) => {
-                            if (!isSelected) event.currentTarget.style.background = 'var(--bg-secondary)';
-                          }}
-                          onMouseLeave={(event) => {
-                            event.currentTarget.style.background = isSelected ? 'var(--accent-subtle)' : 'transparent';
-                          }}
-                          onClick={() => router.push(`/dashboard/assets/${asset.id}`)}
-                        >
-                          <td style={{ padding: '12px 12px' }} onClick={(event) => event.stopPropagation()}>
-                            <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(asset.id)} />
-                          </td>
-
-                          {COLUMN_DEFINITIONS.filter(c => isColumnVisible(c.id)).map(col => {
-                            switch (col.id) {
-                              case 'asset':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', minWidth: 220 }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                                      <span style={{ width: 9, height: 9, borderRadius: '50%', marginTop: 5, flexShrink: 0, background: getAgentDotColor(asset.agent_status), boxShadow: asset.agent_status === 'online' ? '0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent)' : 'none' }} />
-                                      <div style={{ minWidth: 0 }}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{asset.name}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                                          {asset.display_name || [asset.manufacturer, asset.model].filter(Boolean).join(' ') || getAgentLabel(asset)}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                );
-
-                              case 'status':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{
-                                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                                      padding: '4px 10px', borderRadius: 999,
-                                      background: statusTone.background, border: `1px solid ${statusTone.border}`,
-                                      color: statusTone.color, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                                    }}>
-                                      {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
-                                    </span>
-                                  </td>
-                                );
-
-                              case 'type':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{
-                                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                                      padding: '4px 10px', borderRadius: 999,
-                                      background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                                      color: 'var(--text)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                                    }}>
-                                      <TypeIcon size={12} />
-                                      {getTypeLabel(asset.asset_type)}
-                                    </span>
-                                  </td>
-                                );
-
-                              case 'location':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', minWidth: 110 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{asset.location || '-'}</div>
-                                    {asset.department && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{asset.department}</div>}
-                                  </td>
-                                );
-
-                              case 'network':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', minWidth: 130 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'monospace' }}>{asset.ip_address || '-'}</div>
-                                    {(asset.hostname || asset.serial_number) && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{asset.hostname || asset.serial_number}</div>}
-                                  </td>
-                                );
-
-                              case 'os':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', minWidth: 100 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{asset.os_name || '-'}</div>
-                                  </td>
-                                );
-
-                              case 'os_version':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', minWidth: 100 }}>
-                                    <div style={{ fontSize: 12, color: 'var(--text)' }}>{asset.os_version || '-'}</div>
-                                    {asset.os_arch && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{asset.os_arch}</div>}
-                                  </td>
-                                );
-
-                              case 'serial_number':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontFamily: 'monospace' }}>{asset.serial_number || '-'}</div>
-                                  </td>
-                                );
-
-                              case 'cpu':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
-                                  </td>
-                                );
-
-                              case 'ram':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
-                                  </td>
-                                );
-
-                              case 'disk':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <ProgressMini value={diskPercent} tone="var(--success)" />
-                                    {asset.disk_total_gb != null && (
-                                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{asset.disk_used_gb ?? 0} / {asset.disk_total_gb} GB</div>
-                                    )}
-                                  </td>
-                                );
-
-                              case 'serial_number':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.serial_number || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'manufacturer':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.manufacturer || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'model':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.model || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'hostname':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.hostname || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'mac_address':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.mac_address || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'domain':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.domain || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'department':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.department || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'company':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.company || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'owner':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <Avatar name={asset.assigned_to_name} avatarUrl={asset.assigned_to_avatar} />
-                                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.assigned_to_name || 'Unassigned'}</span>
-                                    </div>
-                                  </td>
-                                );
-
-                              case 'group':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    {asset.group_name ? (
-                                      <span style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                                        padding: '4px 10px', borderRadius: 999,
-                                        background: asset.group_color ? `color-mix(in srgb, ${asset.group_color} 14%, var(--bg-secondary))` : 'var(--accent-subtle)',
-                                        border: `1px solid ${asset.group_color || 'var(--accent-border)'}`,
-                                        color: asset.group_color || 'var(--accent)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                                      }}>
-                                        {asset.group_name}
-                                      </span>
-                                    ) : (
-                                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span>
-                                    )}
-                                  </td>
-                                );
-
-                              case 'vendor':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{asset.vendor || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'purchase_date':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{formatDate(asset.purchase_date)}</span>
-                                  </td>
-                                );
-
-                              case 'warranty_expiry':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{formatDate(asset.warranty_expiry)}</span>
-                                  </td>
-                                );
-
-                              case 'purchase_cost':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{formatCost(asset.purchase_cost)}</span>
-                                  </td>
-                                );
-
-                              case 'agent_status':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{
-                                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                                      fontSize: 12, fontWeight: 600,
-                                      color: asset.agent_status === 'online' ? 'var(--success)' : asset.agent_status === 'offline' ? 'var(--text-muted)' : 'var(--warning)',
-                                    }}>
-                                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: getAgentDotColor(asset.agent_status) }} />
-                                      {asset.agent_status ? asset.agent_status.charAt(0).toUpperCase() + asset.agent_status.slice(1) : 'Unknown'}
-                                    </span>
-                                  </td>
-                                );
-
-                              case 'agent_version':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px' }}>
-                                    <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text)' }}>{asset.agent_version || '-'}</span>
-                                  </td>
-                                );
-
-                              case 'tags':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', maxWidth: 200 }}>
-                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                      {(asset.tags || []).slice(0, 3).map(tag => (
-                                        <span key={tag} style={{
-                                          padding: '2px 8px', borderRadius: 999,
-                                          background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                                          fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)',
-                                        }}>{tag}</span>
-                                      ))}
-                                      {(asset.tags || []).length > 3 && (
-                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 4px' }}>+{asset.tags!.length - 3}</span>
-                                      )}
-                                      {(!asset.tags || asset.tags.length === 0) && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span>}
-                                    </div>
-                                  </td>
-                                );
-
-                              case 'last_seen':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: 12 }}>
-                                    {timeAgo(asset.agent_last_seen)}
-                                  </td>
-                                );
-
-                              case 'created_at':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(asset.created_at)}</span>
-                                  </td>
-                                );
-
-                              case 'updated_at':
-                                return (
-                                  <td key={col.id} style={{ padding: '12px 12px', whiteSpace: 'nowrap' }}>
-                                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(asset.updated_at)}</span>
-                                  </td>
-                                );
-
-                              default:
-                                return <td key={col.id} style={{ padding: '12px 12px' }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span></td>;
-                            }
-                          })}
-
-                          <td style={{ padding: '12px 12px' }} onClick={(event) => event.stopPropagation()}>
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                const rect = event.currentTarget.getBoundingClientRect();
-                                const rightEdge = window.innerWidth - rect.right;
-                                setMenuPos({ top: rect.bottom + 6, right: Math.max(8, rightEdge) });
-                                setMenuOpenId((current) => (current === asset.id ? null : asset.id));
-                              }}
-                              style={{
-                                width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                                background: 'var(--bg)', color: 'var(--text-muted)', cursor: 'pointer',
-                              }}
-                            >
-                              <MoreHorizontal size={15} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {assets.map((asset) => (
+                      <AssetRow
+                        key={asset.id}
+                        asset={asset}
+                        isSelected={selected.has(asset.id)}
+                        visibleColumns={visibleColumns}
+                        canManage={canManage}
+                        controlButtonStyle={controlButtonStyle}
+                        menuOpenId={menuOpenId}
+                        onRowClick={(id) => router.push(`/dashboard/assets/${id}`)}
+                        onToggleSelect={toggleSelect}
+                        onMenuOpen={(assetId, event) => {
+                          event.stopPropagation();
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          const rightEdge = window.innerWidth - rect.right;
+                          setMenuPos({ top: rect.bottom + 6, right: Math.max(8, rightEdge) });
+                          setMenuOpenId((current) => (current === assetId ? null : assetId));
+                        }}
+                        onEdit={openEditModal}
+                        onDelete={handleDeleteAsset}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useId } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { api, getToken, setToken } from '@/lib/api';
@@ -30,6 +30,11 @@ function LoginForm() {
   // Login mode state: 'both' | 'sso_only' | 'password_only'
   const [loginMode, setLoginMode] = useState<'both' | 'sso_only' | 'password_only'>('both');
   const [emergencyKey, setEmergencyKey] = useState<string | null>(null);
+
+  // IDs for form field associations
+  const emailId = useId();
+  const passwordId = useId();
+  const forgotEmailId = useId();
 
   // Forgot password modal state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -308,11 +313,16 @@ function LoginForm() {
           border-color: var(--accent) !important;
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent) !important;
         }
+
+        @media (max-width: 767px) {
+          .login-form-panel { width: 100% !important; padding: 24px !important; }
+          .login-brand-panel { display: none !important; }
+        }
       `}</style>
 
       <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
-        {/* LEFT PANEL - FORM (45%) */}
-        <div style={{
+        {/* LEFT PANEL - FORM (45%, full on mobile) */}
+        <div className="login-form-panel" style={{
           width: '45%',
           backgroundColor: 'var(--bg)',
           display: 'flex',
@@ -371,7 +381,7 @@ function LoginForm() {
               </h1>
 
             {error && (
-              <div className="shake" style={{
+              <div className="shake" role="alert" style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '12px 16px',
                 backgroundColor: 'var(--danger-bg)',
@@ -404,8 +414,9 @@ function LoginForm() {
               )}
 
               <div>
-                <label style={labelStyle}>Email</label>
+                <label htmlFor={emailId} style={labelStyle}>Email</label>
                 <input
+                  id={emailId}
                   type="email"
                   required
                   value={form.email}
@@ -417,7 +428,7 @@ function LoginForm() {
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ ...labelStyle, marginBottom: 0 }}>Password</label>
+                  <label htmlFor={passwordId} style={{ ...labelStyle, marginBottom: 0 }}>Password</label>
                   {mode === 'login' && (
                     <button
                       type="button"
@@ -431,6 +442,7 @@ function LoginForm() {
                 </div>
                 <div style={{ position: 'relative' }}>
                   <input
+                    id={passwordId}
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={form.password}
@@ -473,11 +485,8 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="btn-primary"
+                className="btn btn-primary"
                 style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--text)',
-                  border: 'none',
                   borderRadius: '6px',
                   height: '44px',
                   fontSize: '15px',
@@ -570,8 +579,8 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* RIGHT PANEL - BRAND VISUAL (55%) */}
-        <div style={{
+        {/* RIGHT PANEL - BRAND VISUAL (55%, hidden on mobile) */}
+        <div className="login-brand-panel" style={{
           width: '55%',
           background: 'linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 70%, black) 60%, var(--accent-mid) 100%)',
           position: 'relative',
@@ -672,8 +681,9 @@ function LoginForm() {
                 </p>
                 <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
-                    <label style={labelStyle}>Email</label>
+                    <label htmlFor={forgotEmailId} style={labelStyle}>Email</label>
                     <input
+                      id={forgotEmailId}
                       type="email"
                       required
                       value={forgotEmail}
@@ -685,11 +695,8 @@ function LoginForm() {
                   <button
                     type="submit"
                     disabled={forgotLoading}
-                    className="btn-primary"
+                    className="btn btn-primary"
                     style={{
-                      backgroundColor: 'var(--accent)',
-                      color: 'var(--text)',
-                      border: 'none',
                       borderRadius: '6px',
                       height: '44px',
                       fontSize: '15px',

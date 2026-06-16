@@ -149,6 +149,8 @@ export function NotificationsPanel({ isOpen, onClose }: { isOpen: boolean; onClo
           right: 0,
           width: 400,
           height: '100vh',
+          maxHeight: '100vh',
+          overflowY: 'auto',
           background: 'var(--card)',
           borderLeft: '1px solid var(--border)',
           boxShadow: '-4px 0 24px rgba(0,0,0,0.1)',

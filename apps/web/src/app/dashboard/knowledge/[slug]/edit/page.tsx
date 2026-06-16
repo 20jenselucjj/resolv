@@ -475,7 +475,7 @@ export default function EditArticlePage() {
             <button
               type="submit"
               disabled={loading || !isValid}
-              className="btn btn-primary"
+              className="btn btn-warm"
               style={{ padding: '0 32px', height: 56, fontSize: 16, gap: 12, flex: 1 }}
             >
               {loading ? (

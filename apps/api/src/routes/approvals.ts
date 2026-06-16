@@ -437,6 +437,13 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
                `Ticket #${ticketResult.rows[0].number} created`,
                ticketResult.rows[0].id]
             );
+
+            // Emit catalog:request_fulfilled so the portal refreshes its service request list
+            fastify.io.emit('catalog:request_fulfilled', {
+              serviceRequestId: sr.id,
+              ticketId: ticketResult.rows[0].id,
+              ticketNumber: ticketResult.rows[0].number,
+            });
           }
         }
       }
@@ -583,6 +590,12 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
            `Your request "${approvalRequest.title}" was denied`,
            body.comment || 'No reason provided']
         );
+
+        // Emit catalog:request_cancelled so the portal refreshes its service request list
+        fastify.io.emit('catalog:request_cancelled', {
+          approvalId: id,
+          denialComment: body.comment,
+        });
       }
 
       await client.query('COMMIT');

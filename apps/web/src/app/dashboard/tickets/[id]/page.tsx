@@ -414,7 +414,7 @@ export default function TicketDetailPage() {
   const displayDesc = (descIsLong && !showFullDesc) ? ticket.description?.substring(0, 300) + '...' : ticket.description;
 
   return (
-    <div className="print-ticket-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div className="print-ticket-content ticket-outer-wrap" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
       <style>{`
         @media print {
           nav, aside, [data-no-print] { display: none !important; }
@@ -429,6 +429,15 @@ export default function TicketDetailPage() {
           @page { margin: 0.75in; }
           .btn, button, label.btn { display: none !important; }
           input, textarea, select { border: 1px solid #ccc !important; background: white !important; }
+        }
+        @media (max-width: 767px) {
+          .ticket-outer-wrap { overflow: auto !important; height: auto !important; }
+          .ticket-mobile-stack { flex-direction: column !important; overflow: visible !important; flex: none !important; height: auto !important; }
+          .ticket-main-content { padding: 12px !important; overflow: visible !important; flex: none !important; }
+          .ticket-main-content .input { min-height: 34px !important; font-size: 14px !important; }
+          .ticket-main-content textarea { min-height: 60px !important; font-size: 14px !important; }
+          .ticket-sidebar { width: 100% !important; max-height: none !important; overflow: visible !important; border-left: none !important; border-top: 1px solid var(--border) !important; flex: none !important; }
+          .ticket-props-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
       <TopBar
@@ -449,10 +458,10 @@ export default function TicketDetailPage() {
       />
 
       {/* Main Two-Column Layout — collapsible panels */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="ticket-mobile-stack" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
         {/* Left Column (55%) */}
-        <div style={{ flex: 1.2, padding: '24px 32px', overflow: 'auto' }}>
+        <div className="ticket-main-content" style={{ flex: 1.2, padding: '24px 32px', overflow: 'auto' }}>
               {/* Title */}
               <div style={{ marginBottom: 16 }}>
                 {editingTitle ? (
@@ -742,7 +751,7 @@ export default function TicketDetailPage() {
               </div>
             </div>
         {/* Right Column (45%) */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+        <div className="ticket-sidebar" style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
           
           {/* Unified Activity Feed Header (click to collapse) */}
           <div

@@ -2,57 +2,38 @@
 
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
   ArrowLeft,
-  ArrowUpDown,
   Battery,
-
-  Cable,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
-  ChevronsUpDown,
-  Circle,
-  Clock,
   Cpu,
   Disc,
-  Download,
   Edit3,
-  ExternalLink,
   FileText,
   HardDrive,
-  Laptop,
   Loader2,
   Monitor,
   MonitorOff,
-  MoreHorizontal,
   Network,
   Package,
   Play,
   Power,
-  PowerOff,
-  Printer,
   RefreshCw,
   RotateCcw,
   Save,
-  ScreenShare,
   Search,
-  Server,
   Shield,
-  ShieldOff,
-  Smartphone,
   Terminal,
   Trash2,
-  Upload,
   Usb,
   User,
   Users,
   Wifi,
-  WifiOff,
   X
 } from 'lucide-react';
 
@@ -109,188 +90,14 @@ import {
   useSocketConnection,
   useCompactLayout
 } from '@/components/asset-detail-utils';
-
-// ---- Styles ----
-
-const pageStyle: CSSProperties = {
-  minHeight: '100vh',
-  background: 'var(--bg)',
-  fontFamily: BODY_FONT
-};
-
-const headerStyle: CSSProperties = {
-  background: 'var(--bg)',
-  borderBottom: '1px solid var(--border)',
-  position: 'sticky',
-  top: 0,
-  zIndex: 30
-};
-
-const headerInnerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 16,
-  padding: '16px 24px',
-  maxWidth: 1440,
-  margin: '0 auto'
-};
-
-const headerLeftStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 16
-};
-
-const headerRightStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10
-};
-
-const backButtonStyle: CSSProperties = {
-  width: 40,
-  height: 40,
-  borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--border)',
-  background: 'var(--bg)',
-  color: 'var(--text-muted)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'background 140ms ease'
-};
-
-const assetTitleStyle: CSSProperties = {
-  fontSize: 20,
-  fontWeight: 800,
-  color: 'var(--text)',
-  letterSpacing: '-0.02em',
-  fontFamily: DISPLAY_FONT,
-  lineHeight: 1.2
-};
-
-const assetSubtitleStyle: CSSProperties = {
-  fontSize: 13,
-  color: 'var(--text-muted)',
-  marginTop: 2
-};
-
-const tabsContainerStyle: CSSProperties = {
-  display: 'flex',
-  gap: 4,
-  padding: '0 24px',
-  maxWidth: 1440,
-  margin: '0 auto',
-  overflowX: 'auto',
-  scrollbarWidth: 'none'
-};
-
-const tabButtonBase: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '12px 16px',
-  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-muted)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  transition: 'color 140ms ease, background 140ms ease, border-color 140ms ease',
-  borderBottomWidth: 2,
-  borderBottomStyle: 'solid',
-  borderBottomColor: 'transparent',
-  marginBottom: -1
-};
-
-const tabButtonActive: CSSProperties = {
-  ...tabButtonBase,
-  color: 'var(--accent)',
-  borderBottomColor: 'var(--accent)',
-  background: 'var(--accent-subtle)'
-};
-
-const contentAreaStyle: CSSProperties = {
-  display: 'flex',
-  gap: 24,
-  padding: 24,
-  maxWidth: 1440,
-  margin: '0 auto'
-};
-
-const mainContentStyle: CSSProperties = {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 20,
-  minWidth: 0
-};
-
-const sidebarStyle: CSSProperties = {
-  width: 380,
-  flexShrink: 0
-};
-
-const spinnerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '80px 24px',
-  color: 'var(--text-muted)',
-  gap: 12,
-  fontSize: 14,
-  fontWeight: 600
-};
-
-const errorContainerStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '80px 24px',
-  gap: 16
-};
-
-const searchInputStyle: CSSProperties = {
-  width: '100%',
-  height: 42,
-  borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--border)',
-  background: 'var(--bg)',
-  color: 'var(--text)',
-  padding: '0 12px 0 40px',
-  fontSize: 13,
-  fontFamily: BODY_FONT,
-  outline: 'none',
-  boxSizing: 'border-box'
-};
-
-const sectionTitleStyle: CSSProperties = {
-  fontSize: 15,
-  fontWeight: 700,
-  color: 'var(--text)',
-  fontFamily: DISPLAY_FONT,
-  letterSpacing: '-0.01em',
-  marginBottom: 16
-};
-
-const grid2Style: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 16
-};
-
-
-const dividerStyle: CSSProperties = {
-  height: 1,
-  background: 'var(--border)',
-  margin: '0'
-};
+import {
+  pageStyle, headerStyle, headerInnerStyle, headerLeftStyle, headerRightStyle,
+  backButtonStyle, assetTitleStyle, assetSubtitleStyle, tabsContainerStyle,
+  tabButtonBase, tabButtonActive, contentAreaStyle, mainContentStyle, sidebarStyle,
+  spinnerStyle, errorContainerStyle, searchInputStyle, sectionTitleStyle, grid2Style, dividerStyle
+} from './styles';
+import { ScriptDialog } from './ScriptDialog';
+import { CommandDetailModal } from './CommandDetailModal';
 
 // ---- Interfaces ----
 
@@ -765,337 +572,24 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* Script dialog */}
-      {scriptDialogOpen && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.4)'
-          }}
-          onClick={() => setScriptDialogOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 560, maxWidth: 'calc(100vw - 32px)',
-              maxHeight: 'calc(100vh - 32px)', overflowY: 'auto',
-              background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: DISPLAY_FONT }}>
-                {editingScript ? 'Edit Script' : 'New Script'}
-              </div>
-              <button
-                onClick={() => setScriptDialogOpen(false)}
-                style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--bg)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {scriptError && (
-                <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)', fontSize: 13 }}>
-                  {scriptError}
-                </div>
-              )}
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>Script Name</label>
-                <input
-                  type="text"
-                  value={scriptForm.name}
-                  onChange={(e) => setScriptForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Disk Cleanup"
-                  style={{
-                    width: '100%', height: 42, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                    background: 'var(--bg)', color: 'var(--text)', padding: '0 12px', fontSize: 13, fontFamily: BODY_FONT, boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>Description</label>
-                <textarea
-                  value={scriptForm.description}
-                  onChange={(e) => setScriptForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Optional description of what this script does"
-                  rows={2}
-                  style={{
-                    width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                    background: 'var(--bg)', color: 'var(--text)', padding: '10px 12px', fontSize: 13, fontFamily: BODY_FONT, boxSizing: 'border-box', resize: 'vertical'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>Script Type</label>
-                <select
-                  value={scriptForm.script_type}
-                  onChange={(e) => setScriptForm(f => ({ ...f, script_type: e.target.value }))}
-                  style={{
-                    width: '100%', height: 42, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                    background: 'var(--bg)', color: 'var(--text)', padding: '0 12px', fontSize: 13, fontFamily: BODY_FONT, boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="powershell">PowerShell</option>
-                  <option value="cmd">CMD</option>
-                  <option value="batch">Batch</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>Script Content</label>
-                <textarea
-                  value={scriptForm.script_content}
-                  onChange={(e) => setScriptForm(f => ({ ...f, script_content: e.target.value }))}
-                  placeholder="Write your script here..."
-                  rows={10}
-                  style={{
-                    width: '100%', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                    background: 'var(--bg)', color: 'var(--text)', padding: '10px 12px', fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box', resize: 'vertical',
-                    lineHeight: 1.5
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: '1px solid var(--border)' }}>
-              <button
-                onClick={() => setScriptDialogOpen(false)}
-                style={{
-                  height: 40, padding: '0 18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                  background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: BODY_FONT
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveScript}
-                disabled={scriptSaving}
-                style={{
-                  height: 40, padding: '0 18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent)',
-                  background: 'var(--accent)', color: 'var(--text-inverse)', fontSize: 13, fontWeight: 700,
-                  cursor: scriptSaving ? 'not-allowed' : 'pointer', opacity: scriptSaving ? 0.6 : 1, fontFamily: BODY_FONT,
-                  display: 'inline-flex', alignItems: 'center', gap: 8
-                }}
-              >
-                {scriptSaving && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                {editingScript ? 'Save Changes' : 'Create Script'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ScriptDialog
+        open={scriptDialogOpen}
+        onClose={() => setScriptDialogOpen(false)}
+        editingScript={editingScript}
+        scriptForm={scriptForm}
+        setScriptForm={setScriptForm}
+        scriptSaving={scriptSaving}
+        scriptError={scriptError}
+        saveScript={saveScript}
+      />
 
       {/* ── Command Detail Modal ── */}
       {selectedCommand && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => setSelectedCommand(null)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: 640, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20 }}>{COMMAND_TYPES.find(t => t.value === selectedCommand.command_type)?.icon || '⚡'}</span>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: DISPLAY_FONT }}>
-                    {COMMAND_TYPES.find(t => t.value === selectedCommand.command_type)?.label || selectedCommand.command_type}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setSelectedCommand(null)} style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', border: 'none', background: 'var(--bg)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* Status */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Status</span>
-                <span style={{
-                  padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                  background: selectedCommand.status === 'completed' ? 'var(--success-bg)' : selectedCommand.status === 'failed' ? 'var(--danger-bg)' : selectedCommand.status === 'cancelled' ? 'var(--bg-tertiary)' : selectedCommand.status === 'dispatched' ? 'var(--accent-subtle)' : 'var(--warning-bg)',
-                  color: selectedCommand.status === 'completed' ? 'var(--success)' : selectedCommand.status === 'failed' ? 'var(--danger)' : selectedCommand.status === 'cancelled' ? 'var(--text-muted)' : selectedCommand.status === 'dispatched' ? 'var(--accent)' : 'var(--warning)'
-                }}>
-                  {selectedCommand.status === 'completed' && selectedCommand.exit_code === 0 ? 'Completed' : selectedCommand.status.charAt(0).toUpperCase() + selectedCommand.status.slice(1)}
-                </span>
-                {selectedCommand.exit_code != null && (
-                  <span style={{ fontSize: 12, color: selectedCommand.exit_code === 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    Exit code: {selectedCommand.exit_code}
-                  </span>
-                )}
-              </div>
-
-              {/* Agent-offline warning for pending commands */}
-              {selectedCommand.status === 'pending' && asset?.agent_status !== 'online' && (
-                <div style={{
-                    padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                    background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
-                    display: 'flex', alignItems: 'flex-start', gap: 10
-                  }}>
-                    <Clock size={16} color='var(--warning)' style={{ marginTop: 1, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)', marginBottom: 2 }}>Agent Offline</div>
-                      <div style={{ fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
-                        This command won't run until the agent connects. Deploy the agent to this machine and it will pick up pending commands automatically.
-                      </div>
-                    </div>
-                  </div>
-              )}
-
-              {/* Stale-dispatched warning — command was picked up by agent but never reported back */}
-              {selectedCommand.status === 'dispatched' && selectedCommand.dispatched_at && (() => {
-                const elapsed = Date.now() - new Date(selectedCommand.dispatched_at).getTime();
-                if (elapsed < 120000) return null; // Only warn after 2+ minutes
-                return (
-                    <div style={{
-                      padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                      background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
-                      display: 'flex', alignItems: 'flex-start', gap: 10
-                    }}>
-                      <AlertTriangle size={16} color='var(--warning)' style={{ marginTop: 1, flexShrink: 0 }} />
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warning)', marginBottom: 2 }}>Command appears stuck</div>
-                        <div style={{ fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 }}>
-                          The agent picked up this command {Math.round(elapsed / 1000)}s ago but hasn't reported a result.
-                          The agent process may have crashed or lost connectivity. You can force-cancel this command and retry.
-                        </div>
-                      </div>
-                    </div>
-                  );
-              })()}
-
-              {/* Timestamps */}
-              {selectedCommand.created_at && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>Timeline</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-                      <span style={{ color: 'var(--text-muted)', width: 80, flexShrink: 0 }}>Created</span>
-                      <span style={{ color: 'var(--text)' }}>{formatDateTime(selectedCommand.created_at)}</span>
-                      {selectedCommand.created_by_name && <span style={{ color: 'var(--text-muted)' }}>by {selectedCommand.created_by_name}</span>}
-                    </div>
-                    {selectedCommand.dispatched_at && (
-                      <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-                        <span style={{ color: 'var(--text-muted)', width: 80, flexShrink: 0 }}>Dispatched</span>
-                        <span style={{ color: 'var(--text)' }}>{formatDateTime(selectedCommand.dispatched_at)}</span>
-                      </div>
-                    )}
-                    {selectedCommand.started_at && (
-                      <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-                        <span style={{ color: 'var(--text-muted)', width: 80, flexShrink: 0 }}>Started</span>
-                        <span style={{ color: 'var(--text)' }}>{formatDateTime(selectedCommand.started_at)}</span>
-                      </div>
-                    )}
-                    {selectedCommand.completed_at && (
-                      <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-                        <span style={{ color: 'var(--text-muted)', width: 80, flexShrink: 0 }}>Completed</span>
-                        <span style={{ color: 'var(--text)' }}>{formatDateTime(selectedCommand.completed_at)}</span>
-                        {selectedCommand.dispatched_at && (
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            (Duration: {Math.round((new Date(selectedCommand.completed_at).getTime() - new Date(selectedCommand.dispatched_at).getTime()) / 1000)}s)
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Error message */}
-              {selectedCommand.error_message && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--danger)', marginBottom: 6 }}>Error</div>
-                  <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)', fontSize: 13, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                    {selectedCommand.error_message}
-                  </div>
-                </div>
-              )}
-
-              {/* Payload */}
-              {selectedCommand.payload && Object.keys(selectedCommand.payload).length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 }}>Payload</div>
-                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--border)', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto', lineHeight: 1.5, color: 'var(--text)' }}>
-                    {(() => {
-                      try {
-                        const p = selectedCommand.payload;
-                        if (typeof p === 'object') {
-                          // For run_script, show script content prominently
-                          if (selectedCommand.command_type === 'run_script' && p.script) {
-                            return `Script: ${p.script_type || 'powershell'}\n${'─'.repeat(40)}\n${p.script}`;
-                          }
-                          return JSON.stringify(p, null, 2);
-                        }
-                        return String(p);
-                      } catch { return String(selectedCommand.payload); }
-                    })()}
-                  </pre>
-                </div>
-              )}
-
-              {/* Stdout */}
-              {selectedCommand.stdout && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Output (stdout)</div>
-                    <button onClick={() => { navigator.clipboard.writeText(selectedCommand.stdout || ''); }} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: BODY_FONT }}>
-                      Copy
-                    </button>
-                  </div>
-                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: selectedCommand.status === 'failed' ? 'var(--danger-bg)' : 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', lineHeight: 1.5, color: 'var(--text)' }}>
-                    {selectedCommand.stdout}
-                  </pre>
-                </div>
-              )}
-
-              {/* Stderr */}
-              {selectedCommand.stderr && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--danger)' }}>Error Output (stderr)</div>
-                    <button onClick={() => { navigator.clipboard.writeText(selectedCommand.stderr || ''); }} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--danger-border)', background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: BODY_FONT }}>
-                      Copy
-                    </button>
-                  </div>
-                  <pre style={{ padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', lineHeight: 1.5, color: 'var(--danger)' }}>
-                    {selectedCommand.stderr}
-                  </pre>
-                </div>
-              )}
-
-              {/* Config info */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: 12, borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Priority: </span>
-                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{selectedCommand.priority}</span>
-                </div>
-                <div style={{ fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Timeout: </span>
-                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{selectedCommand.timeout_seconds}s</span>
-                </div>
-                <div style={{ fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Max retries: </span>
-                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>{selectedCommand.max_retries}</span>
-                </div>
-                {selectedCommand.expires_at && (
-                  <div style={{ fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Expires: </span>
-                    <span style={{ color: 'var(--text)', fontWeight: 600 }}>{formatDateTime(selectedCommand.expires_at)}</span>
-                  </div>
-                )}
-                {selectedCommand.retry_count > 0 && (
-                  <div style={{ fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Retries: </span>
-                    <span style={{ color: 'var(--text)', fontWeight: 600 }}>{selectedCommand.retry_count}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <CommandDetailModal
+          command={selectedCommand}
+          onClose={() => setSelectedCommand(null)}
+          agentStatus={asset?.agent_status}
+        />
       )}
 
       {/* ── Activity Detail Modal ── */}

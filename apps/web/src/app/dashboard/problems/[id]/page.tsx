@@ -9,18 +9,11 @@ import {
   AlertTriangle, Trash2, Activity, Link2,
   User as UserIcon, ChevronDown
 } from 'lucide-react';
+import { PROBLEM_STATUS_COLORS } from '@/lib/constants';
 
 const STATUS_OPTIONS = ['open', 'investigating', 'identified', 'resolved', 'closed'];
 const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'critical'];
 const LINK_TYPES = ['related', 'caused_by', 'contributing'];
-
-const STATUS_COLORS: Record<string, string> = {
-  open: '#2563eb',
-  investigating: '#7c3aed',
-  identified: '#f59e0b',
-  resolved: '#059669',
-  closed: '#6b7280',
-};
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: '#6b7280',
@@ -250,8 +243,8 @@ export default function ProblemDetailPage() {
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Status</label>
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: STATUS_COLORS[problem.status] }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS[problem.status] }} />
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: PROBLEM_STATUS_COLORS[problem.status] }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: PROBLEM_STATUS_COLORS[problem.status] }} />
                     {problem.status}
                     <ChevronDown size={11} />
                   </button>
@@ -260,7 +253,7 @@ export default function ProblemDetailPage() {
                       {STATUS_OPTIONS.map(s => (
                         <div key={s} onClick={() => { updateField('status', s); setOpenDropdown(null); }}
                           style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: s === problem.status ? 'var(--accent)' : 'var(--text)', background: s === problem.status ? 'var(--accent-subtle)' : 'transparent', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS[s] }} /> {s}
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: PROBLEM_STATUS_COLORS[s] }} /> {s}
                         </div>
                       ))}
                     </div>
@@ -433,9 +426,9 @@ export default function ProblemDetailPage() {
             <div style={{ padding: '16px 20px', background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
               <h4 style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', margin: '0 0 12px' }}>Link Incident</h4>
               {linkError && (
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{linkError}</span>
-                  <button onClick={() => setLinkError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+                  <button onClick={() => setLinkError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18 }}>×</button>
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

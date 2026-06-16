@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
 import { SelectSearch } from '@/components/SelectSearch';
+import { SkeletonPage } from '@/components/Skeleton';
 import {
   Plus, Search, Book, Eye, ThumbsUp, ThumbsDown,
   Calendar, Tag, ChevronRight, Filter, X, Clock,
@@ -134,6 +135,8 @@ export default function KnowledgeBasePage() {
 
   const sorted = sortArticles(articles, sortBy);
 
+  if (loading) return <SkeletonPage />;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)' }}>
       {/* Header with gradient */}
@@ -191,14 +194,14 @@ export default function KnowledgeBasePage() {
               <button
                 onClick={() => router.push('/dashboard/knowledge/new')}
                 style={{
-                  height: 34, padding: '0 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 13, fontWeight: 600,
+                  height: 34, padding: '0 14px', borderRadius: 8, cursor: 'pointer',
+                  background: 'var(--accent-warm)', color: '#000', border: '1px solid var(--accent-warm)',
                   display: 'flex', alignItems: 'center', gap: 6,
-                  backdropFilter: 'blur(4px)',
+                  fontSize: 13, fontWeight: 600,
                   transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.3)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
+                onMouseEnter={e => (e.currentTarget.style.background = '#d97706')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--accent-warm)')}
               >
                 <Plus size={14} />
                 New Article
@@ -351,8 +354,8 @@ export default function KnowledgeBasePage() {
               <button
                 onClick={() => router.push('/dashboard/knowledge/new')}
                 style={{
-                  padding: '8px 18px', borderRadius: 8, border: 'none',
-                  background: 'var(--accent)', color: '#fff', fontSize: 13,
+                  padding: '8px 18px', borderRadius: 8, border: '1px solid var(--accent-warm)',
+                  background: 'var(--accent-warm)', color: '#000', fontSize: 13,
                   fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                 }}
               >

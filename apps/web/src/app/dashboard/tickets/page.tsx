@@ -30,6 +30,7 @@ import {
 
 } from './components';
 import type { SortField, SortDir } from './components';
+import { SkeletonPage } from '@/components/Skeleton';
 
 // ─── FilterPill Component ─────────────────────────────────────────────────
 function FilterPill({
@@ -646,6 +647,9 @@ export default function TicketsPage() {
 
   const rowPad = density === 'compact' ? '7px 16px' : '11px 16px';
 
+  // ── Loading state ──
+  if (loading) return <SkeletonPage />;
+
   // ── Simplified user ticket view ──
   if (isUser) {
     return (
@@ -1052,7 +1056,7 @@ export default function TicketsPage() {
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
               >Cancel</button>
-              <button className="btn btn-primary" onClick={async () => {
+              <button className="btn btn-warm" onClick={async () => {
                 const primaryId = mergePrimaryId || [...selectedIds][0];
                 if (!primaryId) return;
                 const otherIds = [...selectedIds].filter(id => id !== primaryId);

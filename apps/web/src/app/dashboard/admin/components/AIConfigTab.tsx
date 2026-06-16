@@ -387,7 +387,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Provider</label>
-                  <select className="input" value={config.provider} onChange={e => setConfig({ ...config, provider: e.target.value })}>
+                  <select className="select" value={config.provider} onChange={e => setConfig({ ...config, provider: e.target.value })}>
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
                     <option value="google">Google</option>

@@ -262,7 +262,7 @@ function ApprovalDetailView({ approval, onClose, onAction }: {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '7px 16px', fontSize: 12, fontWeight: 600,
-                  background: '#059669', color: 'white', border: 'none',
+                  background: 'var(--success)', color: 'white', border: 'none',
                   borderRadius: 'var(--radius-md)', cursor: actionLoading ? 'not-allowed' : 'pointer',
                   opacity: actionLoading ? 0.6 : 1,
                 }}
@@ -273,7 +273,7 @@ function ApprovalDetailView({ approval, onClose, onAction }: {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '7px 16px', fontSize: 12, fontWeight: 600,
-                  background: '#dc2626', color: 'white', border: 'none',
+                  background: 'var(--danger)', color: 'white', border: 'none',
                   borderRadius: 'var(--radius-md)', cursor: actionLoading || !comment.trim() ? 'not-allowed' : 'pointer',
                   opacity: actionLoading || !comment.trim() ? 0.6 : 1,
                 }}
@@ -475,9 +475,9 @@ export default function ApprovalsPage() {
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
         {fetchError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', marginBottom: 16, color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, padding: '10px 16px', marginBottom: 16, color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{fetchError}</span>
-            <button onClick={() => setFetchError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+            <button onClick={() => setFetchError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18 }}>×</button>
           </div>
         )}
         {loading ? (

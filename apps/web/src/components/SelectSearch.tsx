@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, X, Check } from 'lucide-react';
 
@@ -41,6 +41,7 @@ export function SelectSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 0 });
 
+  const labelId = useId();
   const selectedOption = options.find(o => o.value === value);
 
   const filtered = search.trim()
@@ -135,6 +136,7 @@ export function SelectSearch({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search..."
+            aria-label="Search options"
             style={{
               width: '100%',
               padding: '6px 10px',
@@ -151,7 +153,7 @@ export function SelectSearch({
           />
         </div>
       )}
-      <div style={{ maxHeight: 220, overflowY: 'auto', padding: '4px' }}>
+      <div role="listbox" style={{ maxHeight: 220, overflowY: 'auto', padding: '4px' }}>
         {filtered.length === 0 ? (
           <div style={{ padding: '12px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
             No options found
@@ -161,6 +163,8 @@ export function SelectSearch({
             <button
               key={o.value}
               type="button"
+              role="option"
+              aria-selected={o.value === value}
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSelect(o.value); }}
               style={{
                 width: '100%',
@@ -205,13 +209,16 @@ export function SelectSearch({
     <>
       <div ref={triggerRef} style={{ display: 'inline-flex', width: '100%' }}>
         {label && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2, display: 'block' }}>
+          <span id={labelId} style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2, display: 'block' }}>
             {label}
           </span>
         )}
         <button
           type="button"
           disabled={disabled}
+          aria-labelledby={label ? labelId : undefined}
+          aria-expanded={open}
+          aria-haspopup="listbox"
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -249,8 +256,12 @@ export function SelectSearch({
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {selectedOption && !hideClear && allowClear && (
               <span
+                role="button"
+                tabIndex={0}
+                aria-label="Clear selection"
                 onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleClear(e as any); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--text-muted)' }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleClear(e as any); } }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--text-muted)', alignItems: 'center' }}
               >
                 <X size={12} />
               </span>

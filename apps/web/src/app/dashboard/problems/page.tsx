@@ -4,37 +4,13 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { Search, Plus, AlertCircle, ChevronDown, X } from 'lucide-react';
-
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'All Status' },
-  { value: 'open', label: 'Open' },
-  { value: 'investigating', label: 'Investigating' },
-  { value: 'identified', label: 'Identified' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'closed', label: 'Closed' },
-];
-
-const PRIORITY_OPTIONS = [
-  { value: 'all', label: 'All Priority' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
-];
+import { PROBLEM_STATUS_OPTIONS, PRIORITY_OPTIONS, PROBLEM_STATUS_COLORS } from '@/lib/constants';
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: '#6b7280',
   medium: '#2563eb',
   high: '#f59e0b',
   critical: '#dc2626',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  open: '#2563eb',
-  investigating: '#7c3aed',
-  identified: '#f59e0b',
-  resolved: '#059669',
-  closed: '#6b7280',
 };
 
 interface Problem {
@@ -187,13 +163,15 @@ export default function ProblemsPage() {
         <div style={{ position: 'relative' }}>
           <button onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', height: 32, fontSize: 11, fontWeight: 500, borderRadius: 8, border: `1px solid ${statusFilter !== 'all' ? 'var(--accent-border)' : 'var(--border-subtle)'}`, background: statusFilter !== 'all' ? 'var(--accent-subtle)' : 'var(--bg)', color: statusFilter !== 'all' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            Status {statusFilter !== 'all' && <span style={{ color: 'var(--text)', marginLeft: 2 }}>{STATUS_OPTIONS.find(o => o.value === statusFilter)?.label}</span>}
+            Status {statusFilter !== 'all' && <span style={{ color: 'var(--text)', marginLeft: 2 }}>{PROBLEM_STATUS_OPTIONS.find(o => o.value === statusFilter)?.label}</span>}
             <ChevronDown size={10} />
           </button>
           {openDropdown === 'status' && (
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 160, padding: 4 }}>
-              {STATUS_OPTIONS.map(opt => (
+              {PROBLEM_STATUS_OPTIONS.map(opt => (
                 <div key={opt.value} onClick={() => { setStatusFilter(opt.value); setPage(1); setOpenDropdown(null); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(opt.value); setPage(1); setOpenDropdown(null); } }}
                   style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: opt.value === statusFilter ? 'var(--accent)' : 'var(--text)', background: opt.value === statusFilter ? 'var(--accent-subtle)' : 'transparent', fontWeight: opt.value === statusFilter ? 600 : 400 }}>
                   {opt.label}
                 </div>
@@ -213,6 +191,8 @@ export default function ProblemsPage() {
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 160, padding: 4 }}>
               {PRIORITY_OPTIONS.map(opt => (
                 <div key={opt.value} onClick={() => { setPriorityFilter(opt.value); setPage(1); setOpenDropdown(null); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPriorityFilter(opt.value); setPage(1); setOpenDropdown(null); } }}
                   style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: opt.value === priorityFilter ? 'var(--accent)' : 'var(--text)', background: opt.value === priorityFilter ? 'var(--accent-subtle)' : 'transparent', fontWeight: opt.value === priorityFilter ? 600 : 400 }}>
                   {opt.label}
                 </div>
@@ -225,9 +205,9 @@ export default function ProblemsPage() {
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', margin: '16px 24px 0', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, padding: '10px 16px', margin: '16px 24px 0', color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{error}</span>
-            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18 }}>×</button>
           </div>
         )}
         {loading ? (
@@ -260,7 +240,7 @@ export default function ProblemsPage() {
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>#{p.number}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</td>
                   <td style={{ padding: '12px 16px' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: `${STATUS_COLORS[p.status]}15`, color: STATUS_COLORS[p.status] }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: `${PROBLEM_STATUS_COLORS[p.status]}15`, color: PROBLEM_STATUS_COLORS[p.status] }}>
                       {p.status}
                     </span>
                   </td>

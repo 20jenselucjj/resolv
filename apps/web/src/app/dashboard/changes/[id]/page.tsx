@@ -277,9 +277,9 @@ export default function ChangeDetailPage() {
 
       {/* Error banner */}
       {actionError && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', margin: '8px 24px 0', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, padding: '10px 16px', margin: '8px 24px 0', color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{actionError}</span>
-          <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+          <button onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18 }}>×</button>
         </div>
       )}
 
@@ -360,6 +360,8 @@ export default function ChangeDetailPage() {
                     <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 50, minWidth: 160, padding: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
                       {STATUS_OPTIONS.map(s => (
                         <div key={s} onClick={() => { updateField('status', s); setOpenDropdown(null); }}
+                          role="button" tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateField('status', s); setOpenDropdown(null); } }}
                           style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: s === change.status ? 'var(--accent)' : 'var(--text)', background: s === change.status ? 'var(--accent-subtle)' : 'transparent', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS[s] }} /> {s.replace(/_/g, ' ')}
                         </div>
@@ -386,6 +388,8 @@ export default function ChangeDetailPage() {
                     <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 50, minWidth: 160, padding: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
                       {PRIORITY_OPTIONS.map(p => (
                         <div key={p} onClick={() => { updateField('priority', p); setOpenDropdown(null); }}
+                          role="button" tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateField('priority', p); setOpenDropdown(null); } }}
                           style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: p === change.priority ? 'var(--accent)' : 'var(--text)', background: p === change.priority ? 'var(--accent-subtle)' : 'transparent', fontWeight: p === change.priority ? 600 : 400 }}>
                           {p.charAt(0).toUpperCase() + p.slice(1)}
                         </div>

@@ -1,8 +1,9 @@
 'use client';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { api, API_BASE, getToken } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
+import { SkeletonCard, Skeleton } from '@/components/Skeleton';
 import {
   Search, Sparkles, Send, Plus, AlertTriangle, Package,
   KeyRound, Wifi, Monitor, HelpCircle, ChevronRight,
@@ -275,6 +276,17 @@ export default function SelfServicePortal() {
   const [myRequests, setMyRequests] = useState<ServiceRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
 
+  // ── Fetch my tickets (reusable) ────────────────────────────────────────────
+  const fetchMyTickets = useCallback(() => {
+    api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
+      .then(res => setMyTickets(res.data?.slice(0, 8) || []))
+      .catch(() => setMyTickets([]));
+    // Also refresh service requests since they appear in the same list
+    api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
+      .then(res => setMyRequests(res.data || []))
+      .catch(() => {});
+  }, []);
+
   // ── Load data ──────────────────────────────────────────────────────────────
   useEffect(() => {
     // Load portal settings
@@ -283,10 +295,8 @@ export default function SelfServicePortal() {
       .catch(() => {});
 
     // Load my tickets
-    api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
-      .then(res => setMyTickets(res.data?.slice(0, 8) || []))
-      .catch(() => setMyTickets([]))
-      .finally(() => setTicketsLoading(false));
+    fetchMyTickets();
+    setTicketsLoading(false);
 
     // Load KB articles
     api.get<{ data: KBArticle[] }>('/knowledge?status=published&pageSize=6')
@@ -310,6 +320,18 @@ export default function SelfServicePortal() {
       .finally(() => setRequestsLoading(false));
   }, []);
 
+  // ── Refresh tickets when page becomes visible (e.g., after navigating back) ─
+  useEffect(() => {
+    const onFocus = () => fetchMyTickets();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') fetchMyTickets();
+    });
+    return () => {
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchMyTickets]);
+
   // ── Socket listeners for real-time updates ──────────────────────────────────
   useEffect(() => {
     const socket = connectSocket();
@@ -317,9 +339,14 @@ export default function SelfServicePortal() {
 
     const handleTicketDeleted = ({ id }: { id: string }) => {
       setMyTickets(prev => prev.filter(t => t.id !== id));
+      setMyRequests(prev => prev.filter(r => r.ticket_id !== id));
     };
     const handleTicketsDeleted = ({ ids }: { ids: string[] }) => {
-      if (ids) setMyTickets(prev => prev.filter(t => !ids.includes(t.id)));
+      if (ids) {
+        const idSet = new Set(ids);
+        setMyTickets(prev => prev.filter(t => !idSet.has(t.id)));
+        setMyRequests(prev => prev.filter(r => !r.ticket_id || !idSet.has(r.ticket_id)));
+      }
     };
 
     socket.on('ticket:deleted', handleTicketDeleted);
@@ -332,6 +359,10 @@ export default function SelfServicePortal() {
     socket.on('catalog:request_fulfilled', () => {
       api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
         .then(res => setMyRequests(res.data || []))
+        .catch(() => {});
+      // Also refresh tickets since approval creates a new ticket
+      api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
+        .then(res => setMyTickets(res.data?.slice(0, 8) || []))
         .catch(() => {});
     });
     socket.on('catalog:request_cancelled', () => {
@@ -746,7 +777,11 @@ export default function SelfServicePortal() {
         ticketId: t.id,
       });
     });
+    // Build set of ticket IDs already shown in myTickets to deduplicate
+    const ticketIds = new Set(myTickets.map(t => t.id));
     myRequests.forEach(sr => {
+      // Skip service requests whose linked ticket already appears in the list
+      if (sr.ticket_id && ticketIds.has(sr.ticket_id)) return;
       const srStatus = SR_STATUS_CONFIG[sr.status] || SR_STATUS_CONFIG.submitted;
       const SrIcon = getCatalogIcon(sr.catalog_item_icon || '');
       items.push({
@@ -784,6 +819,19 @@ export default function SelfServicePortal() {
         .kb-card:hover { background: var(--bg-secondary); border-color: var(--accent-border) !important; box-shadow: var(--shadow-md); transform: translateY(-3px); }
         .kb-card:hover .kb-arrow { transform: translateX(4px); }
         .suggestion-chip:hover { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(var(--accent-rgb),0.2); }
+        @media (max-width: 767px) {
+          .portal-container { padding: 16px !important; }
+          .portal-page-section { grid-template-columns: 1fr !important; }
+          .portal-qa-grid { grid-template-columns: 1fr !important; }
+          .portal-catalog-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .portal-items-grid { grid-template-columns: 1fr !important; }
+          .portal-kb-grid { grid-template-columns: 1fr !important; }
+          .portal-chat-panel { max-height: 400px !important; }
+        }
+        @media (min-width: 768px) and (max-width: 1023px) {
+          .portal-items-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .portal-catalog-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
       `}</style>
 
       {/* ── Hero Header ─────────────────────────────────────────────────────── */}
@@ -802,11 +850,11 @@ export default function SelfServicePortal() {
       </div>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <div style={{ maxWidth:1000, margin:'0 auto', padding:'32px 32px 60px', width:'100%', flex:1, boxSizing:'border-box' }}>
+      <div className="portal-container" style={{ maxWidth:1000, margin:'0 auto', padding:'32px 32px 60px', width:'100%', flex:1, boxSizing:'border-box' }}>
 
         {/* ── Quick Actions ──────────────────────────────────────────────────── */}
         <div className="page-section" style={{ marginBottom:36, animationDelay:'0.1s' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
+            <div className="portal-qa-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
               {quickActions.map((qa, i) => (
                 <button
                   key={i}
@@ -832,10 +880,10 @@ export default function SelfServicePortal() {
           </div>
 
         {/* ── Two-column layout: AI Chat + My Tickets ───────────────────────── */}
-        <div className="page-section" style={{ display:'grid', gridTemplateColumns:'minmax(0, 1fr) 360px', gap:24, marginBottom:32, animationDelay:'0.2s' }}>
+        <div className="page-section portal-page-section" style={{ display:'grid', gridTemplateColumns:'minmax(0, 1fr) 360px', gap:24, marginBottom:32, animationDelay:'0.2s' }}>
 
           {/* ── AI Chat Panel ────────────────────────────────────────────────── */}
-          <div className="ssp-card" style={{
+          <div className="ssp-card portal-chat-panel" style={{
             background:'var(--card)', border:'1px solid var(--border)',
             borderRadius:16, overflow:'hidden',
             display:'flex', flexDirection:'column',
@@ -852,13 +900,13 @@ export default function SelfServicePortal() {
                   {portalSettings.portal_chat_header || 'Resolv AI'}
                   <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--success)', display:'inline-block' }} />
                 </div>
-                <div style={{ fontSize:11, color:'var(--success)' }}>{portalSettings.portal_chat_subtitle || 'Always here to help'}</div>
+                <div style={{ fontSize:11, color:'var(--text-secondary)' }}>{portalSettings.portal_chat_subtitle || 'Always here to help'}</div>
               </div>
               <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
                 <div ref={historyRef} style={{ position:'relative' }}>
                   <button
                     onClick={() => { loadHistorySessions(); setShowHistory(h => !h); }}
-                    style={{ background:'none', border:'none', cursor:'pointer', color: showHistory ? 'var(--accent)' : 'var(--success)', display:'flex', padding:4, borderRadius:4, transition:'color 0.15s ease' }}
+                    style={{ background:'none', border:'none', cursor:'pointer', color: showHistory ? 'var(--accent)' : 'var(--text-muted)', display:'flex', padding:4, borderRadius:4, transition:'color 0.15s ease' }}
                     title="Chat history"
                   >
                     <History size={14} />
@@ -870,14 +918,14 @@ export default function SelfServicePortal() {
                       borderRadius:12, boxShadow:'0 8px 30px rgba(0,0,0,0.12)',
                       overflow:'hidden', zIndex:50,
                     }}>
-                      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-subtle)', fontSize:12, fontWeight:700, color:'var(--success)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                      <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-subtle)', fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
                         Recent Chats
                       </div>
                       <div style={{ maxHeight:280, overflowY:'auto' }}>
                         {historyLoading ? (
                           <div style={{ padding:20, textAlign:'center' }}><Loader2 size={16} className="animate-spin" color="var(--accent)" /></div>
                         ) : historySessions.length === 0 ? (
-                          <div style={{ padding:'20px 14px', textAlign:'center', fontSize:12, color:'var(--success)' }}>No previous chats</div>
+                          <div style={{ padding:'20px 14px', textAlign:'center', fontSize:12, color:'var(--text-muted)' }}>No previous chats</div>
                         ) : historySessions.map(s => (
                           <button
                             key={s.id}
@@ -892,16 +940,16 @@ export default function SelfServicePortal() {
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
                             <span style={{ fontSize:13, fontWeight:500, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.title || 'New Chat'}</span>
-                            <span style={{ fontSize:11, color:'var(--success)' }}>{new Date(s.updated_at || s.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+                            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{new Date(s.updated_at || s.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); localStorage.removeItem('portal_session_id'); localStorage.removeItem('portal_session_time'); }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--success)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
+                <button onClick={() => { setMessages([]); setSessionId(null); setChatStarted(false); localStorage.removeItem('portal_session_id'); localStorage.removeItem('portal_session_time'); }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:11, display:'flex', alignItems:'center', gap:4, transition:'color 0.15s ease' }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--success)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
                 >
                   <Plus size={12} /> New chat
                 </button>
@@ -916,7 +964,7 @@ export default function SelfServicePortal() {
                     <Sparkles size={24} color="white" />
                   </div>
                   <h3 style={{ fontSize:16, fontWeight:700, margin:'0 0 6px', color:'var(--text)' }}>{portalSettings.portal_chat_empty_title || 'Ask me anything'}</h3>
-                  <p style={{ fontSize:13, color:'var(--success)', margin:'0 0 20px', lineHeight:1.5 }}>
+                  <p style={{ fontSize:13, color:'var(--text-secondary)', margin:'0 0 20px', lineHeight:1.5 }}>
                     {portalSettings.portal_chat_empty_description || 'I can help you troubleshoot issues, find answers, or submit a ticket on your behalf.'}
                   </p>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'center' }}>
@@ -1028,7 +1076,7 @@ export default function SelfServicePortal() {
                   background:'rgba(16,185,129,0.08)',
                   borderRadius:10,
                   display:'flex', alignItems:'center', justifyContent:'center',
-                  gap:8, fontSize:14, fontWeight:600, color:'var(--success)',
+                  gap:8, fontSize:14, fontWeight:600, color:'var(--text-muted)',
                   pointerEvents:'none',
                   animation:'fadeInUp 0.2s ease-out',
                 }}>
@@ -1042,7 +1090,7 @@ export default function SelfServicePortal() {
                   background:'var(--bg-secondary)',
                   border:'1px solid var(--border-subtle)',
                 }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:'var(--success)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.04em' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.04em' }}>
                     {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} attached
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
@@ -1061,19 +1109,19 @@ export default function SelfServicePortal() {
                             {truncateFilename(f.filename)}
                           </div>
                         </div>
-                        <span style={{ fontSize:11, color:'var(--success)', flexShrink:0, whiteSpace:'nowrap' }}>{formatSize(f.size)}</span>
+                        <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0, whiteSpace:'nowrap' }}>{formatSize(f.size)}</span>
                         <button
                           onClick={() => removeAiFile(f.id)}
                           style={{
                             width:20, height:20, borderRadius:4,
                             background:'transparent', border:'none',
                             cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
-                            color:'var(--success)', flexShrink:0,
+                            color:'var(--text-muted)', flexShrink:0,
                             transition:'all 0.15s ease',
                           }}
                           title="Remove file"
                           onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                         >
                           <X size={13} />
                         </button>
@@ -1092,14 +1140,14 @@ export default function SelfServicePortal() {
                   disabled={uploadingFile}
                   style={{
                     width:30, height:30, borderRadius:6, flexShrink:0,
-                    background:'transparent', color:'var(--success)',
+                    background:'transparent', color:'var(--text-muted)',
                     border:'none', display:'flex', alignItems:'center', justifyContent:'center',
                     cursor: uploadingFile ? 'default' : 'pointer',
                     transition:'all 0.15s ease',
                   }}
                   title="Attach file"
                   onMouseEnter={e => { if (!uploadingFile) { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; } }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                 >
                   {uploadingFile ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={15} />}
                 </button>
@@ -1117,14 +1165,14 @@ export default function SelfServicePortal() {
                 <button
                   onClick={() => sendMessage()}
                   disabled={!inputText.trim() || aiLoading}
-                  style={{ width:32, height:32, borderRadius:8, border:'none', cursor: inputText.trim() && !aiLoading ? 'pointer' : 'default', background: inputText.trim() && !aiLoading ? 'linear-gradient(135deg,var(--accent),var(--accent-mid))' : 'var(--bg-tertiary)', color: inputText.trim() && !aiLoading ? 'white' : 'var(--success)', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s', flexShrink:0 }}
+                  style={{ width:32, height:32, borderRadius:8, border:'none', cursor: inputText.trim() && !aiLoading ? 'pointer' : 'default', background: inputText.trim() && !aiLoading ? 'linear-gradient(135deg,var(--accent),var(--accent-mid))' : 'var(--bg-tertiary)', color: inputText.trim() && !aiLoading ? 'white' : 'var(--text-muted)', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.2s', flexShrink:0 }}
                   onMouseEnter={e => { if (inputText.trim() && !aiLoading) e.currentTarget.style.opacity = '0.85'; }}
                   onMouseLeave={e => { if (inputText.trim() && !aiLoading) e.currentTarget.style.opacity = '1'; }}
                 >
                   <Send size={14} style={{ marginLeft:1 }} />
                 </button>
               </div>
-              <div style={{ fontSize:11, color:'var(--success)', marginTop:5, textAlign:'center' }}>{portalSettings.portal_input_hint || 'Enter to send · Shift+Enter for new line'}</div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5, textAlign:'center' }}>{portalSettings.portal_input_hint || 'Enter to send · Shift+Enter for new line'}</div>
             </div>
           </div>
 
@@ -1143,7 +1191,7 @@ export default function SelfServicePortal() {
               </div>
               {!showTicketForm ? (
                 <div style={{ padding:20 }}>
-                  <p style={{ fontSize:13, color:'var(--success)', margin:'0 0 16px', lineHeight:1.6 }}>
+                  <p style={{ fontSize:13, color:'var(--text-secondary)', margin:'0 0 16px', lineHeight:1.6 }}>
                     {portalSettings.portal_section_description || "Can't find what you need? Submit a support request and our team will help you."}
                   </p>
                   <button
@@ -1161,7 +1209,7 @@ export default function SelfServicePortal() {
                     <CheckCircle2 size={24} color="var(--success)" />
                   </div>
                   <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_success_title || 'Ticket submitted!'}</div>
-                  <div style={{ fontSize:13, color:'var(--success)', marginTop:6, lineHeight:1.5 }}>{portalSettings.portal_success_subtitle || "We'll follow up based on your urgency."}</div>
+                  <div style={{ fontSize:13, color:'var(--text-secondary)', marginTop:6, lineHeight:1.5 }}>{portalSettings.portal_success_subtitle || "We'll follow up based on your urgency."}</div>
                 </div>
               ) : (
                 <div
@@ -1214,18 +1262,18 @@ export default function SelfServicePortal() {
                   />
                   {ticketFiles.length > 0 && (
                     <div style={{ display:'flex', flexDirection:'column', gap:6, padding:10, borderRadius:8, background:'var(--bg-secondary)', border:'1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize:11, fontWeight:600, color:'var(--success)', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2 }}>Attachments</div>
+                      <div style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2 }}>Attachments</div>
                       {ticketFiles.map((file, i) => (
                         <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, background:'var(--card)', border:'1px solid var(--border)', fontSize:12 }}>
                           <div style={{ width:22, height:22, borderRadius:4, background:'rgba(var(--accent-rgb),0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                             <FileText size={12} color="var(--accent)" />
                           </div>
                           <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'var(--text)', fontWeight:500 }}>{file.name}</span>
-                          <span style={{ color:'var(--success)', flexShrink:0, fontSize:11 }}>{(file.size / 1024).toFixed(0)}KB</span>
+                          <span style={{ color:'var(--text-muted)', flexShrink:0, fontSize:11 }}>{(file.size / 1024).toFixed(0)}KB</span>
                           <button type="button" onClick={() => setTicketFiles(prev => prev.filter((_, j) => j !== i))}
-                            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--success)', padding:2, display:'flex', borderRadius:4, transition:'all 0.15s ease' }}
+                            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:2, display:'flex', borderRadius:4, transition:'all 0.15s ease' }}
                             onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-bg)'; e.currentTarget.style.color = 'var(--danger)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                           >
                             <X size={12} />
                           </button>
@@ -1236,9 +1284,9 @@ export default function SelfServicePortal() {
                   <button
                     type="button"
                     onClick={() => ticketFileInputRef.current?.click()}
-                    style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, border:'1.5px dashed var(--border)', background:'var(--bg-secondary)', color:'var(--success)', cursor:'pointer', fontSize:12, justifyContent:'center', fontWeight:500, transition:'all 0.2s ease' }}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, border:'1.5px dashed var(--border)', background:'var(--bg-secondary)', color:'var(--text-muted)', cursor:'pointer', fontSize:12, justifyContent:'center', fontWeight:500, transition:'all 0.2s ease' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-subtle)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--success)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
                   >
                     <UploadCloud size={14} />
                     {ticketFiles.length > 0 ? `${ticketFiles.length} file(s) attached` : 'Attach screenshots or files'}
@@ -1278,14 +1326,25 @@ export default function SelfServicePortal() {
               </div>
               <div style={{ padding:'10px', maxHeight:400, overflowY:'auto' }}>
                 {ticketsLoading || requestsLoading ? (
-                  <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="var(--accent)" /></div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8, padding:10 }}>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 10px' }}>
+                        <Skeleton width={28} height={28} borderRadius="8" />
+                        <div style={{ flex:1, display:'flex', flexDirection:'column', gap:6 }}>
+                          <Skeleton width="70%" height={14} />
+                          <Skeleton width="40%" height={12} />
+                        </div>
+                        <Skeleton width={60} height={20} borderRadius="10" />
+                      </div>
+                    ))}
+                  </div>
                 ) : mergedRequests.length === 0 ? (
                   <div style={{ padding:'28px 20px', textAlign:'center' }}>
                     <div style={{ width:44, height:44, borderRadius:'50%', background:'var(--success-bg)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
                       <CheckCircle2 size={20} color="var(--success)" />
                     </div>
                     <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_requests_empty || 'No requests yet'}</div>
-                    <div style={{ fontSize:12, color:'var(--success)', marginTop:4, lineHeight:1.5 }}>{portalSettings.portal_requests_empty_desc || 'Submit a ticket above or browse the service catalog.'}</div>
+                    <div style={{ fontSize:12, color:'var(--text-secondary)', marginTop:4, lineHeight:1.5 }}>{portalSettings.portal_requests_empty_desc || 'Submit a ticket above or browse the service catalog.'}</div>
                   </div>
                 ) : mergedRequests.map(item => {
                   if (item.type === 'ticket') {
@@ -1300,7 +1359,7 @@ export default function SelfServicePortal() {
                         </div>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
-                          <div style={{ fontSize:11, color:'var(--success)', marginTop:2 }}>{item.subtitle}</div>
+                          <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>{item.subtitle}</div>
                         </div>
                         <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:s.bg, color:s.color, flexShrink:0, letterSpacing:'0.02em' }}>{s.label}</span>
                       </a>
@@ -1320,7 +1379,7 @@ export default function SelfServicePortal() {
                           <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {item.title}
                           </div>
-                          <div style={{ fontSize:11, color:'var(--success)', marginTop:2 }}>{item.subtitle}</div>
+                          <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:2 }}>{item.subtitle}</div>
                         </div>
                         <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:10, background:srStatus.bg, color:srStatus.color, flexShrink:0, letterSpacing:'0.02em' }}>{srStatus.label}</span>
                       </div>
@@ -1342,7 +1401,7 @@ export default function SelfServicePortal() {
               <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{portalSettings.portal_catalog_header || 'Service Catalog'}</span>
             </div>
             <div style={{ position:'relative', flex:1, maxWidth:280 }}>
-              <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--success)', pointerEvents:'none' }} />
+              <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
               <input
                 value={catalogSearch}
                 onChange={e => setCatalogSearch(e.target.value)}
@@ -1358,16 +1417,20 @@ export default function SelfServicePortal() {
           </div>
           <div style={{ padding:16 }}>
             {catalogLoading ? (
-              <div style={{ padding:28, textAlign:'center' }}><Loader2 size={20} className="animate-spin" color="var(--accent)" /></div>
+              <div className="portal-catalog-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12, padding:16 }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
             ) : catalogCategories.length === 0 ? (
               <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
                 <Package size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
-                <div style={{ fontSize:13, fontWeight:500, color:'var(--success)' }}>{portalSettings.portal_catalog_empty || 'No services available yet'}</div>
+                <div style={{ fontSize:13, fontWeight:500, color:'var(--text-secondary)' }}>{portalSettings.portal_catalog_empty || 'No services available yet'}</div>
               </div>
             ) : catalogSearch && catalogItems.filter(i => i.is_active && (i.name.toLowerCase().includes(catalogSearch.toLowerCase()) || (i.short_description && i.short_description.toLowerCase().includes(catalogSearch.toLowerCase())))).length === 0 ? (
                 <div style={{ padding:'24px', textAlign:'center', border:'2px dashed var(--border)', borderRadius:10 }}>
                   <Search size={28} color="var(--text-muted)" style={{ margin:'0 auto 8px' }} />
-                  <div style={{ fontSize:13, fontWeight:500, color:'var(--success)' }}>{portalSettings.portal_catalog_no_results || 'No services match your search'}</div>
+                  <div style={{ fontSize:13, fontWeight:500, color:'var(--text-secondary)' }}>{portalSettings.portal_catalog_no_results || 'No services match your search'}</div>
                   <button onClick={() => setCatalogSearch('')} style={{ marginTop:8, fontSize:12, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:600, textDecoration:'underline' }}>Clear search</button>
                 </div>
               ) : (
@@ -1384,11 +1447,11 @@ export default function SelfServicePortal() {
                         </div>
                         <div>
                           <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{category.name}</div>
-                          {category.description && <div style={{ fontSize:12, color:'var(--success)', marginTop:1 }}>{category.description}</div>}
+                          {category.description && <div style={{ fontSize:12, color:'var(--text-secondary)', marginTop:1 }}>{category.description}</div>}
                         </div>
-                        <span style={{ fontSize:11, fontWeight:600, color:'var(--success)', background:'var(--bg-secondary)', padding:'2px 10px', borderRadius:10, marginLeft:'auto', whiteSpace:'nowrap' }}>{catItems.length} item{catItems.length !== 1 ? 's' : ''}</span>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', background:'var(--bg-secondary)', padding:'2px 10px', borderRadius:10, marginLeft:'auto', whiteSpace:'nowrap' }}>{catItems.length} item{catItems.length !== 1 ? 's' : ''}</span>
                       </div>
-                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+                      <div className="portal-items-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
                         {catItems.map(item => {
                           const ItemIcon = getCatalogIcon(item.icon);
                           const fConfig = FULFILLMENT_CONFIG[item.fulfillment_type] || FULFILLMENT_CONFIG.ticket;
@@ -1421,7 +1484,7 @@ export default function SelfServicePortal() {
                               <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.3 }}>{item.name}</div>
                               {/* Description */}
                               {item.short_description && (
-                                <div style={{ fontSize:11, color:'var(--success)', lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+                                <div style={{ fontSize:11, color:'var(--text-secondary)', lineHeight:1.4, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
                                   {item.short_description}
                                 </div>
                               )}
@@ -1458,11 +1521,11 @@ export default function SelfServicePortal() {
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ position:'relative' }}>
-                <Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--success)', pointerEvents:'none' }} />
-                <input
-                  value={kbSearch}
-                  onChange={e => setKbSearch(e.target.value)}
-                  placeholder="Search articles..."
+<Search size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+              <input
+                value={kbSearch}
+                onChange={e => setKbSearch(e.target.value)}
+                placeholder="Search articles..."
                   style={{ padding:'6px 10px 6px 30px', border:'1px solid var(--border)', borderRadius:8, fontSize:12, background:'var(--bg)', color:'var(--text)', outline:'none', width:180, transition:'border-color 0.2s, box-shadow 0.2s' }}
                   onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(var(--accent-rgb),0.08)'; }}
                   onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -1476,9 +1539,9 @@ export default function SelfServicePortal() {
               </a>
             </div>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16, padding:16 }}>
+          <div className="portal-kb-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:16, padding:16 }}>
             {kbArticles.length === 0 ? (
-              <div style={{ gridColumn:'1/-1', padding:'32px', textAlign:'center', color:'var(--success)', fontSize:13 }}>{portalSettings.portal_no_articles_text || 'No articles found.'}</div>
+              <div style={{ gridColumn:'1/-1', padding:'32px', textAlign:'center', color:'var(--text-secondary)', fontSize:13 }}>{portalSettings.portal_no_articles_text || 'No articles found.'}</div>
             ) : kbArticles.map((article, i) => (
               <a
                 key={article.id}
@@ -1506,7 +1569,7 @@ export default function SelfServicePortal() {
                 <div style={{ minWidth:0, flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4, color:'var(--text)' }}>{article.title}</div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--success)', fontWeight:500 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-secondary)', fontWeight:500 }}>
                   Read article <ArrowRight size={11} style={{ transition:'transform 0.2s ease' }} className="kb-arrow" />
                 </div>
               </a>
@@ -1537,13 +1600,13 @@ export default function SelfServicePortal() {
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{selectedItem.name}</div>
                 {selectedItem.short_description && (
-                  <div style={{ fontSize:12, color:'var(--success)', marginTop:2 }}>{selectedItem.short_description}</div>
+                  <div style={{ fontSize:12, color:'var(--text-secondary)', marginTop:2 }}>{selectedItem.short_description}</div>
                 )}
               </div>
               <button onClick={() => setShowRequestModal(false)}
-                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--success)', padding:4, borderRadius:4, display:'flex' }}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:4, borderRadius:4, display:'flex' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
               >
                 <X size={16} />
               </button>
@@ -1555,7 +1618,7 @@ export default function SelfServicePortal() {
                   <CheckCircle2 size={24} color="var(--success)" />
                 </div>
                 <div style={{ fontSize:16, fontWeight:700, color:'var(--text)' }}>Request Submitted!</div>
-                <div style={{ fontSize:13, color:'var(--success)', marginTop:6, lineHeight:1.5 }}>
+                <div style={{ fontSize:13, color:'var(--text-secondary)', marginTop:6, lineHeight:1.5 }}>
                   {selectedItem.approval_required
                     ? 'Your request has been submitted for approval. You will be notified of the decision.'
                     : 'Your request has been submitted and a ticket has been created for fulfillment.'}
@@ -1564,7 +1627,7 @@ export default function SelfServicePortal() {
             ) : (
               <form onSubmit={submitServiceRequest} style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
                 {selectedItem.description && (
-                  <div style={{ fontSize:13, color:'var(--success)', lineHeight:1.5, padding:'12px', background:'var(--bg-secondary)', borderRadius:8, border:'1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize:13, color:'var(--text-secondary)', lineHeight:1.5, padding:'12px', background:'var(--bg-secondary)', borderRadius:8, border:'1px solid var(--border-subtle)' }}>
                     {selectedItem.description}
                   </div>
                 )}

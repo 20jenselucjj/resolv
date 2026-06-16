@@ -193,7 +193,6 @@ export function EmailAccountsTab({ showAlert }: {
 
   const selectStyle: React.CSSProperties = {
     ...inputStyle,
-    appearance: 'auto',
   };
 
   const typeColors: Record<string, { bg: string; color: string }> = {

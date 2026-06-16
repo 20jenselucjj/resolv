@@ -109,6 +109,13 @@
   --info-rgb: 87, 157, 255;
   --bg-secondary-rgb: 21, 28, 36;
 
+  /* Warm accent for CTAs (contrasts against the cool blue UI) */
+  --accent-warm: #f59e0b;
+  --accent-warm-hover: #d97706;
+  --accent-warm-subtle: #3d2e00;
+  --accent-warm-border: #92400e;
+  --accent-warm-rgb: 245, 158, 11;
+
   /* Purple (for Change ticket type) */
   --purple: #a78bfa;
   --purple-bg: #2e1065;
@@ -391,6 +398,18 @@ button:not(.btn):not(:disabled):hover {
   background: var(--bg-tertiary);
   border-color: var(--border-strong);
   color: var(--text);
+}
+
+.btn-warm {
+  background: var(--accent-warm);
+  color: #000;
+  border-color: var(--accent-warm);
+  font-weight: 600;
+}
+.btn-warm:hover:not(:disabled) {
+  background: var(--accent-warm-hover);
+  border-color: var(--accent-warm-hover);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-warm) 30%, transparent);
 }
 
 .btn-danger {

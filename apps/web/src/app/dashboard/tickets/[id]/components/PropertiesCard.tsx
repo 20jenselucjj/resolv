@@ -64,7 +64,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           <span className="badge-sla-breached" style={{ fontSize: 10 }}>SLA BREACHED</span>
         )}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+      <div className="ticket-props-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
 
         {/* ── Status & Priority ── */}
         <PropField label="Status">

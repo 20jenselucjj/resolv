@@ -257,9 +257,9 @@ export default function MajorIncidentsPage() {
         <button
           onClick={() => setShowDeclare(true)}
           className="btn btn-primary btn-sm"
-          style={{ gap: 6, background: '#dc2626', borderColor: '#dc2626' }}
-        >
-          <Radio size={14} /> Declare Major Incident
+style={{ gap: 6, background: 'var(--danger)', borderColor: 'var(--danger)' }}
+          >
+            <Radio size={14} /> Declare Major Incident
         </button>
       </div>
 
@@ -321,9 +321,9 @@ export default function MajorIncidentsPage() {
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', margin: '16px 24px 0', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+          <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, padding: '10px 16px', margin: '16px 24px 0', color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
             <span>{error}</span>
-            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18 }}>×</button>
           </div>
         )}
         {loading ? (
@@ -615,7 +615,7 @@ export default function MajorIncidentsPage() {
                 onClick={handleDeclare}
                 disabled={declaring || !selectedTicket}
                 className="btn btn-primary"
-                style={{ background: '#dc2626', borderColor: '#dc2626', opacity: declaring || !selectedTicket ? 0.6 : 1 }}
+                style={{ background: 'var(--danger)', borderColor: 'var(--danger)', opacity: declaring || !selectedTicket ? 0.6 : 1 }}
               >
                 {declaring ? 'Declaring...' : <><Radio size={14} /> Declare Major Incident</>}
               </button>

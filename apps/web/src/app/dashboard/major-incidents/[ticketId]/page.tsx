@@ -413,12 +413,12 @@ export default function MajorIncidentDetailPage() {
       {/* ─── Error banner ──────────────────────────────────────────────── */}
       {error && (
         <div style={{
-          background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
-          padding: '10px 16px', margin: '12px 24px 0', color: '#dc2626',
+          background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8,
+          padding: '10px 16px', margin: '12px 24px 0', color: 'var(--danger)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13,
         }}>
           <span>{error}</span>
-          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18, padding: '0 4px' }}>×</button>
+          <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18, padding: '0 4px' }}>×</button>
         </div>
       )}
 
@@ -447,12 +447,12 @@ export default function MajorIncidentDetailPage() {
                   <>
                     <button onClick={handleResolve} disabled={submittingAction}
                       className="btn btn-sm"
-                      style={{ gap: 4, background: '#059669', color: '#fff', border: 'none', fontSize: 11, opacity: submittingAction ? 0.6 : 1 }}>
+                      style={{ gap: 4, background: 'var(--success)', color: '#fff', border: 'none', fontSize: 11, opacity: submittingAction ? 0.6 : 1 }}>
                       <CheckCircle size={12} /> Resolve
                     </button>
                     <button onClick={handleCompletePir}
                       className="btn btn-sm"
-                      style={{ gap: 4, background: '#2563eb', color: '#fff', border: 'none', fontSize: 11 }}>
+                      style={{ gap: 4, background: 'var(--accent)', color: '#fff', border: 'none', fontSize: 11 }}>
                       <ClipboardList size={12} /> PIR
                     </button>
                   </>

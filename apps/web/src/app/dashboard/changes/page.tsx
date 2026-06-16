@@ -3,7 +3,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
-import { Search, Plus, AlertCircle, ChevronDown, X, Calendar, Users } from 'lucide-react';
+import { Search, Plus, AlertCircle, ChevronDown, X, Calendar } from 'lucide-react';
+import { PRIORITY_OPTIONS } from '@/lib/constants';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
@@ -24,14 +25,6 @@ const TYPE_OPTIONS = [
   { value: 'standard', label: 'Standard' },
   { value: 'normal', label: 'Normal' },
   { value: 'emergency', label: 'Emergency' },
-];
-
-const PRIORITY_OPTIONS = [
-  { value: 'all', label: 'All Priority' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
 ];
 
 const RISK_OPTIONS = [
@@ -230,9 +223,6 @@ export default function ChangesPage() {
           <button onClick={() => router.push('/dashboard/changes/calendar')} className="btn btn-secondary btn-sm" style={{ gap: 4 }}>
             <Calendar size={14} /> Calendar
           </button>
-          <button onClick={() => router.push('/dashboard/cab')} className="btn btn-secondary btn-sm" style={{ gap: 4 }}>
-            <Users size={14} /> CAB
-          </button>
           <button onClick={() => setShowNewPanel(true)} className="btn btn-primary btn-sm" style={{ gap: 6 }}>
             <Plus size={14} /> New Change
           </button>
@@ -269,6 +259,8 @@ export default function ChangesPage() {
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 160, padding: 4 }}>
               {STATUS_OPTIONS.map(opt => (
                 <div key={opt.value} onClick={() => { setStatusFilter(opt.value); setPage(1); setOpenDropdown(null); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(opt.value); setPage(1); setOpenDropdown(null); } }}
                   style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: opt.value === statusFilter ? 'var(--accent)' : 'var(--text)', background: opt.value === statusFilter ? 'var(--accent-subtle)' : 'transparent', fontWeight: opt.value === statusFilter ? 600 : 400 }}>
                   {opt.label}
                 </div>
@@ -288,6 +280,8 @@ export default function ChangesPage() {
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 160, padding: 4 }}>
               {TYPE_OPTIONS.map(opt => (
                 <div key={opt.value} onClick={() => { setTypeFilter(opt.value); setPage(1); setOpenDropdown(null); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(opt.value); setPage(1); setOpenDropdown(null); } }}
                   style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: opt.value === typeFilter ? 'var(--accent)' : 'var(--text)', background: opt.value === typeFilter ? 'var(--accent-subtle)' : 'transparent', fontWeight: opt.value === typeFilter ? 600 : 400 }}>
                   {opt.label}
                 </div>
@@ -307,6 +301,8 @@ export default function ChangesPage() {
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 160, padding: 4 }}>
               {RISK_OPTIONS.map(opt => (
                 <div key={opt.value} onClick={() => { setRiskFilter(opt.value); setPage(1); setOpenDropdown(null); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRiskFilter(opt.value); setPage(1); setOpenDropdown(null); } }}
                   style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: opt.value === riskFilter ? 'var(--accent)' : 'var(--text)', background: opt.value === riskFilter ? 'var(--accent-subtle)' : 'transparent', fontWeight: opt.value === riskFilter ? 600 : 400 }}>
                   {opt.label}
                 </div>
@@ -326,6 +322,8 @@ export default function ChangesPage() {
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50, minWidth: 160, padding: 4 }}>
               {PRIORITY_OPTIONS.map(opt => (
                 <div key={opt.value} onClick={() => { setPriorityFilter(opt.value); setPage(1); setOpenDropdown(null); }}
+                  role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPriorityFilter(opt.value); setPage(1); setOpenDropdown(null); } }}
                   style={{ padding: '6px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer', color: opt.value === priorityFilter ? 'var(--accent)' : 'var(--text)', background: opt.value === priorityFilter ? 'var(--accent-subtle)' : 'transparent', fontWeight: opt.value === priorityFilter ? 600 : 400 }}>
                   {opt.label}
                 </div>
@@ -338,9 +336,9 @@ export default function ChangesPage() {
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 16px', margin: '16px 24px 0', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, padding: '10px 16px', margin: '16px 24px 0', color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{error}</span>
-            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+            <button onClick={() => setError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 18 }}>×</button>
           </div>
         )}
         {loading ? (

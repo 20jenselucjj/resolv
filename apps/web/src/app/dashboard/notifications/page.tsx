@@ -16,44 +16,7 @@ import { api } from '@/lib/api';
 import { useStore, Notification } from '@/lib/store';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-function ConfirmModal({ open, title, message, onConfirm, onCancel, danger = true }: {
-  open: boolean;
-  title: string;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  danger?: boolean;
-}) {
-  if (!open) return null;
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(0,0,0,0.5)', display: 'flex',
-      alignItems: 'center', justifyContent: 'center',
-    }} onClick={onCancel}>
-      <div style={{
-        background: 'var(--card)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)', padding: 24, maxWidth: 400, width: '90%',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-      }} onClick={e => e.stopPropagation()}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
-        <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{message}</p>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{
-            padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-            background: 'transparent', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Cancel</button>
-          <button onClick={onConfirm} style={{
-            padding: '8px 16px', borderRadius: 'var(--radius-md)', border: 'none',
-            background: danger ? 'var(--danger)' : 'var(--accent)', color: '#fff',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Confirm</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 export default function NotificationsPage() {
   const router = useRouter();
