@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Search,
   Bell, BookOpen, Shield, LayoutGrid, BarChart2,
   Sparkles, Monitor, AlertTriangle, CheckSquare,
-  GitBranch, Users, Key,
+  GitBranch, Users, Key, HelpCircle,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -455,6 +455,18 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => {
+                router.push('/dashboard/help');
+                onMobileClose?.();
+              }}
+              data-tooltip="Help & Documentation"
+              style={{ ...iconBtnStyle }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; e.currentTarget.style.borderColor = 'var(--sidebar-text-muted)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-secondary)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--sidebar-border)'; }}
+            >
+              <HelpCircle size={13} style={{ flexShrink: 0 }} />
             </button>
             {isAgentOrAbove && (
               <button

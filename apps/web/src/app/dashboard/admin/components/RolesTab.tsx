@@ -317,13 +317,6 @@ export function RolesTab({ showAlert }: { showAlert: (m: string, t?: 'success' |
   if (loadingRoles) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, opacity: 0.6, pointerEvents: 'none' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
-              Configure what each role can do. Changes are applied immediately to all users.
-            </p>
-          </div>
-        </div>
         <div style={{ display: 'flex', gap: 12 }}>
           {DEFAULT_ROLES.map(r => (
             <div key={r.id} className="skeleton" style={{ width: 120, height: 42, borderRadius: 'var(--radius-md)' }} />
@@ -384,11 +377,6 @@ export function RolesTab({ showAlert }: { showAlert: (m: string, t?: 'success' |
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
-            Configure what each role can do. Changes are applied immediately to all users.
-          </p>
-        </div>
         {hasChanges && (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-ghost" onClick={handleReset}>Reset to defaults</button>

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Menu, Bell } from 'lucide-react';
+import { Menu, Bell, HelpCircle } from 'lucide-react';
 import { useStore, User } from '@/lib/store';
 import { api, refreshAccessToken, getToken } from '@/lib/api';
 import { Sidebar } from '@/components/Sidebar';
@@ -176,6 +176,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
           <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Resolv</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto' }}>
+            <button onClick={() => router.push('/dashboard/help')} style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <HelpCircle size={20} />
+            </button>
             <button onClick={() => setNotificationsOpen(true)} style={{ position: 'relative', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <Bell size={20} />
               {unreadCount > 0 && (
