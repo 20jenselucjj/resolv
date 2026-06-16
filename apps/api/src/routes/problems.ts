@@ -235,7 +235,7 @@ export default async function problemRoutes(fastify: FastifyInstance) {
       await client.query('BEGIN');
 
       // Get current problem
-      const current = await client.query('SELECT * FROM problems WHERE id = $1', [id]);
+      const current = await client.query('SELECT id, number, title, description, status, priority, root_cause, workaround, resolution, category_id, assigned_to_id, created_by_id, resolved_at, closed_at, tags, created_at, updated_at FROM problems WHERE id = $1', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Problem not found' });

@@ -1,4 +1,5 @@
 'use client';
+import { memo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronUp, ChevronDown, ChevronsUpDown, ArrowUpRight,
@@ -16,7 +17,7 @@ import { useStatusConfig } from '@/lib/StatusConfigContext';
 import { getDueDateColor, timeAgo } from './helpers';
 import type { SortField, SortDir } from './types';
 
-export function TicketTable({
+const TicketTable = memo(function TicketTable({
   loading,
   loadingMore,
   hasMore,
@@ -464,4 +465,6 @@ export function TicketTable({
       )}
     </div>
   );
-}
+});
+
+export { TicketTable };

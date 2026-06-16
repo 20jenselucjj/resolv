@@ -45,7 +45,7 @@ interface ReportsSectionProps {
   onRefreshSavedReports: () => void;
   onExecuteSavedReport: (id: string) => void;
   onEditSavedReport: (report: any) => void;
-  onExportSavedReport: (report: any) => void;
+  onExportSavedReport: (id: string, format: string, name: string) => void;
   onDeleteSavedReport: (id: string) => void;
   isAdminOrAgent: boolean;
   isMetricPinned?: (key: string) => boolean;

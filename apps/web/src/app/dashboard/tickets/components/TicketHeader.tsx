@@ -1,8 +1,9 @@
 'use client';
+import { memo } from 'react';
 import { Plus, Download, RefreshCw } from 'lucide-react';
 import type { Ticket } from '@/lib/store';
 
-export function TicketHeader({
+export const TicketHeader = memo(function TicketHeader({
   sorted,
   total,
   exportCSV,
@@ -72,4 +73,4 @@ export function TicketHeader({
       </button>
     </div>
   );
-}
+});

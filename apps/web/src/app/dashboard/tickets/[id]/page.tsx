@@ -624,7 +624,7 @@ export default function TicketDetailPage() {
                           if (isImage && thumbUrl) {
                             return (
                               <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-tertiary)' }}>
-                                <img src={thumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                <img src={thumbUrl} alt="" width={120} height={90} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                               </div>
                             );
                           }

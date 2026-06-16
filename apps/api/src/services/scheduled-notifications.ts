@@ -6,6 +6,7 @@
 //   4. Satisfaction surveys (delayed after resolution)
 
 import { pool } from '../db/pool';
+import { getCached, setCache } from '../lib/cache';
 import { sendTemplateEmail } from './outbound-email';
 import type { TemplateVariables } from './email-template-engine';
 import { fireScheduledWorkflows } from './workflow-engine';
@@ -119,23 +120,31 @@ async function loadEscalationConfig(): Promise<EscalationConfig> {
 
 // ─── Helper: build email vars for a ticket ──────────────────────────────────
 
-async function buildTicketEmailVars(ticket: any): Promise<TemplateVariables> {
+async function buildTicketEmailVars(ticket: any, userMap?: Map<number, { name: string; email?: string }>): Promise<TemplateVariables> {
   const webUrl = process.env.WEB_URL || 'http://localhost:3000';
 
   let requestorName = 'Unknown';
   let assignedToName = 'Unassigned';
   let categoryName = 'None';
 
-  try {
-    const r = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.created_by_id]);
-    if (r.rows.length > 0) requestorName = r.rows[0].name;
-  } catch {}
+  if (userMap && userMap.has(ticket.created_by_id)) {
+    requestorName = userMap.get(ticket.created_by_id)!.name;
+  } else {
+    try {
+      const r = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.created_by_id]);
+      if (r.rows.length > 0) requestorName = r.rows[0].name;
+    } catch {}
+  }
 
   if (ticket.assigned_to_id) {
-    try {
-      const a = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.assigned_to_id]);
-      if (a.rows.length > 0) assignedToName = a.rows[0].name;
-    } catch {}
+    if (userMap && userMap.has(ticket.assigned_to_id)) {
+      assignedToName = userMap.get(ticket.assigned_to_id)!.name;
+    } else {
+      try {
+        const a = await pool.query('SELECT name FROM users WHERE id = $1', [ticket.assigned_to_id]);
+        if (a.rows.length > 0) assignedToName = a.rows[0].name;
+      } catch {}
+    }
   }
 
   if (ticket.category_id) {
@@ -183,40 +192,65 @@ async function checkDueDateReminders(config: ScheduleConfig): Promise<void> {
          AND t.due_date > NOW() + INTERVAL '${hoursBefore - 2} hours'`,
       );
 
+      if (result.rows.length === 0) continue;
+
+      const ticketIds = result.rows.map((t: any) => t.id);
+      const logKey = `due_date_reminder_${hoursBefore}h`;
+
+      // Batch dedup check: find tickets already notified for this reminder
+      const existingLogs = await pool.query(
+        `SELECT DISTINCT ticket_id FROM notification_log
+         WHERE ticket_id = ANY($1::int[]) AND event_type = $2`,
+        [ticketIds, logKey]
+      );
+      const notifiedIds = new Set(existingLogs.rows.map((r: any) => r.ticket_id));
+
+      // Collect unique user IDs for all recipients across all unmatched tickets
+      const userIds = new Set<number>();
       for (const ticket of result.rows) {
-        // Check if we already sent this reminder
-        const logKey = `due_date_reminder_${hoursBefore}h`;
-        const existing = await pool.query(
-          'SELECT id FROM notification_log WHERE ticket_id = $1 AND event_type = $2 LIMIT 1',
-          [ticket.id, logKey]
+        if (notifiedIds.has(ticket.id)) continue;
+        userIds.add(ticket.created_by_id);
+        if (ticket.assigned_to_id) userIds.add(ticket.assigned_to_id);
+      }
+
+      // Batch user lookup
+      const userMap = new Map<number, { email: string; name: string }>();
+      if (userIds.size > 0) {
+        const users = await pool.query(
+          'SELECT id, email, name FROM users WHERE id = ANY($1::int[]) AND is_active = true',
+          [[...userIds]]
         );
-        if (existing.rows.length > 0) continue;
+        for (const u of users.rows) userMap.set(u.id, u);
+      }
+
+      for (const ticket of result.rows) {
+        if (notifiedIds.has(ticket.id)) continue;
 
         const vars = await buildTicketEmailVars(ticket);
         vars.time_remaining = formatTimeRemaining(ticket.remaining_ms);
 
         // Send to assignee
         if (ticket.assigned_to_id) {
-          const assignee = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.assigned_to_id]);
-          if (assignee.rows.length > 0) {
+          const assignee = userMap.get(ticket.assigned_to_id);
+          if (assignee) {
             sendTemplateEmail(
-              assignee.rows[0].email,
-              assignee.rows[0].name,
+              assignee.email,
+              assignee.name,
               'Due Date Reminder',
-              { ...vars, user_name: assignee.rows[0].name },
+              { ...vars, user_name: assignee.name },
               ticket.id
             ).catch(err => console.error(`[scheduler] Due date reminder failed:`, err.message));
           }
         }
 
         // Also send to requestor
-        const requestor = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.created_by_id]);
-        if (requestor.rows.length > 0) {
+        const requestor = userMap.get(ticket.created_by_id);
+        if (requestor) {
           sendTemplateEmail(
-            requestor.rows[0].email,
-            requestor.rows[0].name,
+            requestor.email,
+            requestor.name,
             'Due Date Reminder',
-            { ...vars, user_name: requestor.rows[0].name },
+            { ...vars, user_name: requestor.name },
             ticket.id
           ).catch(err => console.error(`[scheduler] Due date reminder to requestor failed:`, err.message));
         }
@@ -241,11 +275,20 @@ async function checkSlaBreaches(config: ScheduleConfig): Promise<void> {
   if (!config.sla_warning_thresholds || config.sla_warning_thresholds.length === 0) return;
 
   try {
-    // Get all active SLA policies
-    const slaPolicies = await pool.query(
-      'SELECT * FROM sla_policies WHERE is_active = true'
-    );
-    if (slaPolicies.rows.length === 0) return;
+    // Get all active SLA policies (cached)
+    let slaPolicies: any;
+    const cachedSla = getCached<any>('sla_policies:active');
+    if (cachedSla) {
+      slaPolicies = { rows: cachedSla };
+    } else {
+      slaPolicies = await pool.query(
+        'SELECT priority, resolution_time_hours FROM sla_policies WHERE is_active = true'
+      );
+      if (slaPolicies.rows.length > 0) {
+        setCache('sla_policies:active', slaPolicies.rows, 300000);
+      }
+    }
+    if (!slaPolicies || slaPolicies.rows.length === 0) return;
 
     // Build a map of priority -> resolution_time_hours
     const slaMap: Record<string, number> = {};
@@ -262,6 +305,48 @@ async function checkSlaBreaches(config: ScheduleConfig): Promise<void> {
        AND t.priority IN ('low', 'medium', 'high', 'critical')`
     );
 
+    if (tickets.rows.length === 0) return;
+
+    // Batch sla_notification_log dedup check — fetch all existing warnings for these tickets
+    const ticketIds = tickets.rows.map((t: any) => t.id);
+    const existingLogs = await pool.query(
+      'SELECT ticket_id, threshold_percent FROM sla_notification_log WHERE ticket_id = ANY($1::int[]) AND notification_type = $2',
+      [ticketIds, 'warning']
+    );
+    const notifiedKeys = new Set(existingLogs.rows.map((r: any) => `${r.ticket_id}:${r.threshold_percent}`));
+
+    // Collect unique user IDs for assignee lookups across all tickets
+    const userIds = new Set<number>();
+    for (const ticket of tickets.rows) {
+      const slaHours = slaMap[ticket.priority];
+      if (!slaHours || slaHours <= 0) continue;
+      const elapsed = parseFloat(ticket.hours_elapsed);
+      const percentUsed = Math.floor((elapsed / slaHours) * 100);
+      for (const threshold of config.sla_warning_thresholds) {
+        if (percentUsed >= threshold && !notifiedKeys.has(`${ticket.id}:${threshold}`)) {
+          userIds.add(ticket.created_by_id);
+          if (ticket.assigned_to_id) userIds.add(ticket.assigned_to_id);
+        }
+      }
+    }
+
+    // Batch user lookup
+    const userMap = new Map<number, { email: string; name: string }>();
+    if (userIds.size > 0) {
+      const users = await pool.query(
+        'SELECT id, email, name FROM users WHERE id = ANY($1::int[]) AND is_active = true',
+        [[...userIds]]
+      );
+      for (const u of users.rows) userMap.set(u.id, u);
+    }
+
+    // Also batch admin lookup once (used for thresholds >= 75)
+    let adminRecipients: { email: string; name: string }[] = [];
+    if (config.sla_warning_thresholds.some((t: number) => t >= 75)) {
+      const admins = await pool.query("SELECT email, name FROM users WHERE role = 'admin' AND is_active = true");
+      adminRecipients = admins.rows;
+    }
+
     for (const ticket of tickets.rows) {
       const slaHours = slaMap[ticket.priority];
       if (!slaHours || slaHours <= 0) continue;
@@ -271,12 +356,8 @@ async function checkSlaBreaches(config: ScheduleConfig): Promise<void> {
 
       for (const threshold of config.sla_warning_thresholds) {
         if (percentUsed >= threshold) {
-          // Check if already sent for this threshold
-          const existing = await pool.query(
-            'SELECT id FROM sla_notification_log WHERE ticket_id = $1 AND threshold_percent = $2 AND notification_type = $3',
-            [ticket.id, threshold, 'warning']
-          );
-          if (existing.rows.length > 0) continue;
+          // In-memory dedup check instead of individual query
+          if (notifiedKeys.has(`${ticket.id}:${threshold}`)) continue;
 
           const vars = await buildTicketEmailVars(ticket);
           vars.sla_threshold = String(threshold);
@@ -285,22 +366,21 @@ async function checkSlaBreaches(config: ScheduleConfig): Promise<void> {
 
           // Send to assignee
           if (ticket.assigned_to_id) {
-            const assignee = await pool.query('SELECT email, name FROM users WHERE id = $1', [ticket.assigned_to_id]);
-            if (assignee.rows.length > 0) {
+            const assignee = userMap.get(ticket.assigned_to_id);
+            if (assignee) {
               sendTemplateEmail(
-                assignee.rows[0].email,
-                assignee.rows[0].name,
+                assignee.email,
+                assignee.name,
                 'SLA Breach Warning',
-                { ...vars, user_name: assignee.rows[0].name },
+                { ...vars, user_name: assignee.name },
                 ticket.id
               ).catch(err => console.error(`[scheduler] SLA warning failed:`, err.message));
             }
           }
 
           // Also notify admins for high thresholds
-          if (threshold >= 75) {
-            const admins = await pool.query("SELECT email, name FROM users WHERE role = 'admin' AND is_active = true");
-            for (const admin of admins.rows) {
+          if (threshold >= 75 && adminRecipients.length > 0) {
+            for (const admin of adminRecipients) {
               sendTemplateEmail(
                 admin.email,
                 admin.name,
@@ -346,24 +426,47 @@ async function checkUnassignedEscalation(config: ScheduleConfig, escalationConfi
        AND t.created_at < NOW() - INTERVAL '${afterMinutes} minutes'`
     );
 
-    for (const ticket of result.rows) {
-      // Check if already escalated
-      const existing = await pool.query(
-        'SELECT id FROM notification_log WHERE ticket_id = $1 AND event_type = $2 LIMIT 1',
-        [ticket.id, 'unassigned_escalation']
-      );
-      if (existing.rows.length > 0) continue;
+    if (result.rows.length === 0) return;
 
-      const vars = await buildTicketEmailVars(ticket);
+    // Batch notification_log dedup check
+    const ticketIds = result.rows.map((t: any) => t.id);
+    const existingLogs = await pool.query(
+      'SELECT DISTINCT ticket_id FROM notification_log WHERE ticket_id = ANY($1::int[]) AND event_type = $2',
+      [ticketIds, 'unassigned_escalation']
+    );
+    const escalatedIds = new Set(existingLogs.rows.map((r: any) => r.ticket_id));
+
+    // Collect unique user IDs needed by buildTicketEmailVars across all tickets
+    const userIds = new Set<number>();
+    for (const ticket of result.rows) {
+      if (escalatedIds.has(ticket.id)) continue;
+      userIds.add(ticket.created_by_id);
+      if (ticket.assigned_to_id) userIds.add(ticket.assigned_to_id);
+    }
+
+    // Batch user lookup for buildTicketEmailVars
+    const userMap = new Map<number, { name: string; email?: string }>();
+    if (userIds.size > 0) {
+      const users = await pool.query(
+        'SELECT id, name FROM users WHERE id = ANY($1::int[]) AND is_active = true',
+        [[...userIds]]
+      );
+      for (const u of users.rows) userMap.set(u.id, { name: u.name });
+    }
+
+    // Notify admins/agents (batched once, outside the per-ticket loop)
+    const notifyRole = escalationConfig.unassigned.notify_role || 'admin';
+    const recipients = await pool.query(
+      'SELECT email, name FROM users WHERE role = $1 AND is_active = true',
+      [notifyRole]
+    );
+
+    for (const ticket of result.rows) {
+      if (escalatedIds.has(ticket.id)) continue;
+
+      const vars = await buildTicketEmailVars(ticket, userMap);
       vars.escalation_reason = `Ticket has been unassigned for ${Math.floor(parseFloat(ticket.minutes_unassigned))} minutes`;
       vars.time_overdue = formatTimeRemaining(parseFloat(ticket.minutes_unassigned) * 60000);
-
-      // Notify admins/agents
-      const notifyRole = escalationConfig.unassigned.notify_role || 'admin';
-      const recipients = await pool.query(
-        'SELECT email, name FROM users WHERE role = $1 AND is_active = true',
-        [notifyRole]
-      );
 
       for (const recipient of recipients.rows) {
         sendTemplateEmail(

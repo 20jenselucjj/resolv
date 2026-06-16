@@ -8,7 +8,7 @@ interface PinboardSectionProps {
   pinsLoading: boolean;
   tickets: Ticket[];
   onUnpin: (id: string, key: string) => void;
-  onReorder: (pins: any[]) => void;
+  onReorder: (fromIdx: number, toIdx: number) => void;
   onRefresh: () => void;
 }
 

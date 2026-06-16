@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { memo, useRef, useCallback } from 'react';
 import {
   PieChart,
   Pie,
@@ -226,4 +226,4 @@ const InteractiveDonutChart: React.FC<DonutChartProps> = ({
   );
 };
 
-export default InteractiveDonutChart;
+export default memo(InteractiveDonutChart);

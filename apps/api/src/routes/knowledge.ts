@@ -197,7 +197,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = updateKnowledgeSchema.parse(request.body);
 
-    const current = await pool.query('SELECT * FROM knowledge_articles WHERE id = $1', [id]);
+    const current = await pool.query('SELECT id, title, slug, body, category_id, author_id, status, views, helpful_count, not_helpful_count, tags, created_at, updated_at, published_at FROM knowledge_articles WHERE id = $1', [id]);
     if (current.rows.length === 0) {
       return reply.status(404).send({ error: 'Article not found' });
     }
@@ -378,12 +378,15 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
   // GET /knowledge/:id/attachments - list article attachments
   fastify.get('/knowledge/:id/attachments', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const { limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
 
     const { rows } = await pool.query(
       `SELECT a.*, u.name as uploader_name FROM knowledge_article_attachments a
        LEFT JOIN users u ON a.uploaded_by = u.id
-       WHERE a.article_id = $1 ORDER BY a.created_at DESC`,
-      [id]
+       WHERE a.article_id = $1 ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`,
+      [id, limit, offset]
     );
 
     return reply.send({ data: rows });
@@ -394,7 +397,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     const { rows } = await pool.query(
-      'SELECT * FROM knowledge_article_attachments WHERE id = $1',
+      'SELECT id, storage_path, original_name, mime_type FROM knowledge_article_attachments WHERE id = $1',
       [id]
     );
     if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
@@ -412,7 +415,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     const { rows } = await pool.query(
-      'SELECT * FROM knowledge_article_attachments WHERE id = $1',
+      'SELECT id, storage_path, original_name, mime_type FROM knowledge_article_attachments WHERE id = $1',
       [id]
     );
     if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
@@ -432,7 +435,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     const user = request.user as JwtPayload;
 
     const { rows } = await pool.query(
-      'SELECT * FROM knowledge_article_attachments WHERE id = $1',
+      'SELECT id, uploaded_by, storage_path FROM knowledge_article_attachments WHERE id = $1',
       [id]
     );
     if (rows.length === 0) return reply.status(404).send({ error: 'Attachment not found' });
@@ -485,8 +488,8 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     // Async processing via dynamic import
     import('./helpers/ai-training.utils').then(async ({ processSource }) => {
       const [cfgRows, ragRows] = await Promise.all([
-        pool.query('SELECT * FROM ai_config LIMIT 1'),
-        pool.query('SELECT * FROM ai_rag_config LIMIT 1'),
+        pool.query('SELECT id, enabled, provider, base_url, api_key, model, temperature, max_tokens, system_prompt, allowed_roles, max_messages_per_day, portal_enabled, portal_model, portal_temperature, portal_max_tokens, portal_system_prompt, portal_allowed_roles, guidelines, tools FROM ai_config LIMIT 1'),
+        pool.query('SELECT id, enabled, retrieval_strategy, top_k, similarity_threshold, chunk_size, chunk_overlap, reranking_enabled, citation_mode, inject_context FROM ai_rag_config LIMIT 1'),
       ]);
       const cfg = cfgRows.rows[0] ?? null;
       const ragCfg = ragRows.rows[0] ?? { chunk_size: 512, chunk_overlap: 64 };

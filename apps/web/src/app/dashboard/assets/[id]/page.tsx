@@ -10,7 +10,7 @@ import {
   ArrowLeft,
   ArrowUpDown,
   Battery,
-  Bookmark,
+
   Cable,
   CheckCircle2,
   ChevronDown,
@@ -85,7 +85,7 @@ import {
   EmptyState,
   OwnershipEditModal,
   AboutEditModal,
-  TagsEditModal,
+
   EncryptionCard,
   BatteryCard,
   UsbDevicesPanel,
@@ -285,17 +285,6 @@ const grid2Style: CSSProperties = {
   gap: 16
 };
 
-const tagStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '4px 10px',
-  borderRadius: 'var(--radius-sm)',
-  background: 'var(--accent-subtle)',
-  border: '1px solid var(--border)',
-  color: 'var(--accent)',
-  fontSize: 12,
-  fontWeight: 600
-};
 
 const dividerStyle: CSSProperties = {
   height: 1,
@@ -377,7 +366,6 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
   // UI state
   const [editOpen, setEditOpen] = useState(false);
   const [aboutEditOpen, setAboutEditOpen] = useState(false);
-  const [tagsEditOpen, setTagsEditOpen] = useState(false);
   const [commandDialogOpen, setCommandDialogOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -759,18 +747,6 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
           onSaved={(next) => {
             setAsset(next);
             setToast({ message: 'Display name updated', tone: 'success' });
-          }}
-        />
-      )}
-
-      {/* Tags edit modal */}
-      {tagsEditOpen && (
-        <TagsEditModal
-          asset={asset}
-          onClose={() => setTagsEditOpen(false)}
-          onSaved={(next) => {
-            setAsset(next);
-            setToast({ message: 'Tags updated', tone: 'success' });
           }}
         />
       )}
@@ -1340,32 +1316,6 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
             ]}
           />
         </Panel>
-
-        {/* Tags */}
-        {(asset.tags && asset.tags.length > 0) || canManage ? (
-          <Panel
-            title="Tags"
-            subtitle="Labels and categories"
-            icon={Bookmark}
-            actions={canManage ? (
-              <ActionButton icon={Edit3} onClick={() => setTagsEditOpen(true)}>
-                Edit
-              </ActionButton>
-            ) : undefined}
-          >
-            {asset.tags && asset.tags.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {asset.tags.map((tag) => (
-                  <span key={tag} style={tagStyle}>{tag}</span>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>
-                No tags yet.
-              </div>
-            )}
-          </Panel>
-        ) : null}
 
         {/* Software Summary */}
         {software.length > 0 && (

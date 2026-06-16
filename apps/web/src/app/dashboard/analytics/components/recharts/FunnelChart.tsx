@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback, useState } from 'react';
+import React, { memo, useRef, useCallback, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
 
@@ -203,4 +203,4 @@ const FunnelChart: React.FC<FunnelChartProps> = ({
   );
 };
 
-export default FunnelChart;
+export default memo(FunnelChart);

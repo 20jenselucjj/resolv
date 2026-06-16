@@ -33,8 +33,13 @@ export default async function approvalRoutingRulesRoutes(fastify: FastifyInstanc
   // ─── GET /admin/approval-routing-rules — list all ───────────────────────
 
   fastify.get('/admin/approval-routing-rules', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
+    const { limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
     const result = await pool.query(
-      'SELECT * FROM approval_routing_rules ORDER BY priority ASC, created_at ASC'
+      'SELECT * FROM approval_routing_rules ORDER BY priority ASC, created_at ASC LIMIT $1 OFFSET $2',
+      [limit, offset]
     );
     return reply.send({ data: result.rows });
   });

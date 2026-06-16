@@ -37,7 +37,9 @@ export default async function scriptRoutes(fastify: FastifyInstance) {
   // ─── List scripts ────────────────────────────────────────────────────────────
 
   fastify.get('/scripts', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { category, search } = request.query as any;
+    const { category, search, limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
 
     let query = `SELECT s.*, u.name as created_by_name FROM scripts s LEFT JOIN users u ON s.created_by = u.id WHERE 1=1`;
     const params: any[] = [];
@@ -53,7 +55,8 @@ export default async function scriptRoutes(fastify: FastifyInstance) {
       idx++;
     }
 
-    query += ` ORDER BY s.category, s.name`;
+    query += ` ORDER BY s.category, s.name LIMIT $${idx++} OFFSET $${idx++}`;
+    params.push(limit, offset);
 
     const result = await pool.query(query, params);
     return reply.send({ data: result.rows });

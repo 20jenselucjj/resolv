@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { memo, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
 import ChartSkeleton from './ChartSkeleton';
@@ -236,4 +236,4 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
   );
 };
 
-export default GaugeChart;
+export default memo(GaugeChart);

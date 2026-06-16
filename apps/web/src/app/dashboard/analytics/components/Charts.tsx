@@ -1,15 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import PinButton from './PinButton';
 
-export const MiniBar = ({ value, max, color }: { value: number; max: number; color: string }) => (
+export const MiniBar = memo(({ value, max, color }: { value: number; max: number; color: string }) => (
   <div style={{ height: 4, flex: 1, background: 'var(--bg-tertiary)', borderRadius: 2, overflow: 'hidden', minWidth: 40 }}>
     <div style={{ height: '100%', width: `${max ? (value/max)*100 : 0}%`, background: color, borderRadius: 2, transition: 'width 1s ease-out' }} />
   </div>
-);
+));
 
-export const TrendIndicator = ({ data, color, height }: { data: number[]; color: string; height?: number }) => {
+export const TrendIndicator = memo(({ data, color, height }: { data: number[]; color: string; height?: number }) => {
   const h = height || 28;
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);
@@ -27,9 +27,9 @@ export const TrendIndicator = ({ data, color, height }: { data: number[]; color:
       ))}
     </div>
   );
-};
+});
 
-export const DonutChart = ({ segments, total, size, onSegmentClick }: {
+export const DonutChart = memo(({ segments, total, size, onSegmentClick }: {
   segments: { label: string; value: number; color: string }[];
   total: number; size: number;
   /** Click handler for drill-down */
@@ -66,9 +66,9 @@ export const DonutChart = ({ segments, total, size, onSegmentClick }: {
       </div>
     </div>
   );
-};
+});
 
-export const BarChart = ({ data, color, height }: { data: { label: string; value: number }[]; color: string; height?: number }) => {
+export const BarChart = memo(({ data, color, height }: { data: { label: string; value: number }[]; color: string; height?: number }) => {
   const h = height || 120;
   const max = Math.max(...data.map(d => d.value), 1);
   return (
@@ -85,7 +85,7 @@ export const BarChart = ({ data, color, height }: { data: { label: string; value
       ))}
     </div>
   );
-};
+});
 
 interface KPICardProps {
   label: string;
@@ -99,7 +99,7 @@ interface KPICardProps {
   trendColor?: string;
 }
 
-export const KPICard = ({ label, value, sub, icon: Icon, color, bg, border, trend, trendColor }: KPICardProps) => (
+export const KPICard = memo(({ label, value, sub, icon: Icon, color, bg, border, trend, trendColor }: KPICardProps) => (
   <div className="rp-card card" style={{
     padding: '20px 24px', borderRadius: 14, border: `1px solid var(--border)`,
     display: 'flex', flexDirection: 'column', gap: 8,
@@ -116,7 +116,7 @@ export const KPICard = ({ label, value, sub, icon: Icon, color, bg, border, tren
     </div>
     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub}</span>
   </div>
-);
+));
 
 interface MiniTableProps {
   headers: string[];
@@ -124,7 +124,7 @@ interface MiniTableProps {
   emptyMessage?: string;
 }
 
-export const MiniTable = ({ headers, rows, emptyMessage }: MiniTableProps) => (
+export const MiniTable = memo(({ headers, rows, emptyMessage }: MiniTableProps) => (
   <div style={{ overflowX: 'auto' }}>
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
       <thead>
@@ -151,7 +151,7 @@ export const MiniTable = ({ headers, rows, emptyMessage }: MiniTableProps) => (
       </tbody>
     </table>
   </div>
-);
+));
 
 interface CardSectionProps {
   title: string;
@@ -164,7 +164,7 @@ interface CardSectionProps {
   onUnpin?: () => void;
 }
 
-export const CardSection = ({ title, icon: Icon, children, metricKey, isPinned, onPin, onUnpin }: CardSectionProps) => (
+export const CardSection = memo(({ title, icon: Icon, children, metricKey, isPinned, onPin, onUnpin }: CardSectionProps) => (
   <div className="rp-card card" style={{ borderRadius: 14, overflow: 'hidden' }}>
     <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
       {Icon && <Icon size={16} />} {title}
@@ -176,4 +176,4 @@ export const CardSection = ({ title, icon: Icon, children, metricKey, isPinned, 
     </div>
     <div style={{ padding: 20 }}>{children}</div>
   </div>
-);
+));

@@ -8,6 +8,7 @@ import {
   Clock, Settings2,
   Book, Layers, Sparkles,
 } from 'lucide-react';
+import { connectSocket } from '@/lib/socket';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { NewTicketPanel } from '@/components/NewTicketPanel';
 import {
@@ -361,7 +362,6 @@ export default function TicketsPage() {
 
   // Listen for socket events to refresh ticket list when AI or other users make changes
   useEffect(() => {
-    const { connectSocket } = require('@/lib/socket');
     const socket = connectSocket();
     
     const handleTicketChange = () => {

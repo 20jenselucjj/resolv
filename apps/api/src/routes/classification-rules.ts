@@ -17,8 +17,13 @@ const ruleUpdateSchema = ruleSchema.partial();
 export default async function classificationRulesRoutes(fastify: FastifyInstance) {
   // GET /admin/classification-rules - list all rules
   fastify.get('/admin/classification-rules', { preHandler: [fastify.requirePermission('manage_classification')] }, async (request, reply) => {
+    const { limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
     const { rows } = await pool.query(
-      'SELECT * FROM ticket_classification_rules ORDER BY priority DESC, name ASC'
+      'SELECT * FROM ticket_classification_rules ORDER BY priority DESC, name ASC LIMIT $1 OFFSET $2',
+      [limit, offset]
     );
     return reply.send({ data: rows });
   });

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { AssetListResponse } from '@/lib/assets-types';
+import dynamic from 'next/dynamic';
 import { Download, Menu, Maximize2, Minimize2 } from 'lucide-react';
 import type {
   ReportTab, Ticket, TimeRange, CustomDateRange, DrillDownLevel, AutoRefreshInterval,
@@ -18,17 +19,18 @@ import type { SectionKey } from './components/AnalyticsSidebar';
 import { GlobalFilters } from './components/GlobalFilters';
 import { CrossFilterProvider, useCrossFilter, CROSS_FILTER_LABELS } from './components/CrossFilterContext';
 import { usePresentationMode } from './hooks/usePresentationMode';
-import OverviewSection from './sections/OverviewSection';
-import OperationalSection from './sections/OperationalSection';
-import ServiceLevelSection from './sections/ServiceLevelSection';
-import MatrixSection from './sections/MatrixSection';
-import ITSMModulesSection from './sections/ITSMModulesSection';
-import KnowledgeAISection from './sections/KnowledgeAISection';
-import AssetsLicensesSection from './sections/AssetsLicensesSection';
-import BenchmarksSection from './sections/BenchmarksSection';
-import ReportsSection from './sections/ReportsSection';
-import PinboardSection from './sections/PinboardSection';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
+
+const OverviewSection = dynamic(() => import('./sections/OverviewSection'), { ssr: false });
+const OperationalSection = dynamic(() => import('./sections/OperationalSection'), { ssr: false });
+const ServiceLevelSection = dynamic(() => import('./sections/ServiceLevelSection'), { ssr: false });
+const MatrixSection = dynamic(() => import('./sections/MatrixSection'), { ssr: false });
+const ITSMModulesSection = dynamic(() => import('./sections/ITSMModulesSection'), { ssr: false });
+const KnowledgeAISection = dynamic(() => import('./sections/KnowledgeAISection'), { ssr: false });
+const AssetsLicensesSection = dynamic(() => import('./sections/AssetsLicensesSection'), { ssr: false });
+const BenchmarksSection = dynamic(() => import('./sections/BenchmarksSection'), { ssr: false });
+const ReportsSection = dynamic(() => import('./sections/ReportsSection'), { ssr: false });
+const PinboardSection = dynamic(() => import('./sections/PinboardSection'), { ssr: false });
 
 // ── Map section key → ReportTab for drill-down navigation ─────────────────
 const SECTION_TO_TAB: Record<SectionKey, ReportTab> = {

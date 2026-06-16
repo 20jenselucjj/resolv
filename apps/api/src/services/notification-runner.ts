@@ -297,12 +297,49 @@ async function determineRecipients(event: NotificationEvent): Promise<Recipient[
   // Don't notify the actor (person who caused the event) — they know what they did
   const actorEmail = event.actor.email?.toLowerCase();
 
+  // Collect all user IDs we need to look up across all branches
+  const neededIds = new Set<string>();
+  const requestorId = event.ticket.created_by_id;
+  const assigneeId = event.ticket.assigned_to_id;
+
   switch (event.type) {
     case 'ticket_created':
-      // Notify requestor (unless they are the actor, e.g., agent creating on behalf)
-      if (event.ticket.created_by_id !== event.actor.id) {
-        const r = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.created_by_id]);
-        if (r.rows.length > 0) addRecipient(r.rows[0].email, r.rows[0].name, event.ticket.created_by_id, 'requestor');
+      if (requestorId !== event.actor.id) neededIds.add(requestorId);
+      break;
+    case 'ticket_assigned':
+    case 'ticket_reassigned':
+      if (requestorId !== event.actor.id) neededIds.add(requestorId);
+      // newAssignee already has email/name from event data
+      break;
+    case 'status_changed':
+    case 'ticket_updated':
+    case 'comment_added':
+      if (requestorId !== event.actor.id) neededIds.add(requestorId);
+      if (assigneeId && assigneeId !== event.actor.id) neededIds.add(assigneeId);
+      break;
+    case 'ticket_resolved':
+    case 'ticket_closed':
+      if (requestorId !== event.actor.id) neededIds.add(requestorId);
+      break;
+  }
+
+  // Batch query all needed users in one round-trip
+  const userMap = new Map<string, { email: string; name: string }>();
+  if (neededIds.size > 0) {
+    const users = await pool.query(
+      'SELECT id, email, name FROM users WHERE id = ANY($1) AND is_active = true',
+      [[...neededIds]]
+    );
+    for (const u of users.rows) {
+      userMap.set(String(u.id), { email: u.email, name: u.name });
+    }
+  }
+
+  switch (event.type) {
+    case 'ticket_created':
+      {
+        const u = userMap.get(requestorId);
+        if (u) addRecipient(u.email, u.name, requestorId, 'requestor');
       }
       // If unassigned, notify all admins/agents
       if (!event.ticket.assigned_to_id) {
@@ -322,43 +359,40 @@ async function determineRecipients(event: NotificationEvent): Promise<Recipient[
         addRecipient(event.newAssignee.email, event.newAssignee.name, event.newAssignee.id, 'assignee');
       }
       // Also notify requestor
-      if (event.ticket.created_by_id !== event.actor.id) {
-        const r = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.created_by_id]);
-        if (r.rows.length > 0) addRecipient(r.rows[0].email, r.rows[0].name, event.ticket.created_by_id, 'requestor');
+      {
+        const u = userMap.get(requestorId);
+        if (u) addRecipient(u.email, u.name, requestorId, 'requestor');
       }
       break;
 
     case 'status_changed':
     case 'ticket_updated':
-      // Notify requestor and assignee (whoever didn't cause the change)
-      if (event.ticket.created_by_id !== event.actor.id) {
-        const r = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.created_by_id]);
-        if (r.rows.length > 0) addRecipient(r.rows[0].email, r.rows[0].name, event.ticket.created_by_id, 'requestor');
+      {
+        const u = userMap.get(requestorId);
+        if (u) addRecipient(u.email, u.name, requestorId, 'requestor');
       }
-      if (event.ticket.assigned_to_id && event.ticket.assigned_to_id !== event.actor.id) {
-        const a = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.assigned_to_id]);
-        if (a.rows.length > 0) addRecipient(a.rows[0].email, a.rows[0].name, event.ticket.assigned_to_id, 'assignee');
+      if (assigneeId && assigneeId !== event.actor.id) {
+        const a = userMap.get(assigneeId);
+        if (a) addRecipient(a.email, a.name, assigneeId, 'assignee');
       }
       break;
 
     case 'comment_added':
-      // Notify ticket creator and assignee (whoever didn't write the comment)
-      if (event.ticket.created_by_id !== event.actor.id) {
-        const r = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.created_by_id]);
-        if (r.rows.length > 0) addRecipient(r.rows[0].email, r.rows[0].name, event.ticket.created_by_id, 'requestor');
+      {
+        const u = userMap.get(requestorId);
+        if (u) addRecipient(u.email, u.name, requestorId, 'requestor');
       }
-      if (event.ticket.assigned_to_id && event.ticket.assigned_to_id !== event.actor.id) {
-        const a = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.assigned_to_id]);
-        if (a.rows.length > 0) addRecipient(a.rows[0].email, a.rows[0].name, event.ticket.assigned_to_id, 'assignee');
+      if (assigneeId && assigneeId !== event.actor.id) {
+        const a = userMap.get(assigneeId);
+        if (a) addRecipient(a.email, a.name, assigneeId, 'assignee');
       }
       break;
 
     case 'ticket_resolved':
     case 'ticket_closed':
-      // Notify requestor
-      if (event.ticket.created_by_id !== event.actor.id) {
-        const r = await pool.query('SELECT email, name FROM users WHERE id = $1', [event.ticket.created_by_id]);
-        if (r.rows.length > 0) addRecipient(r.rows[0].email, r.rows[0].name, event.ticket.created_by_id, 'requestor');
+      {
+        const u = userMap.get(requestorId);
+        if (u) addRecipient(u.email, u.name, requestorId, 'requestor');
       }
       break;
   }

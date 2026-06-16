@@ -305,7 +305,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
       // Get current request
       const requestResult = await client.query(
-        'SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE',
+        'SELECT id, entity_type, entity_id, title, description, status, requested_by, priority, due_date, created_at, updated_at FROM approval_requests WHERE id = $1 FOR UPDATE',
         [id]
       );
       if (requestResult.rows.length === 0) {
@@ -322,7 +322,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
       // Find the current pending step (first pending by step_index)
       const stepResult = await client.query(
-        `SELECT * FROM approval_steps
+        `SELECT id, request_id, step_index, approver_id, approver_role, status, comment, decided_at, created_at FROM approval_steps
          WHERE request_id = $1 AND status = 'pending'
          ORDER BY step_index ASC LIMIT 1`,
         [id]
@@ -463,7 +463,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       // If next step exists, notify the next approver
       if (nextStepResult.rows.length > 0) {
         const nextStepData = await pool.query(
-          'SELECT * FROM approval_steps WHERE id = $1',
+          'SELECT id, approver_id FROM approval_steps WHERE id = $1',
           [nextStepResult.rows[0].id]
         );
         const nextStep = nextStepData.rows[0];
@@ -499,7 +499,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
       // Get current request
       const requestResult = await client.query(
-        'SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE',
+        'SELECT id, entity_type, entity_id, title, description, status, requested_by, priority, due_date, created_at, updated_at FROM approval_requests WHERE id = $1 FOR UPDATE',
         [id]
       );
       if (requestResult.rows.length === 0) {
@@ -516,7 +516,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
 
       // Find the current pending step
       const stepResult = await client.query(
-        `SELECT * FROM approval_steps
+        `SELECT id, request_id, step_index, approver_id, approver_role, status, comment, decided_at, created_at FROM approval_steps
          WHERE request_id = $1 AND status = 'pending'
          ORDER BY step_index ASC LIMIT 1`,
         [id]
@@ -620,7 +620,7 @@ export default async function approvalRoutes(fastify: FastifyInstance) {
       await client.query('BEGIN');
 
       const requestResult = await client.query(
-        'SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE',
+        'SELECT id, requested_by, status FROM approval_requests WHERE id = $1 FOR UPDATE',
         [id]
       );
       if (requestResult.rows.length === 0) {

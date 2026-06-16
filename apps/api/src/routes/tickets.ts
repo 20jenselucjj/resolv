@@ -458,7 +458,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       await client.query('BEGIN');
 
       // Get current ticket
-      const current = await client.query('SELECT * FROM tickets WHERE id = $1', [id]);
+      const current = await client.query('SELECT id, status, close_notes, created_by_id, assigned_to_id, priority FROM tickets WHERE id = $1', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Ticket not found' });

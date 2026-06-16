@@ -34,7 +34,9 @@ export default async function softwarePackageRoutes(fastify: FastifyInstance) {
   // ─── List packages ─────────────────────────────────────────────────
 
   fastify.get('/software-packages', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { category, search, active } = request.query as any;
+    const { category, search, active, limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
 
     let query = `SELECT sp.*, u.name as created_by_name FROM software_packages sp LEFT JOIN users u ON sp.created_by = u.id WHERE 1=1`;
     const params: any[] = [];
@@ -54,7 +56,8 @@ export default async function softwarePackageRoutes(fastify: FastifyInstance) {
       idx++;
     }
 
-    query += ` ORDER BY sp.is_active DESC, sp.name`;
+    query += ` ORDER BY sp.is_active DESC, sp.name LIMIT $${idx++} OFFSET $${idx++}`;
+    params.push(limit, offset);
 
     const result = await pool.query(query, params);
     return reply.send({ data: result.rows });

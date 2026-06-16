@@ -314,7 +314,7 @@ function LoginForm() {
             
             {/* Logo area - centered above form */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '32px' }}>
-              <Image src="/logo.png" alt="Resolv Logo" width={160} height={40} priority style={{ width: '160px', height: 'auto', objectFit: 'contain' }} />
+              <Image src="/logo.png" alt="Resolv Logo" width={160} height={40} priority style={{ width: '160px', height: '40px', objectFit: 'contain' }} />
             </div>
 
             {/* Auto-redirect UI for SSO-only mode */}

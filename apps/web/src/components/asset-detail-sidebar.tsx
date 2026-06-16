@@ -93,10 +93,13 @@ export function AssetDetailSidebar({
                   transition: 'background 0.15s'
                 }}
               >
-                {session.user_avatar ? (
+                  {session.user_avatar ? (
                   <img
                     src={session.user_avatar}
                     alt=""
+                    width={48}
+                    height={48}
+                    loading="lazy"
                     style={{
                       width: 32, height: 32, borderRadius: '50%',
                       objectFit: 'cover', flexShrink: 0,

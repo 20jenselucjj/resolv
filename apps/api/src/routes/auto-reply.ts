@@ -62,10 +62,15 @@ const updateRuleSchema = createRuleSchema.partial();
 
 export default async function autoReplyRoutes(fastify: FastifyInstance) {
   // List all auto-reply rules
-  fastify.get('/admin/auto-replies', { preHandler: [fastify.requirePermission('manage_automation')] }, async (_request, reply) => {
+  fastify.get('/admin/auto-replies', { preHandler: [fastify.requirePermission('manage_automation')] }, async (request, reply) => {
     try {
+      const { limit: queryLimit, offset: queryOffset } = request.query as any;
+      const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+      const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
       const result = await pool.query(
-        'SELECT * FROM auto_reply_rules ORDER BY created_at DESC'
+        'SELECT * FROM auto_reply_rules ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
       );
       return reply.send({ data: result.rows });
     } catch {
@@ -92,7 +97,10 @@ export default async function autoReplyRoutes(fastify: FastifyInstance) {
           VALUES ('auto_reply_enabled', 'false', NOW())
           ON CONFLICT (key) DO NOTHING;
         `);
-        const result = await pool.query('SELECT * FROM auto_reply_rules ORDER BY created_at DESC');
+        const { limit: fallbackLimit, offset: fallbackOffset } = request.query as any;
+        const fbLimit = Math.min(Math.abs(parseInt(fallbackLimit as string, 10) || 50), 100);
+        const fbOffset = Math.max(parseInt(fallbackOffset as string, 10) || 0, 0);
+        const result = await pool.query('SELECT * FROM auto_reply_rules ORDER BY created_at DESC LIMIT $1 OFFSET $2', [fbLimit, fbOffset]);
         return reply.send({ data: result.rows });
       } catch {
         return reply.send({ data: [] });

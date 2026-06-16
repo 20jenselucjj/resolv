@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { pool } from '../db/pool'
+import { getCached, setCache } from '../lib/cache'
 import { retrieveContext } from './ai-training'
 import path from 'path'
 import fs from 'fs'
@@ -656,20 +657,25 @@ export async function aiRoutes(app: FastifyInstance) {
 
   // GET /ai/config — admin only
   app.get('/ai/config', { preHandler: [app.authenticate, app.requirePermission('manage_ai_config')] }, async (req, reply) => {
-    const { rows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    if (rows.length === 0) return reply.send({ data: { 
-      enabled: false, provider: 'openai', base_url: 'https://api.openai.com/v1', 
-      model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 2048, 
-      system_prompt: '', allowed_roles: ['admin', 'agent'], max_messages_per_day: 500,
-      portal_enabled: false, portal_model: 'gpt-4o-mini', portal_temperature: 0.7, portal_max_tokens: 1024,
-      portal_system_prompt: 'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
-      portal_allowed_roles: ['user'],
-      tools: { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true },
-      behavior: { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 },
-      rules: [],
-      guidelines: null
-    } })
-    const cfg = { ...rows[0] }
+    const cacheKey = 'ai_config';
+    let cfg = getCached<any>(cacheKey);
+    if (!cfg) {
+      const { rows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
+      if (rows.length === 0) return reply.send({ data: { 
+        enabled: false, provider: 'openai', base_url: 'https://api.openai.com/v1', 
+        model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 2048, 
+        system_prompt: '', allowed_roles: ['admin', 'agent'], max_messages_per_day: 500,
+        portal_enabled: false, portal_model: 'gpt-4o-mini', portal_temperature: 0.7, portal_max_tokens: 1024,
+        portal_system_prompt: 'You are a helpful customer support assistant. Help customers find answers to their questions and resolve common issues on their own.',
+        portal_allowed_roles: ['user'],
+        tools: { searchTickets: true, createTickets: true, getTicketDetails: true, getMyTickets: true, searchKnowledge: true, getStats: true, updateTickets: true, addComments: true, searchUsers: true },
+        behavior: { responseLength: 'medium', includeCitations: true, includeSources: true, fallbackToWeb: false, maxCitations: 3 },
+        rules: [],
+        guidelines: null
+      } })
+      cfg = { ...rows[0] }
+      setCache(cacheKey, cfg, 300000)
+    }
     return reply.send({ data: cfg })
   })
 
@@ -801,12 +807,17 @@ export async function aiRoutes(app: FastifyInstance) {
 
     if (!message?.trim()) return reply.status(400).send({ error: 'Message is required' })
 
-    // Load AI config
-    const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
-    if (cfgRows.length === 0) {
-      return reply.status(503).send({ error: 'AI assistant is not configured or disabled.' })
+    // Load AI config (cached)
+    const aiConfigCacheKey = 'ai_config';
+    let cfg = getCached<any>(aiConfigCacheKey);
+    if (!cfg) {
+      const { rows: cfgRows } = await pool.query('SELECT * FROM ai_config LIMIT 1')
+      if (cfgRows.length === 0) {
+        return reply.status(503).send({ error: 'AI assistant is not configured or disabled.' })
+      }
+      cfg = cfgRows[0]
+      setCache(aiConfigCacheKey, cfg, 300000)
     }
-    const cfg = cfgRows[0]
 
     // Enforce daily message limit
     if (cfg.max_messages_per_day && cfg.max_messages_per_day > 0) {
@@ -980,8 +991,13 @@ export async function aiRoutes(app: FastifyInstance) {
     let ragConfidence = 0
 
     try {
-      const { rows: ragCfgRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
-      const ragCfg = ragCfgRows[0]
+      const ragCacheKey = 'ai_rag_config';
+      let ragCfg = getCached<any>(ragCacheKey);
+      if (!ragCfg) {
+        const { rows: ragCfgRows } = await pool.query('SELECT * FROM ai_rag_config LIMIT 1')
+        ragCfg = ragCfgRows[0]
+        setCache(ragCacheKey, ragCfg, 300000)
+      }
 
       if (ragCfg?.enabled && ragCfg?.inject_context) {
         const { chunks, qaPairs, strategy } = await retrieveContext(message, cfg, ragCfg, isPortalUser ? 'portal' : undefined)

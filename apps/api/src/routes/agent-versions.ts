@@ -88,14 +88,19 @@ export default async function agentVersionRoutes(fastify: FastifyInstance) {
 
   fastify.get('/agent-versions', {
     preHandler: [fastify.authenticate, fastify.requirePermission('manage_assets')],
-  }, async (_request, reply) => {
+  }, async (request, reply) => {
+    const { limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
     const result = await pool.query(`
       SELECT av.*, u.name as created_by_name,
         (SELECT COUNT(*) FROM assets WHERE agent_version = av.version) as agent_count
       FROM agent_versions av
       LEFT JOIN users u ON av.created_by = u.id
       ORDER BY av.created_at DESC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
     return reply.send({ data: result.rows });
   });
 

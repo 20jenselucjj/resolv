@@ -252,8 +252,13 @@ export default async function ssoRoutes(fastify: FastifyInstance) {
   // ─── GET /sso/providers — List all SSO providers (admin only) ─────────────
   fastify.get('/sso/providers', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
     try {
+      const { limit: queryLimit, offset: queryOffset } = request.query as any;
+      const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+      const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
       const result = await pool.query(
-        'SELECT * FROM sso_providers ORDER BY created_at DESC'
+        'SELECT * FROM sso_providers ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
       );
       return reply.send({
         data: result.rows.map(sanitizeProvider),

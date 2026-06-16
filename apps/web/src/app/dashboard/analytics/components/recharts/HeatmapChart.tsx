@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useMemo, useCallback } from 'react';
+import React, { memo, useRef, useState, useMemo, useCallback } from 'react';
 import { exportToPng, exportToSvg, cssVar } from './export-utils';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -356,4 +356,4 @@ const HeatmapChart: React.FC<HeatmapChartProps> = ({
   );
 };
 
-export default HeatmapChart;
+export default memo(HeatmapChart);

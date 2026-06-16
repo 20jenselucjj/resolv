@@ -10,7 +10,6 @@ let nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: [
       'lucide-react',
-      'date-fns',
       'cmdk',
     ],
   },

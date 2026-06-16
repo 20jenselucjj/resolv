@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS ticket_classification_rules (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Add unique constraint on name (safe to re-run)
+ALTER TABLE ticket_classification_rules ADD CONSTRAINT IF NOT EXISTS ticket_classification_rules_name_key UNIQUE (name);
+
 -- Add default classification rules (safe to re-run)
 INSERT INTO ticket_classification_rules (name, match_type, keywords, ticket_type, priority, is_active) VALUES
   ('Broken / Not Working', 'any', ARRAY['broken', 'not working', 'wont turn on', 'crash', 'crashed', 'error', 'down', 'outage', 'cant connect', 'dead', 'failed', 'failure', 'not loading', 'blank screen', 'frozen', 'freezing'], 'incident', 100, true),

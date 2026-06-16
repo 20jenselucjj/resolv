@@ -5,17 +5,19 @@ import { pool } from '../db/pool';
 export default async function notificationRoutes(fastify: FastifyInstance) {
   // GET /notifications - authenticated
   fastify.get('/notifications', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const { unread_only, limit = 20 } = request.query as { unread_only?: string; limit?: string };
+    const { unread_only, limit: queryLimit = '20', offset: queryOffset = '0' } = request.query as { unread_only?: string; limit?: string; offset?: string };
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 20), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
     
-    let query = 'SELECT * FROM notifications WHERE user_id = $1';
+    let query = 'SELECT id, user_id, type, title, body, ticket_id, is_read, created_at FROM notifications WHERE user_id = $1';
     const params: any[] = [request.user.id];
     
     if (unread_only === 'true') {
       query += ' AND is_read = false';
     }
     
-    query += ' ORDER BY created_at DESC LIMIT $2';
-    params.push(parseInt(limit as string));
+    query += ' ORDER BY created_at DESC LIMIT $2 OFFSET $3';
+    params.push(limit, offset);
     
     const result = await pool.query(query, params);
     return reply.send({ data: result.rows });

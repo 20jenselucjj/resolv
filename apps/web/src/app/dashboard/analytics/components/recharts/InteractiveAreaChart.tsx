@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { memo, useRef, useCallback } from 'react';
 import {
   AreaChart,
   Area,
@@ -234,4 +234,4 @@ const InteractiveAreaChart: React.FC<InteractiveAreaChartProps> = ({
   );
 };
 
-export default InteractiveAreaChart;
+export default memo(InteractiveAreaChart);

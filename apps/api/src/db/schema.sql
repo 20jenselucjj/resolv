@@ -165,8 +165,8 @@ DO $$ BEGIN ALTER TABLE users ADD COLUMN windows_username VARCHAR(255); EXCEPTIO
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
-CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets(assigned_to_id);
-CREATE INDEX IF NOT EXISTS idx_tickets_created_by ON tickets(created_by_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets(assigned_to_id);  -- DUPLICATED in indexes.sql line 8 (idx_tickets_assigned_to_id) — consider removing one
+CREATE INDEX IF NOT EXISTS idx_tickets_created_by ON tickets(created_by_id);    -- DUPLICATED in indexes.sql line 9 (idx_tickets_created_by_id) — consider removing one
 CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_sla_policy ON tickets(sla_policy_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_ticket_type ON tickets(ticket_type);

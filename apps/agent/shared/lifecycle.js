@@ -83,6 +83,12 @@ function resolveSocketUrl(rawUrl) {
 }
 
 // ---------------------------------------------------------------------------
+// Circuit-breaker for registration retry
+// ---------------------------------------------------------------------------
+let consecutiveRegistrationFailures = 0;
+const MAX_REGISTRATION_FAILURES = 10;
+
+// ---------------------------------------------------------------------------
 // AgentLifecycle
 // ---------------------------------------------------------------------------
 
@@ -398,10 +404,12 @@ class AgentLifecycle {
       this._isOnline = true;
       this._triggerStatusChange();
       this._log('Registered successfully. Asset ID: ' + result.asset_id);
+      consecutiveRegistrationFailures = 0;
       return true;
     }
 
     this._log('Registration failed.');
+    consecutiveRegistrationFailures++;
     return false;
   }
 
@@ -437,6 +445,8 @@ class AgentLifecycle {
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 5000,
+      reconnectionDelayMax: 60000,
+      randomizationFactor: 0.3,
     });
 
     this._socket.on('connect', function () {
@@ -509,18 +519,10 @@ class AgentLifecycle {
       }.bind(this));
     }.bind(this), this._checkinIntervalMs);
 
-    // Command poll: every 60s
-    this._commandTimer = setInterval(function () {
-      if (this._commandExecutor) {
-        this._commandExecutor.pollAndExecute().catch(function (err) {
-          this._log('Command poll error: ' + err.message);
-        }.bind(this));
-      }
-    }.bind(this), 60000);
   }
 
   /**
-   * Clear both heartbeat and check-in intervals.
+   * Clear heartbeat and check-in intervals.
    * @private
    */
   _clearIntervals() {
@@ -532,10 +534,7 @@ class AgentLifecycle {
       clearInterval(this._checkinTimer);
       this._checkinTimer = null;
     }
-    if (this._commandTimer) {
-      clearInterval(this._commandTimer);
-      this._commandTimer = null;
-    }
+
   }
 
   /**
@@ -546,10 +545,14 @@ class AgentLifecycle {
   async _doHeartbeat() {
     if (this._stopped) return;
 
-    // If we have no credentials, attempt registration
+    // If we have no credentials, attempt registration (with circuit-breaker)
     if (!this._agentToken || !this._assetId) {
-      this._log('No credentials — attempting re-registration on heartbeat cycle.');
-      await this._register();
+      if (consecutiveRegistrationFailures < MAX_REGISTRATION_FAILURES) {
+        this._log('No credentials — attempting re-registration on heartbeat cycle.');
+        await this._register();
+      } else {
+        this._log('Warning: Registration permanently failed after ' + MAX_REGISTRATION_FAILURES + ' consecutive attempts.');
+      }
       return;
     }
 
@@ -649,11 +652,16 @@ class AgentLifecycle {
       return;
     }
 
-    // Verify checksum if provided
+    // Verify checksum if provided (streaming to avoid loading full binary into memory)
     if (expectedChecksum) {
       this._log('Verifying checksum...');
-      var fileBuffer = fs.readFileSync(newExePath);
-      var actualChecksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+      var actualChecksum = await new Promise(function (resolve, reject) {
+        var hashStream = crypto.createHash('sha256');
+        var readStream = fs.createReadStream(newExePath);
+        readStream.on('data', function (chunk) { hashStream.update(chunk); });
+        readStream.on('end', function () { resolve(hashStream.digest('hex')); });
+        readStream.on('error', reject);
+      });
       if (actualChecksum.toLowerCase() !== expectedChecksum.toLowerCase()) {
         this._log('Checksum mismatch! Expected: ' + expectedChecksum + ', Got: ' + actualChecksum);
         this._log('Aborting update for security.');
@@ -751,7 +759,11 @@ class AgentLifecycle {
    * @returns {Promise<boolean>}
    * @private
    */
-  _downloadToFile(fileUrl, destPath) {
+  _downloadToFile(fileUrl, destPath, depth) {
+    if (depth === undefined) depth = 0;
+    if (depth > 5) {
+      return Promise.resolve(false);
+    }
     return new Promise(function (resolve) {
       try {
         var parsed = require('url').parse(fileUrl);
@@ -760,11 +772,11 @@ class AgentLifecycle {
         var file = fs.createWriteStream(destPath);
 
         mod.get(fileUrl, function (response) {
-          // Handle redirects
+          // Handle redirects (max 5)
           if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
             file.close();
             try { require('fs').unlinkSync(destPath); } catch (_) {}
-            resolve(this._downloadToFile(response.headers.location, destPath));
+            resolve(this._downloadToFile(response.headers.location, destPath, depth + 1));
             return;
           }
 

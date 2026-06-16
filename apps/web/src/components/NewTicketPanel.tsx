@@ -127,16 +127,23 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
 
   // Fetch data on mount / user change
   useEffect(() => {
-    api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {});
+    const promises: Promise<void>[] = [
+      api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {}),
+    ];
     if (user?.role !== 'user') {
-      api.get<{ data: User[] }>('/users').then(res => {
-        setAllUsersList(res.data);
-        setAgents(res.data.filter((u: User) => u.role === 'admin' || u.role === 'agent'));
-      }).catch(() => {});
+      promises.push(
+        api.get<{ data: User[] }>('/users').then(res => {
+          setAllUsersList(res.data);
+          setAgents(res.data.filter((u: User) => u.role === 'admin' || u.role === 'agent'));
+        }).catch(() => {})
+      );
     }
     if (user?.role === 'admin' || user?.role === 'agent') {
-      api.get<{ data: any[] }>('/templates').then(res => setTemplates(res.data)).catch(() => {});
+      promises.push(
+        api.get<{ data: any[] }>('/templates').then(res => setTemplates(res.data)).catch(() => {})
+      );
     }
+    Promise.all(promises).catch(() => {});
   }, [user]);
 
   // Restore draft on mount
@@ -727,6 +734,9 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                             <img
                               src={objectUrls.current.get(i)}
                               alt=""
+                              width={24}
+                              height={24}
+                              loading="lazy"
                               style={{ width: 64, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
                             />
                           ) : (

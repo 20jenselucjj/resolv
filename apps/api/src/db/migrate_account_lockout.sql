@@ -11,5 +11,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
--- Ensure locked column defaults to false if not already set
+-- Ensure locked column exists and defaults to false if not already set
+ALTER TABLE users ADD COLUMN IF NOT EXISTS locked BOOLEAN DEFAULT false;
 ALTER TABLE users ALTER COLUMN locked SET DEFAULT false;

@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 // Routes that don't require authentication
 const publicRoutes = ['/login', '/api/auth'];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public routes
@@ -35,7 +35,7 @@ export function middleware(request: NextRequest) {
 
   // For dashboard routes without a token cookie, we still let them through
   // because the client-side auth guard will redirect to login.
-  // This middleware primarily protects against direct API abuse and adds
+  // This proxy primarily protects against direct API abuse and adds
   // a redirect layer for unauthenticated users who have JS disabled.
   if (pathname.startsWith('/dashboard')) {
     // Let client-side handle the redirect ΓÇö the layout component will

@@ -95,7 +95,7 @@ export default function ForcePasswordChangePage() {
           alignItems: 'center',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '40px' }}>
-            <Image src="/logo.png" alt="Resolv Logo" width={120} height={30} priority style={{ width: '120px', height: 'auto', objectFit: 'contain' }} />
+            <Image src="/logo.png" alt="Resolv Logo" width={120} height={30} priority style={{ width: '120px', height: '40px', objectFit: 'contain' }} />
           </div>
 
           {success ? (

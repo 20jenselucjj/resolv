@@ -456,7 +456,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   const emailTemplateSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1).max(200),
-    subject: z.string().min(1).max(500),
+    subject: z.string().max(500).default(''),
     body: z.string().default(''),
   });
 
@@ -492,7 +492,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   // PATCH /admin/email-templates/:id
   const emailTemplateUpdateSchema = z.object({
     name: z.string().min(1).max(200).optional(),
-    subject: z.string().min(1).max(500).optional(),
+    subject: z.string().max(500).optional(),
     body: z.string().optional(),
   });
 
@@ -502,6 +502,21 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const templates = await loadEmailTemplates();
     const index = templates.findIndex((t: any) => t.id === id);
     if (index === -1) {
+      // Not found in saved templates — check if it matches a default template
+      const defaults = getDefaultTemplates();
+      const defaultMatch = defaults.find(d => slugifyName(d.name) === id);
+      if (defaultMatch) {
+        // Auto-create the saved template with default values + PATCH body
+        const newTemplate = {
+          id: crypto.randomUUID(),
+          name: body.name || defaultMatch.name,
+          subject: body.subject ?? defaultMatch.subject,
+          body: body.body ?? defaultMatch.body,
+        };
+        templates.push(newTemplate);
+        await saveEmailTemplates(templates);
+        return reply.send({ data: newTemplate });
+      }
       return reply.status(404).send({ error: 'Email template not found' });
     }
     templates[index] = { ...templates[index], ...body };
@@ -1096,7 +1111,12 @@ Requirements:
 - Colors should match the priority/status when using PRIORITY_COLOR/STATUS_COLOR variables
 - Keep the design simple but professional
 
-Return ONLY the HTML content, no explanations.`
+Return your response as a JSON object with two fields:
+{
+  "subject": "A short, descriptive subject line using [VARIABLES]",
+  "body": "The HTML email body content"
+}
+Return ONLY valid JSON, no explanations or markdown.`
       : `You are an expert at designing IT service management automation rules. Generate auto-reply rules with conditions and email content.
 
 Available variables for email content (use [VARIABLE_NAME] syntax):
@@ -1168,19 +1188,18 @@ Return ONLY valid JSON, no explanations or markdown.`;
       return reply.status(502).send({ error: 'AI returned empty response' });
     }
 
-    if (body.type === 'email_template') {
-      return reply.send({
-        data: {
-          name: '',
-          subject: '',
-          body: aiContent,
-        },
-      });
-    }
-
-    // Auto-reply rule: parse JSON from AI response
+    // Parse JSON from AI response
     try {
       const parsed = JSON.parse(aiContent);
+      if (body.type === 'email_template') {
+        return reply.send({
+          data: {
+            name: parsed.name || '',
+            subject: parsed.subject || '',
+            body: parsed.body || '',
+          },
+        });
+      }
       return reply.send({
         data: {
           name: parsed.name || '',
@@ -1198,6 +1217,15 @@ Return ONLY valid JSON, no explanations or markdown.`;
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
+          if (body.type === 'email_template') {
+            return reply.send({
+              data: {
+                name: parsed.name || '',
+                subject: parsed.subject || '',
+                body: parsed.body || '',
+              },
+            });
+          }
           return reply.send({
             data: {
               name: parsed.name || '',
@@ -1210,10 +1238,12 @@ Return ONLY valid JSON, no explanations or markdown.`;
             },
           });
         } catch {
-          return reply.status(502).send({ error: 'AI returned invalid JSON for auto-reply rule. Please try again or refine your prompt.' });
+          const label = body.type === 'email_template' ? 'email template' : 'auto-reply rule';
+          return reply.status(502).send({ error: `AI returned invalid JSON for ${label}. Please try again or refine your prompt.` });
         }
       }
-      return reply.status(502).send({ error: 'AI returned invalid JSON for auto-reply rule. Please try again or refine your prompt.' });
+      const label = body.type === 'email_template' ? 'email template' : 'auto-reply rule';
+      return reply.status(502).send({ error: `AI returned invalid JSON for ${label}. Please try again or refine your prompt.` });
     }
   });
 

@@ -138,7 +138,7 @@ export function UserTicketView({
                       {t.assigned_to_name ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {t.assigned_to_avatar ? (
-                            <img src={t.assigned_to_avatar} alt="" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
+                            <img src={t.assigned_to_avatar} alt="" width={32} height={32} loading="lazy" style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ width: 20, height: 20, borderRadius: '50%', background: `hsl(${(t.assigned_to_name.charCodeAt(0) * 37) % 360}, 55%, 45%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                               {t.assigned_to_name[0].toUpperCase()}

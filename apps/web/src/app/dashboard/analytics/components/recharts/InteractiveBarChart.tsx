@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback, useState } from 'react';
+import React, { memo, useRef, useCallback, useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -25,7 +25,9 @@ export interface BarChartDatum {
 }
 
 export interface BarChartProps {
-  data: BarChartDatum[];
+  /** When `series` is provided, data items can be any object with a `name` + numeric dataKeys;
+   *  otherwise, use `BarChartDatum` ({ name, value, color? }). */
+  data: BarChartDatum[] | Record<string, any>[];
   /** Bar color (default: var(--accent)) */
   color?: string;
   /** Per-bar coloring */
@@ -288,4 +290,4 @@ const InteractiveBarChart: React.FC<BarChartProps> = ({
   );
 };
 
-export default InteractiveBarChart;
+export default memo(InteractiveBarChart);

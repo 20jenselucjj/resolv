@@ -314,7 +314,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
       await client.query('BEGIN');
 
       // Get current change
-      const current = await client.query('SELECT * FROM changes WHERE id = $1', [id]);
+      const current = await client.query('SELECT id, number, title, description, change_type, status, priority, risk_level, impact, risk_assessment, implementation_plan, rollback_plan, test_results, scheduled_start, scheduled_end, actual_start, actual_end, category_id, assigned_to_id, requested_by_id, approval_id, ticket_id, assets_affected, services_affected, outage_required, outage_description, cab_notes, post_implementation_review, created_at, updated_at FROM changes WHERE id = $1', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });
@@ -497,7 +497,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM changes WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, status, change_type, number, title, description, priority, assigned_to_id FROM changes WHERE id = $1 FOR UPDATE', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });
@@ -606,7 +606,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM changes WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, status, ticket_id, title, number, description, priority, assigned_to_id FROM changes WHERE id = $1 FOR UPDATE', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });
@@ -678,7 +678,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM changes WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, status FROM changes WHERE id = $1 FOR UPDATE', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });
@@ -734,7 +734,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM changes WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, status FROM changes WHERE id = $1 FOR UPDATE', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });
@@ -791,7 +791,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM changes WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, status FROM changes WHERE id = $1 FOR UPDATE', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });
@@ -848,7 +848,7 @@ export default async function changeRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM changes WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, status FROM changes WHERE id = $1 FOR UPDATE', [id]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Change not found' });

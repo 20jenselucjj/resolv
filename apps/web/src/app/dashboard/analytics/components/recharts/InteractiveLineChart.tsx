@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { memo, useRef, useCallback } from 'react';
 import {
   LineChart,
   Line,
@@ -254,4 +254,4 @@ const InteractiveLineChart: React.FC<InteractiveLineChartProps> = ({
   );
 };
 
-export default InteractiveLineChart;
+export default memo(InteractiveLineChart);

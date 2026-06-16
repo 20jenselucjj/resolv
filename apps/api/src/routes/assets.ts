@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db/pool';
+import { getCached, setCache } from '../lib/cache';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
@@ -356,9 +357,14 @@ export default async function assetRoutes(fastify: FastifyInstance) {
   // ─── Agent Download ─────────────────────────────────────────────────────────
 
   fastify.get('/assets/agent/download', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    // Fetch agent secret from settings
-    const secretResult = await pool.query(`SELECT value FROM system_settings WHERE key='agent_secret_key'`);
-    const agentSecret = secretResult.rows[0]?.value || '';
+    // Fetch agent secret from settings (cached)
+    const cacheKey = 'system_settings:agent_secret_key';
+    let agentSecret = getCached<string>(cacheKey);
+    if (!agentSecret) {
+      const secretResult = await pool.query(`SELECT value FROM system_settings WHERE key='agent_secret_key'`);
+      agentSecret = secretResult.rows[0]?.value || '';
+      setCache(cacheKey, agentSecret, 300000);
+    }
 
     // Determine server URL from request (the API server URL agents will call)
     const proto = (request.headers['x-forwarded-proto'] as string) || 'http';
@@ -774,9 +780,14 @@ export default async function assetRoutes(fastify: FastifyInstance) {
   fastify.post('/assets/agent/register', async (request, reply) => {
     const body = agentRegisterSchema.parse(request.body);
 
-    // Verify agent secret matches system setting
-    const secretResult = await pool.query(`SELECT value FROM system_settings WHERE key='agent_secret_key'`);
-    const agentSecret = secretResult.rows[0]?.value;
+    // Verify agent secret matches system setting (cached)
+    const cacheKey = 'system_settings:agent_secret_key';
+    let agentSecret = getCached<string>(cacheKey);
+    if (!agentSecret) {
+      const secretResult = await pool.query(`SELECT value FROM system_settings WHERE key='agent_secret_key'`);
+      agentSecret = secretResult.rows[0]?.value || '';
+      setCache(cacheKey, agentSecret, 300000);
+    }
     if (!agentSecret || agentSecret !== body.agent_secret) {
       return reply.status(401).send({ error: 'Invalid agent secret' });
     }
@@ -1003,30 +1014,40 @@ export default async function assetRoutes(fastify: FastifyInstance) {
     // Replace network adapters
     if (network_adapters) {
       await pool.query(`DELETE FROM asset_network_adapters WHERE asset_id=$1`, [assetId]);
-      for (const adapter of network_adapters) {
-        await pool.query(`
-          INSERT INTO asset_network_adapters (asset_id, adapter_name, ip_address, mac_address, subnet_mask, gateway, adapter_type, speed_mbps, is_virtual, is_active)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-        `, [
+      if (network_adapters.length > 0) {
+        const naRows = network_adapters.map((_, idx) => {
+          const base = idx * 10;
+          return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10})`;
+        });
+        const naVals = network_adapters.flatMap(adapter => [
           assetId, adapter.iface || 'unknown', adapter.ip4 || null, adapter.mac || null,
           adapter.netmask || null, adapter.gateway || null,
           adapter.type || null, adapter.speed || null,
           adapter.virtual || false, adapter.operstate === 'up',
         ]);
+        await pool.query(
+          `INSERT INTO asset_network_adapters (asset_id, adapter_name, ip_address, mac_address, subnet_mask, gateway, adapter_type, speed_mbps, is_virtual, is_active) VALUES ${naRows.join(', ')}`,
+          naVals
+        );
       }
     }
 
     // Replace USB devices
     if (usb_devices) {
       await pool.query(`DELETE FROM asset_usb_devices WHERE asset_id=$1`, [assetId]);
-      for (const usb of usb_devices) {
-        await pool.query(`
-          INSERT INTO asset_usb_devices (asset_id, device_name, manufacturer, serial, device_type, device_id)
-          VALUES ($1,$2,$3,$4,$5,$6)
-        `, [
+      if (usb_devices.length > 0) {
+        const usbRows = usb_devices.map((_, idx) => {
+          const base = idx * 6;
+          return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6})`;
+        });
+        const usbVals = usb_devices.flatMap(usb => [
           assetId, usb.name || null, usb.manufacturer || null, usb.serial || null,
           usb.type || null, usb.device_id || null,
         ]);
+        await pool.query(
+          `INSERT INTO asset_usb_devices (asset_id, device_name, manufacturer, serial, device_type, device_id) VALUES ${usbRows.join(', ')}`,
+          usbVals
+        );
       }
     }
 
@@ -1450,6 +1471,10 @@ export default async function assetRoutes(fastify: FastifyInstance) {
   // Get assets used by a specific user (based on matched user sessions)
   fastify.get('/users/:id/assets', { preHandler: [fastify.authenticate] }, async (request: any, reply) => {
     const { id } = request.params;
+    const { limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
     const result = await pool.query(`
       SELECT DISTINCT a.id, a.name, a.hostname, a.asset_type, a.agent_status, a.agent_last_seen,
         au.username as last_username, au.logged_in_at as last_seen_at
@@ -1457,7 +1482,8 @@ export default async function assetRoutes(fastify: FastifyInstance) {
       JOIN assets a ON au.asset_id = a.id
       WHERE au.user_id = $1
       ORDER BY au.logged_in_at DESC
-    `, [id]);
+      LIMIT $2 OFFSET $3
+    `, [id, limit, offset]);
     return reply.send({ data: result.rows });
   });
 }

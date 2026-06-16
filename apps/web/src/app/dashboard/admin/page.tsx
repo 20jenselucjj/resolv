@@ -14,7 +14,7 @@ import {
   AlertTriangle, Hash, Trash,
   Shield, Monitor, Download, GitBranch, Cloud, Package,
   KeyRound, Bell, ClipboardList, ShieldAlert, Radio,
-  Bug, Wrench, CheckSquare, CalendarDays
+  Bug, Wrench, CheckSquare, CalendarDays, Menu
 } from 'lucide-react';
 import { DirectorySyncTab } from './DirectorySyncTab';
 import {
@@ -114,8 +114,24 @@ export default function AdminPage() {
   const [auditTotal, setAuditTotal] = useState(0);
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
 
-  // Sidebar Search
+  // Sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const isBrowser = typeof window !== 'undefined';
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Auto-close sidebar on narrow screens
+  useEffect(() => {
+    const check = () => {
+      const narrow = window.innerWidth <= 900;
+      setIsMobile(narrow);
+      if (narrow) setSidebarOpen(false);
+      else setSidebarOpen(true);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // System Health Status
   const [healthStatus, setHealthStatus] = useState({ api: true, db: true, email: true });
@@ -365,12 +381,26 @@ export default function AdminPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', background: 'var(--bg)', position: 'relative' }}>
+      {/* Mobile overlay backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.3)',
+          }}
+        />
+      )}
       {/* Sidebar */}
       <div style={{
-        width: '240px', flexShrink: 0, height: '100%', overflowY: 'auto',
+        width: '240px', height: '100%', overflowY: 'auto',
         background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column',
+        flexShrink: isMobile ? 0 : undefined,
+        position: isMobile ? 'fixed' as const : 'static' as const,
+        zIndex: 50, left: 0, top: 0,
+        transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+        transition: 'transform 0.25s ease',
       }}>
         {/* App Title & Search Area */}
         <div style={{ padding: '20px 16px 12px' }}>
@@ -489,13 +519,28 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <header style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-0.02em' }}>
-            {activeNavItem?.label || 'Admin Control Panel'}
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginTop: '4px' }}>
-            {getTabSubtitle(activeTab)}
-          </p>
+        <header style={{ marginBottom: '32px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {isMobile && (
+            <button
+              onClick={() => setSidebarOpen(v => !v)}
+              style={{
+                width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                color: 'var(--text)', cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Menu size={18} />
+            </button>
+          )}
+          <div style={{ flex: 1 }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)', margin: 0, letterSpacing: '-0.02em' }}>
+              {activeNavItem?.label || 'Admin Control Panel'}
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginTop: '4px', margin: '4px 0 0' }}>
+              {getTabSubtitle(activeTab)}
+            </p>
+          </div>
         </header>
 
         <div style={{ position: 'relative', minHeight: '400px' }}>

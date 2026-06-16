@@ -959,6 +959,9 @@ export default function ArticleDetailPage() {
                           <img
                             src={att.viewUrl}
                             alt={att.filename}
+                            width={800}
+                            height={450}
+                            loading="lazy"
                             style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, cursor: 'pointer' }}
                             onClick={() => { setPreviewUrl(att.viewUrl); setPreviewType(att.mime_type); }}
                           />
@@ -1038,6 +1041,9 @@ export default function ArticleDetailPage() {
                     <img
                       src={previewUrl}
                       alt="Preview"
+                      width={800}
+                      height={450}
+                      loading="lazy"
                       style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8 }}
                       onClick={e => e.stopPropagation()}
                     />

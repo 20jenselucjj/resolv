@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useId } from 'react';
+import React, { memo, useId } from 'react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import { cssVar } from '../../components/recharts/export-utils';
 import PinButton from '../../components/shared/PinButton';
@@ -271,4 +271,4 @@ const KPITile: React.FC<KPITileProps> = ({
   );
 };
 
-export default KPITile;
+export default memo(KPITile);

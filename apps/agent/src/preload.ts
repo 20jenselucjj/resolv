@@ -6,10 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getStatus: () => ipcRenderer.invoke('get-status'),
   forceCheckin: () => ipcRenderer.invoke('force-checkin'),
   onStatusUpdate: (callback: (status: any) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-    ipcRenderer.on('status-update', handler);
-    return () => {
-      ipcRenderer.removeListener('status-update', handler);
-    };
+    // Remove any existing listener first to prevent listener leaks
+    ipcRenderer.removeAllListeners('status-update');
+    ipcRenderer.on('status-update', (_event: Electron.IpcRendererEvent, data: any) => callback(data));
   },
 });

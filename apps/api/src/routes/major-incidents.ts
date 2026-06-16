@@ -267,7 +267,7 @@ export default async function majorIncidentRoutes(fastify: FastifyInstance) {
       await client.query('BEGIN');
 
       // Get current major incident
-      const current = await client.query('SELECT * FROM major_incidents WHERE ticket_id = $1', [ticketId]);
+      const current = await client.query('SELECT ticket_id, status, incident_commander_id, bridge_url, bridge_conference, bridge_slack_channel, declaration_time, resolved_time, services_affected, comms_template, pir_completed, pir_notes, created_at, updated_at FROM major_incidents WHERE ticket_id = $1', [ticketId]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Major incident not found' });
@@ -438,7 +438,7 @@ export default async function majorIncidentRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM major_incidents WHERE ticket_id = $1 FOR UPDATE', [ticketId]);
+      const current = await client.query('SELECT ticket_id FROM major_incidents WHERE ticket_id = $1 FOR UPDATE', [ticketId]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Major incident not found' });
@@ -482,7 +482,7 @@ export default async function majorIncidentRoutes(fastify: FastifyInstance) {
     try {
       await client.query('BEGIN');
 
-      const current = await client.query('SELECT * FROM major_incidents WHERE ticket_id = $1 FOR UPDATE', [ticketId]);
+      const current = await client.query('SELECT ticket_id, status FROM major_incidents WHERE ticket_id = $1 FOR UPDATE', [ticketId]);
       if (current.rows.length === 0) {
         await client.query('ROLLBACK');
         return reply.status(404).send({ error: 'Major incident not found' });

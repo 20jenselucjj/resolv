@@ -43,8 +43,13 @@ export default async function emailAccountRoutes(fastify: FastifyInstance) {
 
   // ─── GET /email-accounts — List all email accounts ─────────────────────
   fastify.get('/email-accounts', { preHandler: [fastify.requirePermission('manage_settings')] }, async (request, reply) => {
+    const { limit: queryLimit, offset: queryOffset } = request.query as any;
+    const limit = Math.min(Math.abs(parseInt(queryLimit as string, 10) || 50), 100);
+    const offset = Math.max(parseInt(queryOffset as string, 10) || 0, 0);
+
     const result = await pool.query(
-      'SELECT * FROM email_accounts ORDER BY is_default DESC, created_at DESC'
+      'SELECT * FROM email_accounts ORDER BY is_default DESC, created_at DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
     );
     return reply.send({ data: result.rows.map(sanitizeAccount) });
   });

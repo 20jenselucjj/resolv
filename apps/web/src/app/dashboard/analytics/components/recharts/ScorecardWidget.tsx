@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useId } from 'react';
+import React, { memo, useId } from 'react';
 import { cssVar } from './export-utils';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import PinButton from '../shared/PinButton';
@@ -261,4 +261,4 @@ const ScorecardWidget: React.FC<ScorecardWidgetProps> = ({
   );
 };
 
-export default ScorecardWidget;
+export default memo(ScorecardWidget);

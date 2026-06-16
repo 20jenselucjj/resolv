@@ -357,7 +357,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   fastify.get('/webhooks/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
-    const result = await pool.query('SELECT * FROM webhook_configs WHERE id = $1', [id]);
+    const result = await pool.query('SELECT id, name, url, secret, events, is_active, retry_count, timeout_seconds, created_by, created_at, updated_at FROM webhook_configs WHERE id = $1', [id]);
     if (result.rows.length === 0) {
       return reply.status(404).send({ error: 'Webhook not found' });
     }
@@ -375,7 +375,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     const body = updateWebhookSchema.parse(request.body);
 
     // Check existence
-    const existing = await pool.query('SELECT * FROM webhook_configs WHERE id = $1', [id]);
+    const existing = await pool.query('SELECT id FROM webhook_configs WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return reply.status(404).send({ error: 'Webhook not found' });
     }
@@ -401,7 +401,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const result = await pool.query('SELECT * FROM webhook_configs WHERE id = $1', [id]);
+    const result = await pool.query('SELECT id, name, url, secret, events, is_active, retry_count, timeout_seconds, created_by, created_at, updated_at FROM webhook_configs WHERE id = $1', [id]);
     return reply.send({ data: result.rows[0] });
   });
 
@@ -429,7 +429,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
-    const webhookResult = await pool.query('SELECT * FROM webhook_configs WHERE id = $1', [id]);
+    const webhookResult = await pool.query('SELECT id, url, secret, timeout_seconds FROM webhook_configs WHERE id = $1', [id]);
     if (webhookResult.rows.length === 0) {
       return reply.status(404).send({ error: 'Webhook not found' });
     }
