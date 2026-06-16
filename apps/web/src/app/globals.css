@@ -6,124 +6,29 @@
    ============================================================ */
 
 :root {
-  /* Surface */
-  --bg:            #ffffff;
-  --bg-secondary:  #f7f8fa;
-  --bg-tertiary:   #eef0f3;
-  --bg-elevated:   #ffffff;
-  --bg-overlay:    rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+
+  /* Surface — Premium Enterprise Dark with cool-blue undertones
+     Inspired by Linear: deeper base, layered elevations with
+     progressive blue shift for atmospheric depth */
+  --bg:            #0d1117;
+  --bg-secondary:  #151c24;
+  --bg-tertiary:   #1c2533;
+  --bg-elevated:   #212b3d;
+  --bg-overlay:    rgba(0, 0, 0, 0.75);
 
   /* Borders */
-  --border:        #dde1e7;
-  --border-subtle: #eef0f3;
-  --border-strong: #c1c7d0;
+  --border:        #2d3648;
+  --border-subtle: #1e2638;
+  --border-strong: #3b475e;
 
   /* Text */
-  --text:          #1F2937;
-  --text-secondary:#4B5563;
-  --text-muted:    #9CA3AF;
-  --text-inverse:  #ffffff;
+  --text:          #e1e6ef;
+  --text-secondary:#9aa8be;
+  --text-muted:    #5e6d85;
+  --text-inverse:  #0d1117;
 
-  /* Trust Blue Brand */
-  --accent:        #1E40AF;   /* Trust Blue */
-  --accent-mid:    #3B82F6;   /* Stability Azure */
-  --accent-light:  #06B6D4;   /* Efficiency Cyan */
-  --accent-hover:  #1e3a8a;   /* darker Trust Blue */
-  --accent-subtle: #eff6ff;   /* very light blue */
-  --accent-border: #bfdbfe;   /* light blue border */
-  --accent-rgb:    30, 64, 175;
-
-  /* Semantic */
-  --success:       #10B981;
-  --success-bg:    #d1fae5;
-  --success-border:#6ee7b7;
-
-  --warning:       #F59E0B;
-  --warning-bg:    #fef3c7;
-  --warning-border:#fcd34d;
-
-  --danger:        #EF4444;
-  --danger-bg:     #fee2e2;
-  --danger-border: #fca5a5;
-
-  --critical:      #DC2626;
-  --critical-bg:   #fee2e2;
-  --critical-border:#f87171;
-
-  --info:          #3B82F6;
-  --info-bg:       #eff6ff;
-  --info-border:   #bfdbfe;
-
-  /* Priority dot colors */
-  --priority-low:      #10B981;
-  --priority-medium:   #F59E0B;
-  --priority-high:     #EF4444;
-  --priority-critical: #DC2626;
-
-  /* Shadows */
-  --shadow-sm:  0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
-  --shadow-md:  0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
-  --shadow-lg:  0 10px 25px rgba(0,0,0,0.10), 0 4px 10px rgba(0,0,0,0.06);
-  --shadow-xl:  0 20px 50px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.08);
-
-  /* Radius */
-  --radius-sm:  4px;
-  --radius-md:  8px;
-  --radius-lg:  12px;
-  --radius-xl:  16px;
-  --radius-full:9999px;
-
-  /* Transitions */
-  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* Sidebar */
-  --sidebar-width: 224px;
-  --sidebar-collapsed: 56px;
-
-  /* Aliases for components using different naming */
-  --card: var(--bg-secondary);
-  --background: var(--bg);
-  --foreground: var(--text);
-  --muted: var(--text-muted);
-
-  /* RGB equivalents for rgba() usage in components */
-  --success-rgb: 31, 132, 90;
-  --danger-rgb: 201, 55, 44;
-  --warning-rgb: 180, 83, 9;
-  --critical-rgb: 174, 42, 25;
-  --info-rgb: 0, 85, 204;
-  --bg-secondary-rgb: 247, 248, 250;
-
-  /* Purple (for Change ticket type) */
-  --purple: #7c3aed;
-  --purple-bg: #ede9fe;
-  --purple-border: #c4b5fd;
-
-  /* Fix for --radius references */
-  --radius: var(--radius-md);
-}
-
-.dark {
-  /* Surface */
-  --bg:            #161a1d;
-  --bg-secondary:  #1d2125;
-  --bg-tertiary:   #22272b;
-  --bg-elevated:   #282e33;
-  --bg-overlay:    rgba(0, 0, 0, 0.65);
-
-  /* Borders */
-  --border:        #2c333a;
-  --border-subtle: #22272b;
-  --border-strong: #454f59;
-
-  /* Text */
-  --text:          #c7d1db;
-  --text-secondary:#8c9bab;
-  --text-muted:    #596773;
-  --text-inverse:  #1d2125;
-
-  /* Trust Blue Brand - dark mode */
+  /* Trust Blue Brand — electric blue + cyan */
   --accent:        #3B82F6;
   --accent-mid:    #60A5FA;
   --accent-light:  #22D3EE;
@@ -132,7 +37,7 @@
   --accent-border: #1d4ed8;
   --accent-rgb:    59, 130, 246;
 
-  /* Semantic */
+  /* Semantic colors */
   --success:       #4bce97;
   --success-bg:    #1c3d2e;
   --success-border:#216e4e;
@@ -143,7 +48,7 @@
 
   --danger:        #f87168;
   --danger-bg:     #42221f;
-  --danger-border: #ae2a19;
+  --danger-border:#ae2a19;
 
   --critical:      #fd9891;
   --critical-bg:   #42221f;
@@ -159,24 +64,58 @@
   --priority-high:     #f87168;
   --priority-critical: #fd9891;
 
-  /* Shadows */
-  --shadow-sm:  0 1px 2px rgba(0,0,0,0.3);
-  --shadow-md:  0 4px 6px rgba(0,0,0,0.4);
-  --shadow-lg:  0 10px 25px rgba(0,0,0,0.5);
-  --shadow-xl:  0 20px 50px rgba(0,0,0,0.6);
+  /* Shadows — with subtle accent-colored hue for premium glow */
+  --shadow-sm:  0 1px 2px rgba(59,130,246,0.08), 0 1px 3px rgba(0,0,0,0.30);
+  --shadow-md:  0 4px 6px rgba(59,130,246,0.06), 0 2px 4px rgba(0,0,0,0.40);
+  --shadow-lg:  0 10px 25px rgba(59,130,246,0.05), 0 4px 10px rgba(0,0,0,0.50);
+  --shadow-xl:  0 20px 50px rgba(59,130,246,0.04), 0 8px 20px rgba(0,0,0,0.60);
 
-  /* RGB equivalents for dark mode */
+  /* Radius */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-full:9999px;
+
+  /* Transitions */
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Sidebar — fits into the dark theme */
+  --sidebar-width: 224px;
+  --sidebar-collapsed: 56px;
+  --sidebar-bg: #0d1117;
+  --sidebar-text: #e1e6ef;
+  --sidebar-text-secondary: rgba(225,230,239,0.65);
+  --sidebar-text-muted: rgba(225,230,239,0.40);
+  --sidebar-active-bg: rgba(59,130,246,0.15);
+  --sidebar-hover-bg: rgba(255,255,255,0.05);
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-accent: var(--accent);
+  --sidebar-btn-bg: #1a2332;
+  --sidebar-btn-text: var(--accent);
+
+  /* Aliases for components using different naming */
+  --card: var(--bg-secondary);
+  --background: var(--bg);
+  --foreground: var(--text);
+  --muted: var(--text-muted);
+
+  /* RGB equivalents for rgba() usage in components */
   --success-rgb: 75, 206, 151;
   --danger-rgb: 248, 113, 104;
   --warning-rgb: 245, 205, 71;
   --critical-rgb: 253, 152, 145;
   --info-rgb: 87, 157, 255;
-  --bg-secondary-rgb: 29, 33, 37;
+  --bg-secondary-rgb: 21, 28, 36;
 
-  /* Purple (for Change ticket type) - dark */
+  /* Purple (for Change ticket type) */
   --purple: #a78bfa;
   --purple-bg: #2e1065;
   --purple-border: #4c1d95;
+
+  /* Fix for --radius references */
+  --radius: var(--radius-md);
 }
 
 /* ============================================================
@@ -208,11 +147,6 @@ body {
    SCROLLBARS
    ============================================================ */
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
-::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
-
 /* ============================================================
    FOCUS STYLES
    ============================================================ */
@@ -220,7 +154,128 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent),
+              0 0 24px color-mix(in srgb, var(--accent-light) 20%, transparent);
   border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   DARK MODE ATMOSPHERE
+   ============================================================ */
+
+/* --- Noise/Grain Texture Overlay ---
+     Adds a subtle film grain to create atmosphere —
+     like Linear's signature textured surfaces */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* --- Scrollbar refinement for dark surfaces --- */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.20);
+}
+
+/* --- Card hover glow --- */
+.card,
+.metric-card,
+.catalog-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card:hover,
+.metric-card:hover,
+.catalog-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent),
+              0 4px 16px rgba(59, 130, 246, 0.08);
+}
+
+/* --- Glow keyframe for accent elements --- */
+@keyframes glow-soft {
+  0%, 100% {
+    box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent),
+                0 0 12px color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent),
+                0 0 24px color-mix(in srgb, var(--accent) 20%, transparent),
+                0 0 48px color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+}
+
+@keyframes glow-accent {
+  0%, 100% {
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-light) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent-light) 50%, transparent),
+                0 0 30px color-mix(in srgb, var(--accent-light) 20%, transparent);
+  }
+}
+
+.animate-glow-soft { animation: glow-soft 3s ease-in-out infinite; }
+.animate-glow-accent { animation: glow-accent 2.5s ease-in-out infinite; }
+
+/* ============================================================
+   SIDEBAR — Variables set in :root above
+   ============================================================ */
+
+/* Sidebar base uses --sidebar-bg which changes per theme */
+.sidebar {
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+}
+
+/* Sidebar nav link active/hover states */
+.sidebar-nav-link {
+  color: var(--sidebar-text-secondary);
+  background: transparent;
+  transition: all var(--transition);
+}
+.sidebar-nav-link:hover {
+  background: var(--sidebar-hover-bg);
+  color: var(--sidebar-text);
+}
+.sidebar-nav-link.active {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-text);
+}
+
+/* Sidebar section header */
+.sidebar-section-title {
+  color: var(--sidebar-text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 8px 8px 3px;
+  user-select: none;
+}
+
+/* Sidebar bottom utility buttons */
+.sidebar-icon-btn {
+  color: var(--sidebar-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition: all var(--transition);
+}
+.sidebar-icon-btn:hover {
+  color: var(--sidebar-text);
+  background: var(--sidebar-hover-bg);
 }
 
 /* ============================================================
@@ -633,10 +688,7 @@ kbd {
 .badge-incident       { background: var(--danger-bg);   color: var(--danger);   border: 1px solid var(--danger-border); }
 .badge-service-request{ background: var(--info-bg);     color: var(--info);     border: 1px solid var(--info-border); }
 .badge-problem        { background: var(--warning-bg);  color: var(--warning);  border: 1px solid var(--warning-border); }
-.badge-change         { background: #ede9fe;             color: #7c3aed;         border: 1px solid #c4b5fd; }
-
-/* Dark mode overrides for change badge */
-.dark .badge-change   { background: #2e1065;             color: #a78bfa;         border: 1px solid #4c1d95; }
+.badge-change         { background: #2e1065;             color: #a78bfa;         border: 1px solid #4c1d95; }
 
 /* SLA Progress Bar */
 .sla-bar {

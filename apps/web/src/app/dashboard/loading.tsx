@@ -3,7 +3,7 @@ export default function DashboardLoading() {
     <div style={{ display: 'flex', height: '100vh', background: 'var(--bg)' }}>
       {/* Sidebar skeleton */}
       <div style={{
-        width: 224, minWidth: 224, background: '#1E40AF',
+        width: 224, minWidth: 224, background: 'var(--sidebar-bg)',
         display: 'flex', flexDirection: 'column', gap: 12, padding: 16,
       }}>
         <div className="skeleton" style={{ height: 40, width: 120, margin: '0 auto' }} />

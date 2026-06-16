@@ -121,8 +121,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
   const asideStyle: React.CSSProperties = isMobile ? {
     width: '224px',
     minWidth: '224px',
-    background: '#1E40AF',
-    borderRight: '1px solid rgba(255,255,255,0.15)',
+    background: 'var(--sidebar-bg)',
+    borderRight: '1px solid var(--sidebar-border)',
     display: 'flex',
     flexDirection: 'column',
     height: '100vh',
@@ -136,8 +136,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
   } : {
     width: w,
     minWidth: w,
-    background: '#1E40AF',
-    borderRight: '1px solid rgba(255,255,255,0.15)',
+    background: 'var(--sidebar-bg)',
+    borderRight: '1px solid var(--sidebar-border)',
     display: 'flex',
     flexDirection: 'column',
     height: '100vh',
@@ -177,16 +177,16 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
             transform: 'translateY(-50%)',
             width: 24,
             height: 24,
-            background: 'white',
-            border: '1px solid var(--border)',
+            background: 'var(--sidebar-btn-bg)',
+            border: '1px solid var(--sidebar-border)',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
             zIndex: 20,
-            color: '#1E40AF',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            color: 'var(--sidebar-accent)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
           }}
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -210,7 +210,7 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
           alignItems: 'center',
           justifyContent: 'center',
           padding: isMobileCollapsed ? '0 8px' : '0 14px',
-          borderBottom: '3px solid rgba(255,255,255,0.15)',
+          borderBottom: '3px solid var(--sidebar-border)',
           overflow: 'hidden',
         }}>
           <Image
@@ -262,8 +262,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
               <button onClick={() => { onNewTicket?.(); onMobileClose?.(); }} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '7px 10px',
-                background: 'white',
-                color: '#1E40AF',
+                background: 'var(--sidebar-btn-bg)',
+                color: 'var(--sidebar-btn-text)',
                 borderRadius: 'var(--radius-md)',
                 textDecoration: 'none',
                 fontSize: 13,
@@ -273,8 +273,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 cursor: 'pointer',
                 width: '100%',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.9)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--sidebar-btn-bg) 90%, white)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--sidebar-btn-bg)')}
               >
                 <Plus size={14} />
                 New Ticket
@@ -308,16 +308,16 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
               <button onClick={() => { onNewTicket?.(); onMobileClose?.(); }} data-tooltip="New Ticket" style={{
                 width: 34, height: 34,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'white',
-                color: '#1E40AF',
+                background: 'var(--sidebar-btn-bg)',
+                color: 'var(--sidebar-btn-text)',
                 borderRadius: 'var(--radius-md)',
                 textDecoration: 'none',
                 transition: 'background var(--transition)',
                 border: 'none',
                 cursor: 'pointer',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.9)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--sidebar-btn-bg) 90%, white)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--sidebar-btn-bg)')}
               >
                 <Plus size={15} />
               </button>
@@ -330,7 +330,7 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
           {filteredSections.map((section, si) => (
             <div key={section.title} style={{ marginBottom: si < filteredSections.length - 1 ? 6 : 0 }}>
               {!isMobileCollapsed && (
-                <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '8px 8px 3px', userSelect: 'none' }}>
+                <div className="sidebar-section-title">
                   {section.title}
                 </div>
               )}
@@ -349,8 +349,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                       padding: isMobileCollapsed ? '9px' : '7px 9px',
                       borderRadius: 'var(--radius-md)',
                       textDecoration: 'none',
-                      color: active ? 'white' : 'rgba(255,255,255,0.7)',
-                      background: active ? 'rgba(255,255,255,0.2)' : 'transparent',
+                      color: active ? 'var(--sidebar-text)' : 'var(--sidebar-text-secondary)',
+                      background: active ? 'var(--sidebar-active-bg)' : 'transparent',
                       fontWeight: active ? 600 : 400,
                       fontSize: 13,
                       marginBottom: 1,
@@ -360,19 +360,19 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                       whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={(e) => {
-                      if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                      if (!active) e.currentTarget.style.color = 'white';
+                      if (!active) e.currentTarget.style.background = 'var(--sidebar-hover-bg)';
+                      if (!active) e.currentTarget.style.color = 'var(--sidebar-text)';
                     }}
                     onMouseLeave={(e) => {
                       if (!active) e.currentTarget.style.background = 'transparent';
-                      if (!active) e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
+                      if (!active) e.currentTarget.style.color = 'var(--sidebar-text-secondary)';
                     }}
                   >
                     {active && (
                       <div style={{
                         position: 'absolute', left: 0, top: '20%', bottom: '20%',
                         width: 3, borderRadius: '0 2px 2px 0',
-                        background: 'white',
+                        background: 'var(--sidebar-accent)',
                       }} />
                     )}
                     <Icon size={15} style={{ flexShrink: 0 }} />
@@ -392,7 +392,7 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
 
         {/* Bottom section */}
         <div style={{
-          borderTop: '1px solid rgba(255,255,255,0.15)',
+          borderTop: '1px solid var(--sidebar-border)',
           padding: '8px',
           display: 'flex',
           flexDirection: 'column',
@@ -416,8 +416,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'white'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <LayoutGrid size={13} style={{ flexShrink: 0 }} />
                 {!isMobileCollapsed && <span style={{ fontSize: 12, fontWeight: 500 }}>Self Service</span>}
@@ -430,8 +430,8 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 onNotificationsOpen?.();
                 onMobileClose?.();
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'white'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'transparent'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
             >
               <Bell size={13} />
               {unreadCount > 0 && (
@@ -450,7 +450,7 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                   alignItems: 'center',
                   justifyContent: 'center',
                   padding: '0 4px',
-                  border: '2px solid #1E40AF',
+                  border: '2px solid var(--sidebar-bg)',
                 }}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
@@ -464,13 +464,12 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
                 }}
                 data-tooltip="Settings"
                 style={{ ...iconBtnStyle }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'white'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sidebar-text)'; e.currentTarget.style.background = 'var(--sidebar-hover-bg)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sidebar-text-muted)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 <Settings size={13} style={{ flexShrink: 0 }} />
               </button>
             )}
-
           </div>
 
           {/* User row */}
@@ -485,21 +484,21 @@ export function Sidebar({ onAiOpen, onNewTicket, onNotificationsOpen, mobileOpen
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
+                background: 'var(--sidebar-active-bg)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700, color: 'white',
+                fontSize: 11, fontWeight: 700, color: 'var(--sidebar-text)',
                 flexShrink: 0,
-                border: '2px solid rgba(255,255,255,0.3)',
+                border: '2px solid var(--sidebar-text-muted)',
               }}>
                 {user.name[0].toUpperCase()}
               </div>
               {!isMobileCollapsed && (
                 <>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sidebar-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {user.name}
                     </div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <div style={{ fontSize: 10, color: 'var(--sidebar-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       {user.role}
                     </div>
                   </div>
@@ -531,7 +530,7 @@ const iconBtnStyle: React.CSSProperties = {
   border: '1px solid transparent',
   borderRadius: 'var(--radius-md)',
   cursor: 'pointer',
-  color: 'rgba(255,255,255,0.6)',
+  color: 'var(--sidebar-text-muted)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
