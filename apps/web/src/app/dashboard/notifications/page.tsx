@@ -13,6 +13,8 @@ import {
   Calendar
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
+import { SkeletonPage } from '@/components/Skeleton';
 import { useStore, Notification } from '@/lib/store';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -31,7 +33,7 @@ export default function NotificationsPage() {
         const res = await api.get<{ data: Notification[] }>('/notifications');
         setNotifications(res.data);
       } catch (error) {
-        console.error('Failed to fetch notifications:', error);
+        toast.error('Failed to fetch notifications', error instanceof Error ? error.message : 'Please try again');
       } finally {
         setLoading(false);
       }
@@ -45,7 +47,7 @@ export default function NotificationsPage() {
       const updated = notifications.map(n => ({ ...n, is_read: true }));
       setNotifications(updated);
     } catch (error) {
-      console.error('Failed to mark all as read:', error);
+      toast.error('Failed to mark all as read', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -60,7 +62,7 @@ export default function NotificationsPage() {
           await api.delete('/notifications');
           setNotifications([]);
         } catch (error) {
-          console.error('Failed to clear notifications:', error);
+          toast.error('Failed to clear notifications', error instanceof Error ? error.message : 'Please try again');
         }
       }
     });
@@ -74,7 +76,7 @@ export default function NotificationsPage() {
         router.push(`/dashboard/tickets/${ticketId}`);
       }
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      toast.error('Failed to mark notification as read', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -84,7 +86,7 @@ export default function NotificationsPage() {
       await api.delete(`/notifications/${id}`);
       setNotifications(notifications.filter(n => n.id !== id));
     } catch (error) {
-      console.error('Failed to delete notification:', error);
+      toast.error('Failed to delete notification', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -244,7 +246,7 @@ export default function NotificationsPage() {
       {/* List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {loading ? (
-          <LoadingSkeleton />
+          <SkeletonPage />
         ) : filteredNotifications.length === 0 ? (
           <div style={{ 
             display: 'flex', 
@@ -449,33 +451,4 @@ export default function NotificationsPage() {
   );
 }
 
-function LoadingSkeleton() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <div key={i} style={{ 
-          padding: '16px', 
-          borderRadius: 'var(--radius-md)', 
-          border: '1px solid var(--border)',
-          backgroundColor: 'var(--bg)',
-          display: 'flex',
-          gap: '16px',
-          animation: 'pulse 2s infinite ease-in-out'
-        }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)' }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ width: '40%', height: '16px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', marginBottom: '8px' }} />
-            <div style={{ width: '90%', height: '14px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', marginBottom: '4px' }} />
-            <div style={{ width: '70%', height: '14px', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)' }} />
-          </div>
-        </div>
-      ))}
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
-    </div>
-  );
-}
+

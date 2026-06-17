@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import type {
   Ticket, AdminStats, TimeSeriesData, AssetStats, KnowledgeStats,
   AIAnalytics, ProblemReportData, ChangeReportData, ApprovalReportData,
@@ -79,7 +80,7 @@ export function useReportData(
       if (rest[3]?.data) setKnowledgeStats(rest[3].data);
       if (rest[4]?.data) setAiAnalytics(rest[4].data);
     } catch (err) {
-      console.error('Failed to fetch report data:', err);
+      toast.error('Failed to load report data', err instanceof Error ? err.message : 'Please try again');
       setError('Failed to load report data. Please try again.');
     } finally {
       setLoading(false);
@@ -100,7 +101,7 @@ export function useReportData(
       );
       if (res?.data) setComparisonData(res.data);
     } catch (err) {
-      console.error('Failed to fetch comparison data:', err);
+      toast.error('Failed to load comparison data', err instanceof Error ? err.message : 'Please try again');
       setComparisonData(null);
     } finally {
       setComparisonLoading(false);
@@ -122,7 +123,7 @@ export function useReportData(
     try {
       const res = await api.get<{ data: SavedReport[] }>('/reports/saved');
       setSavedReports(res.data || []);
-    } catch (err) { console.error('Failed to fetch saved reports:', err); }
+    } catch (err) { toast.error('Failed to load saved reports', err instanceof Error ? err.message : 'Please try again'); }
   }, [isAdminOrAgent]);
 
   const fetchSchedules = useCallback(async () => {
@@ -130,7 +131,7 @@ export function useReportData(
     try {
       const res = await api.get<{ data: ReportSchedule[] }>('/reports/schedules');
       setReportSchedules(res.data || []);
-    } catch (err) { console.error('Failed to fetch schedules:', err); }
+    } catch (err) { toast.error('Failed to load schedules', err instanceof Error ? err.message : 'Please try again'); }
   }, [isAdminOrAgent]);
 
   const fetchMetrics = useCallback(async () => {
@@ -138,7 +139,7 @@ export function useReportData(
     try {
       const res = await api.get<{ data: ReportMetrics }>('/reports/metrics');
       setReportMetrics(res.data);
-    } catch (err) { console.error('Failed to fetch report metrics:', err); }
+    } catch (err) { toast.error('Failed to load report metrics', err instanceof Error ? err.message : 'Please try again'); }
   }, [isAdminOrAgent]);
 
   // Fetch advanced data when related tabs become active

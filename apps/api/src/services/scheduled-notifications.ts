@@ -10,6 +10,7 @@ import { getCached, setCache } from '../lib/cache';
 import { sendTemplateEmail } from './outbound-email';
 import type { TemplateVariables } from './email-template-engine';
 import { fireScheduledWorkflows } from './workflow-engine';
+import { runSlaBreachDetection } from './sla-engine';
 
 let schedulerTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
@@ -405,6 +406,17 @@ async function checkSlaBreaches(config: ScheduleConfig): Promise<void> {
         }
       }
     }
+
+    // Run the proper SLA breach detection engine (marks tickets as breached, business-hours-aware)
+    try {
+      const newBreaches = await runSlaBreachDetection();
+      if (newBreaches.length > 0) {
+        console.log(`[scheduler] SLA breach detection marked ${newBreaches.length} ticket(s) as breached`);
+      }
+    } catch (breachErr: any) {
+      console.error('[scheduler] SLA breach detection engine failed:', breachErr.message);
+    }
+
   } catch (err: any) {
     console.error('[scheduler] SLA breach check failed:', err.message);
   }

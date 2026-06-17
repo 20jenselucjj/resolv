@@ -387,7 +387,9 @@ export default function AdminPage() {
         <div
           onClick={() => setSidebarOpen(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.3)',
+            position: 'fixed', inset: 0, zIndex: 40,
+            background: 'rgba(0,0,0,0.3)',
+            animation: 'fadeIn 200ms ease forwards',
           }}
         />
       )}
@@ -490,9 +492,9 @@ export default function AdminPage() {
       </div>
 
       {/* Right Content Area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 32px 80px', display: 'flex', flexDirection: 'column' }}>
+      <div className="admin-content" style={{ flex: 1, overflowY: 'auto', padding: '32px 32px 80px', display: 'flex', flexDirection: 'column' }}>
         {/* System Health Widget at Top */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+        <div className="admin-health-widget" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
           <div style={{
             display: 'flex', gap: '16px', padding: '12px 20px',
             background: 'var(--bg-secondary)', border: '1px solid var(--border)',

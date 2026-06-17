@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import {
   Layers, Plus, Edit2, Trash2, Save, X, ChevronDown, ChevronRight,
   Monitor, Code, Key, User, Wifi, HelpCircle, Package, GripVertical,
@@ -298,7 +299,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
     try {
       const res = await api.get<{ data: CatalogCategory[] }>('/catalog/categories');
       setCategories(res.data || []);
-    } catch (e: any) { console.error('Failed to load catalog categories:', e); showAlert(e?.serverError || e?.message || 'Failed to load categories', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to load categories', 'error'); }
     finally { setCatLoading(false); }
   };
 
@@ -307,7 +308,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
     try {
       const res = await api.get<{ data: CatalogItem[] }>('/catalog/items');
       setItems(res.data || []);
-    } catch (e: any) { console.error('Failed to load catalog items:', e); showAlert(e?.serverError || e?.message || 'Failed to load items', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to load items', 'error'); }
     finally { setItemsLoading(false); }
   };
 
@@ -331,7 +332,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       setCatForm({ name: '', description: '', icon: '', sort_order: 0 });
       loadCategories();
       showAlert('Category created');
-    } catch (e: any) { console.error('Failed to create category:', e); showAlert(e?.serverError || e?.message || 'Failed to create category', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to create category', 'error'); }
   };
 
   const handleEditCategory = async (e: React.FormEvent) => {
@@ -343,7 +344,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       setCatForm({ name: '', description: '', icon: '', sort_order: 0 });
       loadCategories();
       showAlert('Category updated');
-    } catch (e: any) { console.error('Failed to update category:', e); showAlert(e?.serverError || e?.message || 'Failed to update category', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to update category', 'error'); }
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -351,7 +352,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       await api.delete(`/catalog/categories/${id}`);
       loadCategories();
       showAlert('Category deleted');
-    } catch (e: any) { console.error('Failed to delete category:', e); showAlert(e?.serverError || e?.message || 'Failed to delete category', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to delete category', 'error'); }
   };
 
   const startEditCategory = (cat: CatalogCategory) => {
@@ -382,7 +383,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       resetItemForm();
       loadItems();
       showAlert('Catalog item created');
-    } catch (e: any) { console.error('Failed to create item:', e); showAlert(e?.serverError || e?.message || 'Failed to create item', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to create item', 'error'); }
   };
 
   const handleEditItem = async (e: React.FormEvent) => {
@@ -399,7 +400,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       resetItemForm();
       loadItems();
       showAlert('Catalog item updated');
-    } catch (e: any) { console.error('Failed to update item:', e); showAlert(e?.serverError || e?.message || 'Failed to update item', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to update item', 'error'); }
   };
 
   const handleDeleteItem = async (id: string) => {
@@ -407,7 +408,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
       await api.delete(`/catalog/items/${id}`);
       loadItems();
       showAlert('Item deleted');
-    } catch (e: any) { console.error('Failed to delete item:', e); showAlert(e?.serverError || e?.message || 'Failed to delete item', 'error'); }
+    } catch (e: any) { showAlert(e?.serverError || e?.message || 'Failed to delete item', 'error'); }
   };
 
   const startEditItem = (item: CatalogItem) => {
@@ -569,7 +570,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
                       
                       api.post('/catalog/categories/reorder', {
                         order: reordered.map((c, i) => ({ id: c.id, sort_order: i }))
-                      }).catch(err => console.error('Failed to save category order:', err));
+                      }).catch(() => {});
                     }}
                     style={{ 
                       display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
@@ -862,7 +863,7 @@ export function ServiceCatalogTab({ showAlert }: { showAlert: (msg: string, type
                               order: updatedItems.map(i => ({ id: i.id, sort_order: i.sort_order }))
                             })
                               .then(() => { showAlert('Item order saved'); loadItems(); })
-                              .catch(err => { console.error('Failed to save item order:', err); showAlert('Failed to save order', 'error'); });
+                              .catch(() => { showAlert('Failed to save order', 'error'); });
                           }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10,

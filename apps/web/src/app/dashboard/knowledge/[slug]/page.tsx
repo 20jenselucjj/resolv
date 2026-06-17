@@ -5,12 +5,14 @@ import { useStore } from '@/lib/store';
 import { api, getToken } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
 import { WYSIWYGEditor } from '@/components/WYSIWYGEditor';
+import { toast } from '@/components/Toast';
 import {
   ArrowLeft, Eye, ThumbsUp, ThumbsDown, 
   Calendar, Edit3, Trash2, Tag, BookOpen,
   CheckCircle2, AlertCircle, Clock, Link as LinkIcon, Printer, Search,
   ChevronRight, Home, Upload, Paperclip, File, Image, Download, BrainCircuit,
-  X, Save, FileText, FileImage, FileArchive, ZoomIn, ExternalLink
+  X, Save, FileText, FileImage, FileArchive, ZoomIn, ExternalLink,
+  History, RotateCcw, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { ConfirmModal } from '@/components/ConfirmModal';
 
@@ -30,6 +32,34 @@ interface Article {
   created_at: string;
   updated_at?: string;
   tags: string[];
+  current_version_id?: string;
+  needs_review?: boolean;
+  review_by?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+}
+
+interface VersionListItem {
+  id: string;
+  version_number: number;
+  title: string;
+  created_at: string;
+  change_summary?: string;
+  created_by_name: string;
+}
+
+interface VersionDetail {
+  id: string;
+  article_id: string;
+  version_number: number;
+  title: string;
+  body: string;
+  category_id?: string;
+  tags: string[];
+  change_summary?: string;
+  created_by: string;
+  created_by_name: string;
+  created_at: string;
 }
 
 interface Attachment {
@@ -85,6 +115,21 @@ export default function ArticleDetailPage() {
   // Reading progress
   const [readProgress, setReadProgress] = useState(0);
 
+  // Version history
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versions, setVersions] = useState<VersionListItem[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionsTotal, setVersionsTotal] = useState(0);
+  const [selectedVersion, setSelectedVersion] = useState<VersionDetail | null>(null);
+  const [versionModalOpen, setVersionModalOpen] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  // Review
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [reviewByDate, setReviewByDate] = useState('');
+
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
   const isAdmin = user?.role === 'admin';
 
@@ -126,7 +171,7 @@ export default function ArticleDetailPage() {
         // ignore if endpoint doesn't exist yet
       }
     } catch (error) {
-      console.error('Failed to fetch article:', error);
+      toast.error('Failed to fetch article', error instanceof Error ? error.message : 'Please try again');
     } finally {
       setLoading(false);
     }
@@ -202,7 +247,7 @@ export default function ArticleDetailPage() {
         not_helpful_count: !helpful ? prev.not_helpful_count + 1 : prev.not_helpful_count
       } : null);
     } catch (error) {
-      console.error('Failed to send feedback:', error);
+      toast.error('Failed to send feedback', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -218,7 +263,7 @@ export default function ArticleDetailPage() {
           await api.patch(`/knowledge/${article.id}`, { status: 'archived' });
           router.push('/dashboard/knowledge');
         } catch (error) {
-          console.error('Failed to delete article:', error);
+          toast.error('Failed to delete article', error instanceof Error ? error.message : 'Please try again');
         }
       }
     });
@@ -252,7 +297,7 @@ export default function ArticleDetailPage() {
       setEditTagInput('');
       await fetchArticle();
     } catch (error) {
-      console.error('Failed to save article:', error);
+      toast.error('Failed to save article', error instanceof Error ? error.message : 'Please try again');
     } finally {
       setSaving(false);
     }
@@ -290,7 +335,7 @@ export default function ArticleDetailPage() {
       setAttachments(prev => [...prev, data.data || data]);
     } catch (err) {
       setUploadError('Upload failed. Please try again.');
-      console.error('File upload error:', err);
+      toast.error('File upload error', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setUploading(false);
     }
@@ -302,7 +347,7 @@ export default function ArticleDetailPage() {
       await api.delete(`/knowledge/attachments/${attId}`);
       setAttachments(prev => prev.filter(a => a.id !== attId));
     } catch {
-      console.error('Failed to delete attachment');
+      toast.error('Failed to delete attachment', 'Please try again');
     }
   };
 
@@ -316,11 +361,92 @@ export default function ArticleDetailPage() {
       setSyncStatus('success');
       setTimeout(() => setSyncStatus('idle'), 3000);
     } catch (error) {
-      console.error('Failed to sync AI:', error);
+      toast.error('Failed to sync AI', error instanceof Error ? error.message : 'Please try again');
       setSyncStatus('error');
       setTimeout(() => setSyncStatus('idle'), 3000);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // Version history handlers
+  const fetchVersions = async () => {
+    if (!article) return;
+    setVersionsLoading(true);
+    try {
+      const res = await api.get<{ data: VersionListItem[]; total: number }>(`/knowledge/${article.slug}/versions`);
+      setVersions(res.data || []);
+      setVersionsTotal(res.total || 0);
+    } catch {
+      toast.error('Failed to load version history', 'Please try again');
+    } finally {
+      setVersionsLoading(false);
+    }
+  };
+
+  const handleToggleVersionHistory = () => {
+    const willShow = !showVersionHistory;
+    setShowVersionHistory(willShow);
+    if (willShow && versions.length === 0) {
+      fetchVersions();
+    }
+  };
+
+  const handlePreviewVersion = async (versionId: string) => {
+    if (!article) return;
+    try {
+      const res = await api.get<{ data: VersionDetail }>(`/knowledge/${article.slug}/versions/${versionId}`);
+      setSelectedVersion(res.data);
+      setVersionModalOpen(true);
+    } catch {
+      toast.error('Failed to load version', 'Please try again');
+    }
+  };
+
+  const handleRestoreVersion = async (versionId: string) => {
+    if (!article) return;
+    setRestoring(true);
+    try {
+      await api.post(`/knowledge/${article.slug}/restore/${versionId}`, {});
+      toast.success('Version restored', 'Article has been restored to the selected version');
+      setVersionModalOpen(false);
+      setSelectedVersion(null);
+      await fetchArticle();
+      setVersions([]);
+      if (showVersionHistory) fetchVersions();
+    } catch (error) {
+      toast.error('Failed to restore version', error instanceof Error ? error.message : 'Please try again');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // Review/approval handlers
+  const handleRequestReview = async () => {
+    if (!article) return;
+    setReviewing(true);
+    try {
+      await api.patch(`/knowledge/${article.slug}/review`, { review_by: reviewByDate || undefined });
+      toast.success('Review requested', 'Article has been flagged for review');
+      await fetchArticle();
+    } catch (error) {
+      toast.error('Failed to request review', error instanceof Error ? error.message : 'Please try again');
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!article) return;
+    setApproving(true);
+    try {
+      await api.patch(`/knowledge/${article.slug}/approve`, {});
+      toast.success('Article approved', 'Review has been completed');
+      await fetchArticle();
+    } catch (error) {
+      toast.error('Failed to approve', error instanceof Error ? error.message : 'Please try again');
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -642,6 +768,47 @@ export default function ArticleDetailPage() {
             </button>
           )}
 
+          {/* Version History button */}
+          {!isEditing && (
+            <button
+              onClick={handleToggleVersionHistory}
+              className="btn btn-ghost btn-sm"
+              style={{ gap: 6, color: showVersionHistory ? 'var(--accent)' : undefined }}
+              title="View version history"
+            >
+              <History size={14} />
+              Versions
+            </button>
+          )}
+
+          {/* Review / Approve buttons (admin/agent only) */}
+          {isAdminOrAgent && !isEditing && article && (
+            <>
+              {article.needs_review ? (
+                <button
+                  onClick={handleApprove}
+                  disabled={approving}
+                  className="btn btn-ghost btn-sm"
+                  style={{ gap: 6, color: 'var(--success)' }}
+                  title="Approve this article"
+                >
+                  <ShieldCheck size={14} />
+                  {approving ? 'Approving…' : 'Approve'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowReviewForm(!showReviewForm)}
+                  className="btn btn-ghost btn-sm"
+                  style={{ gap: 6, color: showReviewForm ? 'var(--accent)' : 'var(--warning)' }}
+                  title="Request review"
+                >
+                  <ShieldAlert size={14} />
+                  {showReviewForm ? 'Hide' : 'Request Review'}
+                </button>
+              )}
+            </>
+          )}
+
           {/* Edit / Save / Cancel */}
           {isAdminOrAgent && !isEditing && (
             <button onClick={handleStartEdit} className="btn btn-ghost btn-sm" style={{ gap: 6 }}>
@@ -715,6 +882,33 @@ export default function ArticleDetailPage() {
                 textTransform: 'uppercase', letterSpacing: '0.05em'
               }}>
                 {article.status}
+              </span>
+            )}
+            {/* Review status badge */}
+            {article.needs_review && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '4px 12px',
+                borderRadius: '99px',
+                background: article.reviewed_at ? 'var(--success)15' : 'var(--warning)15',
+                color: article.reviewed_at ? 'var(--success)' : 'var(--warning)',
+                border: `1px solid ${article.reviewed_at ? 'var(--success)' : 'var(--warning)'}40`,
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <ShieldCheck size={11} />
+                {article.reviewed_at ? 'Reviewed' : 'Needs Review'}
+              </span>
+            )}
+            {article.review_by && article.needs_review && new Date(article.review_by) < new Date() && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '4px 12px',
+                borderRadius: '99px',
+                background: 'var(--danger)15',
+                color: 'var(--danger)',
+                border: '1px solid var(--danger)40',
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+              }}>
+                Overdue
               </span>
             )}
           </div>
@@ -1095,6 +1289,208 @@ export default function ArticleDetailPage() {
                   <CheckCircle2 size={16} /> Thank you for your feedback!
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Review by date picker (shown when Request Review is active) */}
+          {isAdminOrAgent && !isEditing && !article?.needs_review && showReviewForm && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              marginBottom: 32, padding: '12px 20px',
+              background: 'var(--card)', borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)'
+            }}>
+              <ShieldAlert size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+              <span style={{ fontSize: 14, color: 'var(--foreground)', fontWeight: 500 }}>
+                Request review by:
+              </span>
+              <input
+                type="datetime-local"
+                value={reviewByDate}
+                onChange={e => setReviewByDate(e.target.value)}
+                style={{
+                  padding: '6px 12px', fontSize: 13, borderRadius: 6,
+                  border: '1px solid var(--border)', background: 'var(--background)',
+                  color: 'var(--foreground)'
+                }}
+              />
+              <button
+                onClick={handleRequestReview}
+                disabled={reviewing}
+                className="btn btn-sm"
+                style={{ gap: 6, background: 'var(--warning)', color: '#000', border: 'none' }}
+              >
+                {reviewing ? 'Requesting…' : 'Set Review'}
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                (leave date empty for no deadline)
+              </span>
+            </div>
+          )}
+
+          {/* Version History Panel */}
+          {!isEditing && showVersionHistory && (
+            <div style={{
+              marginBottom: 48, background: 'var(--card)', borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)', padding: '24px', overflow: 'hidden'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <History size={16} /> Version History {versionsTotal > 0 && `(${versionsTotal})`}
+                </h3>
+                <button onClick={() => { if (versions.length === 0) fetchVersions(); else setShowVersionHistory(false); }} className="btn btn-ghost btn-sm">
+                  {versionsLoading ? 'Loading…' : versions.length === 0 ? 'Load' : <X size={14} />}
+                </button>
+              </div>
+
+              {versionsLoading ? (
+                <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--muted)' }}>Loading versions…</div>
+              ) : versions.length === 0 ? (
+                <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>
+                  No version history available yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {versions.map(v => {
+                    const isCurrentVersion = article?.current_version_id === v.id;
+                    return (
+                      <div key={v.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 16px',
+                        background: isCurrentVersion ? 'var(--accent)08' : 'var(--background)',
+                        border: `1px solid ${isCurrentVersion ? 'var(--accent)30' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius)',
+                        fontSize: 14
+                      }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          background: isCurrentVersion ? 'var(--accent)' : 'var(--border)',
+                          color: isCurrentVersion ? '#fff' : 'var(--muted)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: 12, flexShrink: 0
+                        }}>
+                          v{v.version_number}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: 'var(--foreground)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {v.change_summary || v.title}
+                            {isCurrentVersion && (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent)15', padding: '1px 8px', borderRadius: 99 }}>Current</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                            {v.created_by_name} · {new Date(v.created_at).toLocaleDateString()} {new Date(v.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button
+                            onClick={() => handlePreviewVersion(v.id)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ fontSize: 12, padding: '4px 10px' }}
+                          >
+                            Preview
+                          </button>
+                          {isAdminOrAgent && !isCurrentVersion && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Restoring this version will create a new version with the restored content. Continue?')) {
+                                  handleRestoreVersion(v.id);
+                                }
+                              }}
+                              disabled={restoring}
+                              className="btn btn-ghost btn-sm"
+                              style={{ fontSize: 12, padding: '4px 10px', color: 'var(--warning)' }}
+                            >
+                              <RotateCcw size={12} style={{ marginRight: 4 }} />
+                              Restore
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Version Preview Modal */}
+          {versionModalOpen && selectedVersion && (
+            <div
+              style={{
+                position: 'fixed', inset: 0, zIndex: 10000,
+                background: 'rgba(0,0,0,0.6)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                padding: 40,
+              }}
+              onClick={() => { setVersionModalOpen(false); setSelectedVersion(null); }}
+            >
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                  background: 'var(--card)', borderRadius: 'var(--radius-lg)',
+                  maxWidth: 800, width: '100%', maxHeight: '85vh',
+                  display: 'flex', flexDirection: 'column',
+                  boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Modal header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '20px 24px', borderBottom: '1px solid var(--border)',
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--foreground)' }}>
+                      Version {selectedVersion.version_number}
+                    </h3>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+                      {selectedVersion.created_by_name} · {new Date(selectedVersion.created_at).toLocaleDateString()} {new Date(selectedVersion.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {selectedVersion.change_summary && ` · ${selectedVersion.change_summary}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setVersionModalOpen(false); setSelectedVersion(null); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', display: 'flex', padding: 4 }}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Modal body */}
+                <div style={{
+                  padding: '24px', overflow: 'auto', flex: 1,
+                  fontSize: 15, lineHeight: 1.7, color: 'var(--foreground)'
+                }}>
+                  <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 16 }}>{selectedVersion.title}</h2>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{selectedVersion.body}</div>
+                </div>
+
+                {/* Modal footer */}
+                {isAdminOrAgent && (
+                  <div style={{
+                    padding: '16px 24px', borderTop: '1px solid var(--border)',
+                    display: 'flex', justifyContent: 'flex-end', gap: 12
+                  }}>
+                    <button
+                      onClick={() => { setVersionModalOpen(false); setSelectedVersion(null); }}
+                      className="btn btn-ghost"
+                      style={{ height: 40, padding: '0 20px', fontSize: 14 }}
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={() => handleRestoreVersion(selectedVersion.id)}
+                      disabled={restoring}
+                      className="btn btn-warm"
+                      style={{ height: 40, padding: '0 20px', fontSize: 14, gap: 8 }}
+                    >
+                      <RotateCcw size={14} />
+                      {restoring ? 'Restoring…' : 'Restore this version'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

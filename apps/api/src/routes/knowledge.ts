@@ -16,6 +16,7 @@ const listKnowledgeSchema = z.object({
   category: z.string().optional().transform(v => v || undefined),
   search: z.string().optional().transform(v => v || undefined),
   tags: z.string().optional(),
+  needs_review: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().default(20),
 });
@@ -99,6 +100,12 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
       params.push(tagList);
     }
 
+    if (query.needs_review === 'true') {
+      whereClause += ` AND ka.needs_review = true`;
+    } else if (query.needs_review === 'overdue') {
+      whereClause += ` AND ka.needs_review = true AND ka.review_by < NOW()`;
+    }
+
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM knowledge_articles ka LEFT JOIN categories c ON ka.category_id = c.id ${whereClause}`,
       params
@@ -110,7 +117,8 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         c.name as category_name, c.color as category_color, 
         ka.author_id, u.name as author_name, 
         ka.views, ka.helpful_count, ka.not_helpful_count, 
-        ka.tags, ka.created_at, ka.updated_at, ka.published_at
+        ka.tags, ka.created_at, ka.updated_at, ka.published_at,
+        ka.needs_review, ka.review_by, ka.reviewed_at, ka.reviewed_by
        FROM knowledge_articles ka
        LEFT JOIN categories c ON ka.category_id = c.id
        LEFT JOIN users u ON ka.author_id = u.id
@@ -186,10 +194,28 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
       ]
     );
 
-    // Broadcast to connected clients
-    fastify.io.emit('knowledge:created', { article: result.rows[0] });
+    const articleId = result.rows[0].id;
 
-    return reply.status(201).send({ data: result.rows[0] });
+    // Create initial version (v1)
+    const versionResult = await pool.query(
+      `INSERT INTO knowledge_versions (article_id, version_number, title, body, category_id, tags, change_summary, created_by)
+       VALUES ($1, 1, $2, $3, $4, $5, 'Initial version', $6)
+       RETURNING id`,
+      [articleId, body.title, body.body, body.category_id || null, body.tags || [], request.user.id]
+    );
+
+    // Set current_version_id on the article
+    await pool.query(
+      'UPDATE knowledge_articles SET current_version_id = $1 WHERE id = $2',
+      [versionResult.rows[0].id, articleId]
+    );
+
+    const finalArticle = (await pool.query('SELECT * FROM knowledge_articles WHERE id = $1', [articleId])).rows[0];
+
+    // Broadcast to connected clients
+    fastify.io.emit('knowledge:created', { article: finalArticle });
+
+    return reply.status(201).send({ data: finalArticle });
   });
 
   // PATCH /knowledge/:id - update article (admin or original author)
@@ -233,6 +259,23 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     if (updates.length === 0) {
       return reply.send({ data: article });
     }
+
+    // Create version record with the OLD content before updating
+    const versionCountResult = await pool.query(
+      'SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM knowledge_versions WHERE article_id = $1',
+      [id]
+    );
+    const nextVersion = versionCountResult.rows[0].next_version;
+
+    const versionResult = await pool.query(
+      `INSERT INTO knowledge_versions (article_id, version_number, title, body, category_id, tags, change_summary, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [id, nextVersion, article.title, article.body, article.category_id, article.tags, 'Updated article', request.user.id]
+    );
+
+    updates.push(`current_version_id = $${paramIdx++}`);
+    params.push(versionResult.rows[0].id);
 
     params.push(id);
     const result = await pool.query(
@@ -543,5 +586,160 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
         viewsDaily: viewsDaily.rows,
       }
     });
+  });
+
+  // ── Article Versioning & Review Endpoints ──
+
+  // GET /knowledge/:slug/versions - paginated version history
+  fastify.get('/knowledge/:slug/versions', { preHandler: [fastify.authenticate, fastify.requirePermission('view_knowledge')] }, async (request, reply) => {
+    const { slug } = request.params as { slug: string };
+    const query = z.object({
+      page: z.coerce.number().int().positive().default(1),
+      pageSize: z.coerce.number().int().positive().default(20),
+    }).parse(request.query);
+
+    const articleResult = await pool.query('SELECT id FROM knowledge_articles WHERE slug = $1', [slug]);
+    if (articleResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Article not found' });
+    }
+    const articleId = articleResult.rows[0].id;
+
+    const offset = (query.page - 1) * query.pageSize;
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM knowledge_versions WHERE article_id = $1',
+      [articleId]
+    );
+
+    const versionsResult = await pool.query(
+      `SELECT kv.id, kv.version_number, kv.title, kv.created_at, kv.change_summary,
+              u.name as created_by_name
+       FROM knowledge_versions kv
+       LEFT JOIN users u ON kv.created_by = u.id
+       WHERE kv.article_id = $1
+       ORDER BY kv.version_number DESC
+       LIMIT $2 OFFSET $3`,
+      [articleId, query.pageSize, offset]
+    );
+
+    return reply.send({
+      data: versionsResult.rows,
+      total: parseInt(countResult.rows[0].count, 10),
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  });
+
+  // GET /knowledge/:slug/versions/:versionId - full version content
+  fastify.get('/knowledge/:slug/versions/:versionId', { preHandler: [fastify.authenticate, fastify.requirePermission('view_knowledge')] }, async (request, reply) => {
+    const { slug, versionId } = request.params as { slug: string; versionId: string };
+
+    const articleResult = await pool.query('SELECT id FROM knowledge_articles WHERE slug = $1', [slug]);
+    if (articleResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Article not found' });
+    }
+
+    const result = await pool.query(
+      `SELECT kv.*, u.name as created_by_name
+       FROM knowledge_versions kv
+       LEFT JOIN users u ON kv.created_by = u.id
+       WHERE kv.id = $1 AND kv.article_id = $2`,
+      [versionId, articleResult.rows[0].id]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.status(404).send({ error: 'Version not found' });
+    }
+
+    return reply.send({ data: result.rows[0] });
+  });
+
+  // POST /knowledge/:slug/restore/:versionId - restore to a previous version
+  fastify.post('/knowledge/:slug/restore/:versionId', { preHandler: [fastify.requirePermission('manage_knowledge')] }, async (request, reply) => {
+    const { slug, versionId } = request.params as { slug: string; versionId: string };
+
+    const articleResult = await pool.query('SELECT * FROM knowledge_articles WHERE slug = $1', [slug]);
+    if (articleResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Article not found' });
+    }
+    const article = articleResult.rows[0];
+
+    const versionResult = await pool.query(
+      'SELECT * FROM knowledge_versions WHERE id = $1 AND article_id = $2',
+      [versionId, article.id]
+    );
+    if (versionResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Version not found' });
+    }
+    const version = versionResult.rows[0];
+
+    // Save current state as a new version before restoring
+    const versionCountResult = await pool.query(
+      'SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM knowledge_versions WHERE article_id = $1',
+      [article.id]
+    );
+    const nextVersion = versionCountResult.rows[0].next_version;
+
+    const newVersionResult = await pool.query(
+      `INSERT INTO knowledge_versions (article_id, version_number, title, body, category_id, tags, change_summary, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [article.id, nextVersion, article.title, article.body, article.category_id, article.tags,
+       `Restored from version ${version.version_number}`, request.user.id]
+    );
+
+    // Restore article content from the old version
+    const result = await pool.query(
+      `UPDATE knowledge_articles
+       SET title = $1, body = $2, category_id = $3, tags = $4, current_version_id = $5, updated_at = NOW()
+       WHERE id = $6
+       RETURNING *`,
+      [version.title, version.body, version.category_id, version.tags, newVersionResult.rows[0].id, article.id]
+    );
+
+    fastify.io.emit('knowledge:updated', { article: result.rows[0] });
+
+    return reply.send({ data: result.rows[0] });
+  });
+
+  // PATCH /knowledge/:slug/review - request review
+  fastify.patch('/knowledge/:slug/review', { preHandler: [fastify.requirePermission('manage_knowledge')] }, async (request, reply) => {
+    const { slug } = request.params as { slug: string };
+    const body = z.object({
+      review_by: z.string().optional(),
+    }).parse(request.body);
+
+    const reviewByDate = body.review_by ? new Date(body.review_by) : null;
+
+    const result = await pool.query(
+      `UPDATE knowledge_articles SET needs_review = true, review_by = $1 WHERE slug = $2 RETURNING *`,
+      [reviewByDate, slug]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.status(404).send({ error: 'Article not found' });
+    }
+
+    fastify.io.emit('knowledge:updated', { article: result.rows[0] });
+
+    return reply.send({ data: result.rows[0] });
+  });
+
+  // PATCH /knowledge/:slug/approve - approve reviewed article
+  fastify.patch('/knowledge/:slug/approve', { preHandler: [fastify.requirePermission('manage_knowledge')] }, async (request, reply) => {
+    const { slug } = request.params as { slug: string };
+
+    const result = await pool.query(
+      `UPDATE knowledge_articles SET needs_review = false, reviewed_at = NOW(), reviewed_by = $1 WHERE slug = $2 RETURNING *`,
+      [request.user.id, slug]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.status(404).send({ error: 'Article not found' });
+    }
+
+    fastify.io.emit('knowledge:updated', { article: result.rows[0] });
+
+    return reply.send({ data: result.rows[0] });
   });
 }

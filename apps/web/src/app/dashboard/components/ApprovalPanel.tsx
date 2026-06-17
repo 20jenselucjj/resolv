@@ -7,6 +7,7 @@ import {
   ShieldCheck, ShieldX, AlertCircle, ChevronDown, ChevronUp,
   Send, History,
 } from 'lucide-react';
+import { toast } from '@/components/Toast';
 
 interface ApprovalRequest {
   id: string;
@@ -103,7 +104,7 @@ export function ApprovalPanel({ entityType, entityId }: ApprovalPanelProps) {
       );
       setApprovals(res.data);
     } catch (err: any) {
-      console.error('Failed to fetch approvals:', err);
+      toast.error('Failed to fetch approvals', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setLoading(false);
     }

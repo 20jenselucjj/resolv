@@ -8,6 +8,7 @@ import {
   X, Check, Calendar, ArrowRight, Loader2
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import { useStore, Notification } from '@/lib/store';
 
 export function NotificationsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -24,7 +25,7 @@ export function NotificationsPanel({ isOpen, onClose }: { isOpen: boolean; onClo
         const res = await api.get<{ data: Notification[] }>('/notifications');
         setNotifications(res.data);
       } catch (error) {
-        console.error('Failed to fetch notifications:', error);
+        toast.error('Failed to fetch notifications', error instanceof Error ? error.message : 'Please try again');
       } finally {
         setLoading(false);
       }
@@ -47,7 +48,7 @@ export function NotificationsPanel({ isOpen, onClose }: { isOpen: boolean; onClo
       const updated = notifications.map(n => ({ ...n, is_read: true }));
       setNotifications(updated);
     } catch (error) {
-      console.error('Failed to mark all as read:', error);
+      toast.error('Failed to mark all as read', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -60,7 +61,7 @@ export function NotificationsPanel({ isOpen, onClose }: { isOpen: boolean; onClo
         router.push(`/dashboard/tickets/${ticketId}`);
       }
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      toast.error('Failed to mark notification as read', error instanceof Error ? error.message : 'Please try again');
     }
   };
 
@@ -70,7 +71,7 @@ export function NotificationsPanel({ isOpen, onClose }: { isOpen: boolean; onClo
       await api.delete(`/notifications/${id}`);
       setNotifications(notifications.filter(n => n.id !== id));
     } catch (error) {
-      console.error('Failed to delete notification:', error);
+      toast.error('Failed to delete notification', error instanceof Error ? error.message : 'Please try again');
     }
   };
 

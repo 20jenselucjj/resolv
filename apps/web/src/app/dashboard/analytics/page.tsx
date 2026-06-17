@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import { useStore } from '@/lib/store';
 import { AssetListResponse } from '@/lib/assets-types';
 import dynamic from 'next/dynamic';
@@ -467,7 +468,7 @@ function AnalyticsPageInner() {
         await api.delete(`/reports/saved/${id}`);
         fetchSavedReports();
       } catch (err) {
-        console.error('Failed to delete saved report:', err);
+        toast.error('Failed to delete report', err instanceof Error ? err.message : 'Please try again');
       }
     },
     [fetchSavedReports],
@@ -511,7 +512,7 @@ function AnalyticsPageInner() {
       setShowScheduleForm(false);
       fetchSchedules();
     } catch (err: any) {
-      console.error('Failed to create schedule:', err);
+      toast.error('Failed to create schedule', err instanceof Error ? err.message : 'Please try again');
     }
   }, [scheduleForm, fetchSchedules]);
 
@@ -521,7 +522,7 @@ function AnalyticsPageInner() {
         await api.delete(`/reports/schedules/${id}`);
         fetchSchedules();
       } catch (err) {
-        console.error('Failed to delete schedule:', err);
+        toast.error('Failed to delete schedule', err instanceof Error ? err.message : 'Please try again');
       }
     },
     [fetchSchedules],
@@ -533,7 +534,7 @@ function AnalyticsPageInner() {
         await api.post(`/reports/schedules/${id}/run`, {});
         fetchSchedules();
       } catch (err) {
-        console.error('Failed to run schedule:', err);
+        toast.error('Failed to run schedule', err instanceof Error ? err.message : 'Please try again');
       }
     },
     [fetchSchedules],
@@ -548,7 +549,7 @@ function AnalyticsPageInner() {
       const res = await api.get<{ data: any }>('/reports/scheduler/status');
       setSchedulerStatus(res.data);
     } catch (err) {
-      console.error('Failed to fetch scheduler status:', err);
+      toast.error('Failed to fetch scheduler status', err instanceof Error ? err.message : 'Please try again');
     }
   }, []);
 

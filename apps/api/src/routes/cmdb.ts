@@ -426,4 +426,276 @@ export default async function cmdbRoutes(fastify: FastifyInstance) {
       client.release();
     }
   });
+
+  // ─────────────────────────────────────────────────────────
+  //  Health Scoring
+  // ─────────────────────────────────────────────────────────
+
+  /**
+   * Compute health_score (0-100) and health_status for a CI.
+   */
+  async function computeHealth(ci: any): Promise<{ health_score: number; health_status: string }> {
+    let score = 0;
+
+    // 1. Active status: +25pts
+    if (ci.status === 'active') score += 25;
+
+    // 2. Has version: +15pts
+    if (ci.version && ci.version.trim()) score += 15;
+
+    // 3. Has location or department: +15pts
+    if ((ci.location && ci.location.trim()) || (ci.department && ci.department.trim())) score += 15;
+
+    // 4. Has assigned_to (owner_id): +15pts
+    if (ci.owner_id) score += 15;
+
+    // 5. Has CI relationships: +15pts
+    if (ci.relationship_count > 0) score += 15;
+
+    // 6. Has tags or last_seen: +15pts
+    const hasTags = Array.isArray(ci.tags) && ci.tags.length > 0;
+    const hasLastSeen = ci.last_seen != null;
+    if (hasTags || hasLastSeen) score += 15;
+
+    // Clamp to 0-100
+    score = Math.max(0, Math.min(100, score));
+
+    let status: string;
+    if (score < 31) status = 'critical';
+    else if (score < 51) status = 'poor';
+    else if (score < 71) status = 'fair';
+    else if (score < 86) status = 'good';
+    else status = 'excellent';
+
+    return { health_score: score, health_status: status };
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  POST /cmdb/ci/:id/assess-health — assess one CI
+  // ─────────────────────────────────────────────────────────
+  fastify.post('/cmdb/ci/:id/assess-health', { preHandler: [fastify.requirePermission('manage_cmdb')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    // Fetch CI with relationship count
+    const ciResult = await pool.query(
+      `SELECT ci.*,
+              (SELECT COUNT(*) FROM ci_relationships r WHERE r.source_id = ci.id OR r.target_id = ci.id) AS relationship_count
+       FROM configuration_items ci
+       WHERE ci.id = $1`,
+      [id]
+    );
+    if (ciResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Configuration item not found' });
+    }
+
+    const ci = ciResult.rows[0];
+    const { health_score, health_status } = await computeHealth(ci);
+
+    const updated = await pool.query(
+      `UPDATE configuration_items
+       SET health_score = $1, health_status = $2, last_assessed_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [health_score, health_status, id]
+    );
+
+    const result = await fetchCi(id);
+    return reply.send({ data: { ...result, health_score, health_status, last_assessed_at: updated.rows[0].last_assessed_at } });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  //  POST /cmdb/assess-all-health — assess all CIs
+  // ─────────────────────────────────────────────────────────
+  fastify.post('/cmdb/assess-all-health', { preHandler: [fastify.requirePermission('manage_cmdb')] }, async (request, reply) => {
+    const allCis = await pool.query(
+      `SELECT ci.*,
+              (SELECT COUNT(*) FROM ci_relationships r WHERE r.source_id = ci.id OR r.target_id = ci.id) AS relationship_count
+       FROM configuration_items ci`
+    );
+
+    const results: any[] = [];
+    for (const ci of allCis.rows) {
+      const { health_score, health_status } = await computeHealth(ci);
+      await pool.query(
+        `UPDATE configuration_items
+         SET health_score = $1, health_status = $2, last_assessed_at = NOW()
+         WHERE id = $3`,
+        [health_score, health_status, ci.id]
+      );
+      results.push({ id: ci.id, name: ci.name, health_score, health_status });
+    }
+
+    return reply.send({ assessed: results.length, results });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  //  GET /cmdb/health-summary — aggregate health stats
+  // ─────────────────────────────────────────────────────────
+  fastify.get('/cmdb/health-summary', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const aggResult = await pool.query(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(health_score)::int AS assessed,
+         ROUND(AVG(health_score))::int AS average_health_score,
+         COALESCE(jsonb_object_agg(COALESCE(health_status, 'unknown'), cnt) FILTER (WHERE health_status IS NOT NULL), '{}'::jsonb) AS health_status_breakdown
+       FROM (
+         SELECT
+           health_status,
+           COUNT(*)::int AS cnt
+         FROM configuration_items
+         GROUP BY health_status
+       ) sub`
+    );
+
+    const needsAttention = await pool.query(
+      `SELECT id, name, health_score, health_status, ci_type, status
+       FROM configuration_items
+       WHERE health_score IS NOT NULL AND health_score < 50
+       ORDER BY health_score ASC
+       LIMIT 50`
+    );
+
+    return reply.send({
+      data: aggResult.rows[0],
+      needs_attention: needsAttention.rows,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  //  Baselines
+  // ─────────────────────────────────────────────────────────
+
+  // ─────────────────────────────────────────────────────────
+  //  POST /cmdb/ci/:id/baseline — capture a baseline snapshot
+  // ─────────────────────────────────────────────────────────
+  fastify.post('/cmdb/ci/:id/baseline', { preHandler: [fastify.requirePermission('manage_cmdb')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const bodySchema = z.object({
+      label: z.string().min(1).max(500),
+      notes: z.string().max(2000).default(''),
+    });
+    const body = bodySchema.parse(request.body);
+
+    // Fetch current CI data
+    const ciResult = await pool.query('SELECT * FROM configuration_items WHERE id = $1', [id]);
+    if (ciResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Configuration item not found' });
+    }
+
+    const ci = ciResult.rows[0];
+    const snapshot = {
+      name: ci.name,
+      description: ci.description,
+      ci_type: ci.ci_type,
+      asset_id: ci.asset_id,
+      department: ci.department,
+      location: ci.location,
+      owner_id: ci.owner_id,
+      status: ci.status,
+      tags: ci.tags,
+      version: ci.version,
+      health_score: ci.health_score,
+      health_status: ci.health_status,
+    };
+
+    const user = (request as any).user;
+
+    const result = await pool.query(
+      `INSERT INTO ci_baselines (ci_id, label, snapshot, created_by, notes)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [id, body.label, JSON.stringify(snapshot), user?.id || null, body.notes]
+    );
+
+    // Update last_baseline_at on CI
+    await pool.query('UPDATE configuration_items SET baseline_snapshot = $1, last_baseline_at = NOW() WHERE id = $2',
+      [JSON.stringify(snapshot), id]);
+
+    return reply.status(201).send({ data: result.rows[0] });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  //  GET /cmdb/ci/:id/baselines — list baselines for a CI
+  // ─────────────────────────────────────────────────────────
+  fastify.get('/cmdb/ci/:id/baselines', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const querySchema = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(20),
+    });
+    const query = querySchema.parse(request.query);
+    const offset = (query.page - 1) * query.pageSize;
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM ci_baselines WHERE ci_id = $1',
+      [id]
+    );
+
+    const result = await pool.query(
+      `SELECT b.*, u.name AS created_by_name
+       FROM ci_baselines b
+       LEFT JOIN users u ON b.created_by = u.id
+       WHERE b.ci_id = $1
+       ORDER BY b.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [id, query.pageSize, offset]
+    );
+
+    return reply.send({
+      data: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  //  GET /cmdb/ci/:id/compare/:baselineId — diff CI vs baseline
+  // ─────────────────────────────────────────────────────────
+  fastify.get('/cmdb/ci/:id/compare/:baselineId', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    const { id, baselineId } = request.params as { id: string; baselineId: string };
+
+    const ciResult = await pool.query('SELECT * FROM configuration_items WHERE id = $1', [id]);
+    if (ciResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Configuration item not found' });
+    }
+
+    const baselineResult = await pool.query('SELECT * FROM ci_baselines WHERE id = $1 AND ci_id = $2', [baselineId, id]);
+    if (baselineResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Baseline not found for this CI' });
+    }
+
+    const ci = ciResult.rows[0];
+    const baseline = baselineResult.rows[0];
+    const snapshot = baseline.snapshot;
+
+    // Compare fields
+    const trackedFields = ['name', 'description', 'ci_type', 'department', 'location', 'owner_id', 'status', 'tags', 'version', 'health_score', 'health_status'];
+    const diffs: Array<{ field: string; old_value: any; new_value: any; type: 'changed' | 'added' | 'removed' }> = [];
+
+    for (const field of trackedFields) {
+      const oldVal = snapshot ? snapshot[field] : undefined;
+      const newVal = ci[field];
+
+      const oldStr = oldVal !== undefined && oldVal !== null ? JSON.stringify(oldVal) : undefined;
+      const newStr = newVal !== undefined && newVal !== null ? JSON.stringify(newVal) : undefined;
+
+      if (oldStr === undefined && newStr !== undefined) {
+        diffs.push({ field, old_value: null, new_value: newVal, type: 'added' });
+      } else if (oldStr !== undefined && newStr === undefined) {
+        diffs.push({ field, old_value: oldVal, new_value: null, type: 'removed' });
+      } else if (oldStr !== newStr) {
+        diffs.push({ field, old_value: oldVal, new_value: newVal, type: 'changed' });
+      }
+    }
+
+    return reply.send({
+      data: {
+        baseline_label: baseline.label,
+        baseline_created_at: baseline.created_at,
+        baseline_notes: baseline.notes,
+        diffs,
+      },
+    });
+  });
 }

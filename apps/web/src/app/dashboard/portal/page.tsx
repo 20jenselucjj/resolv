@@ -4,6 +4,7 @@ import { useStore } from '@/lib/store';
 import { api, API_BASE, getToken } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
 import { SkeletonCard, Skeleton } from '@/components/Skeleton';
+import { toast } from '@/components/Toast';
 import {
   Search, Sparkles, Send, Plus, AlertTriangle, Package,
   KeyRound, Wifi, Monitor, HelpCircle, ChevronRight,
@@ -242,7 +243,7 @@ export default function SelfServicePortal() {
           setUploadedFiles(prev => [...prev, { id: data.data.id, filename: data.data.filename, size: data.data.size }]);
         }
       } catch (err) {
-        console.error('File upload failed:', err);
+        toast.error('File upload failed', err instanceof Error ? err.message : 'Please try again');
       } finally {
         setUploadingFile(false);
       }
@@ -280,11 +281,11 @@ export default function SelfServicePortal() {
   const fetchMyTickets = useCallback(() => {
     api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
       .then(res => setMyTickets(res.data?.slice(0, 8) || []))
-      .catch(() => setMyTickets([]));
+      .catch(() => { setMyTickets([]); toast.error('Failed to load tickets', 'Please try again'); });
     // Also refresh service requests since they appear in the same list
     api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
       .then(res => setMyRequests(res.data || []))
-      .catch(() => {});
+      .catch(() => toast.error('Failed to load requests', 'Please try again'));
   }, []);
 
   // ── Load data ──────────────────────────────────────────────────────────────
@@ -292,7 +293,7 @@ export default function SelfServicePortal() {
     // Load portal settings
     api.get<{ data: Record<string, string> }>('/settings/portal')
       .then(res => setPortalSettings(res.data || {}))
-      .catch(() => {});
+      .catch(() => toast.error('Failed to load portal settings', 'Please try again'));
 
     // Load my tickets
     fetchMyTickets();
@@ -301,22 +302,22 @@ export default function SelfServicePortal() {
     // Load KB articles
     api.get<{ data: KBArticle[] }>('/knowledge?status=published&pageSize=6')
       .then(res => setKbArticles(res.data || []))
-      .catch(() => {});
+      .catch(() => toast.error('Failed to load articles', 'Please try again'));
 
     // Load catalog data
     api.get<{ data: CatalogCategory[] }>('/catalog/categories')
       .then(res => setCatalogCategories(res.data || []))
-      .catch(() => setCatalogCategories([]));
+      .catch(() => { setCatalogCategories([]); toast.error('Failed to load catalog', 'Please try again'); });
 
     api.get<{ data: CatalogItem[] }>('/catalog/items')
       .then(res => setCatalogItems(res.data || []))
-      .catch(() => setCatalogItems([]))
+      .catch(() => { setCatalogItems([]); toast.error('Failed to load catalog items', 'Please try again'); })
       .finally(() => setCatalogLoading(false));
 
     // Load my service requests
     api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
       .then(res => setMyRequests(res.data || []))
-      .catch(() => setMyRequests([]))
+      .catch(() => { setMyRequests([]); toast.error('Failed to load requests', 'Please try again'); })
       .finally(() => setRequestsLoading(false));
   }, []);
 
@@ -354,36 +355,36 @@ export default function SelfServicePortal() {
     socket.on('catalog:request_created', () => {
       api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
         .then(res => setMyRequests(res.data || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to refresh requests', 'Please try again'));
     });
     socket.on('catalog:request_fulfilled', () => {
       api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
         .then(res => setMyRequests(res.data || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to refresh requests', 'Please try again'));
       // Also refresh tickets since approval creates a new ticket
       api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
         .then(res => setMyTickets(res.data?.slice(0, 8) || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to refresh tickets', 'Please try again'));
     });
     socket.on('catalog:request_cancelled', () => {
       api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
         .then(res => setMyRequests(res.data || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to refresh requests', 'Please try again'));
     });
     socket.on('approval:updated', () => {
       api.get<{ data: ServiceRequest[] }>('/catalog/requests?pageSize=8')
         .then(res => setMyRequests(res.data || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to refresh requests', 'Please try again'));
     });
     socket.on('ticket:created', () => {
       api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
         .then(res => setMyTickets(res.data?.slice(0, 8) || []))
-        .catch(() => setMyTickets([]));
+        .catch(() => { setMyTickets([]); toast.error('Failed to refresh tickets', 'Please try again'); });
     });
     socket.on('ticket:updated', () => {
       api.get<{ data: Ticket[] }>('/tickets?pageSize=8')
         .then(res => setMyTickets(res.data?.slice(0, 8) || []))
-        .catch(() => setMyTickets([]));
+        .catch(() => { setMyTickets([]); toast.error('Failed to refresh tickets', 'Please try again'); });
     });
 
     return () => {
@@ -430,6 +431,7 @@ export default function SelfServicePortal() {
       .catch(() => {
         localStorage.removeItem('portal_session_id');
         localStorage.removeItem('portal_session_time');
+        toast.error('Failed to restore session', 'Please try again');
       });
   }, []);
 
@@ -437,11 +439,11 @@ export default function SelfServicePortal() {
     if (kbSearch.length > 1) {
       api.get<{ data: KBArticle[] }>(`/knowledge?status=published&search=${encodeURIComponent(kbSearch)}&pageSize=5`)
         .then(res => setKbArticles(res.data || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to search articles', 'Please try again'));
     } else if (kbSearch === '') {
       api.get<{ data: KBArticle[] }>('/knowledge?status=published&pageSize=6')
         .then(res => setKbArticles(res.data || []))
-        .catch(() => {});
+        .catch(() => toast.error('Failed to load articles', 'Please try again'));
     }
   }, [kbSearch]);
 
@@ -471,7 +473,7 @@ export default function SelfServicePortal() {
         setUploadedFiles(prev => [...prev, { id: data.data.id, filename: data.data.filename, size: data.data.size }]);
       }
     } catch (err) {
-      console.error('File upload failed:', err);
+      toast.error('File upload failed', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setUploadingFile(false);
       if (e.target) e.target.value = '';
@@ -595,7 +597,7 @@ export default function SelfServicePortal() {
       localStorage.setItem('portal_session_id', sid);
       localStorage.setItem('portal_session_time', String(Date.now()));
     } catch {
-      console.error('Failed to load session');
+      toast.error('Failed to load session', 'Please try again');
     }
   };
 

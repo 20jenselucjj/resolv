@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import type { PinnedMetric } from '../types';
 
 export function usePinboard() {
@@ -20,7 +21,7 @@ export function usePinboard() {
       setPinnedKeys(new Set(list.map(p => p.metric_key)));
     } catch (err: any) {
       setPinsError(err.message || 'Failed to load pins');
-      console.error('[Pinboard] Failed to fetch pins:', err);
+      toast.error('Failed to fetch pins', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setPinsLoading(false);
     }
@@ -47,7 +48,7 @@ export function usePinboard() {
       setPinnedKeys(prev => new Set(prev).add(metric.metric_key));
       return res.data;
     } catch (err: any) {
-      console.error('[Pinboard] Failed to pin metric:', err);
+      toast.error('Failed to pin metric', err instanceof Error ? err.message : 'Please try again');
       throw err;
     }
   }, []);
@@ -62,7 +63,7 @@ export function usePinboard() {
         return next;
       });
     } catch (err: any) {
-      console.error('[Pinboard] Failed to unpin metric:', err);
+      toast.error('Failed to unpin metric', err instanceof Error ? err.message : 'Please try again');
       throw err;
     }
   }, []);
@@ -76,7 +77,7 @@ export function usePinboard() {
       await api.patch(`/dashboard/pins/${id}`, { position });
       setPins(prev => prev.map(p => p.id === id ? { ...p, position } : p));
     } catch (err: any) {
-      console.error('[Pinboard] Failed to update position:', err);
+      toast.error('Failed to update pin position', err instanceof Error ? err.message : 'Please try again');
     }
   }, []);
 
@@ -85,7 +86,7 @@ export function usePinboard() {
       await api.patch(`/dashboard/pins/${id}`, { config });
       setPins(prev => prev.map(p => p.id === id ? { ...p, config } : p));
     } catch (err: any) {
-      console.error('[Pinboard] Failed to update pin config:', err);
+      toast.error('Failed to update pin config', err instanceof Error ? err.message : 'Please try again');
     }
   }, []);
 

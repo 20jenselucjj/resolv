@@ -9,6 +9,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
 import { API_BASE, getToken } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import { useStore } from '@/lib/store';
 import {
   Bold, Italic, Heading1, Heading2, List, ListOrdered,
@@ -121,7 +122,7 @@ export function WYSIWYGEditor({ value, onChange, height = 300, placeholder }: WY
       const origin = new URL(apiBase).origin;
       return origin + relativeUrl;
     } catch (err) {
-      console.error('Image upload failed:', err);
+      toast.error('Image upload failed', err instanceof Error ? err.message : 'Please try again');
       return null;
     }
   }, []);

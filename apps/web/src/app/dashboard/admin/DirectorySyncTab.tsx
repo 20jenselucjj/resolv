@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import { CheckCircle, Plug } from 'lucide-react';
 import type { DirectorySyncConfig, SyncStatus, SyncLogEntry, RoleMapping, FieldMapping, ProviderType } from './components/directory-sync';
 import {
@@ -186,7 +187,7 @@ export function DirectorySyncTab({
         setSyncLogs(logsRes.data);
       }
     } catch (err: unknown) {
-      console.error('Failed to fetch directory sync data:', err);
+      toast.error('Failed to fetch directory sync data', err instanceof Error ? err.message : 'Please try again');
       showAlert('Failed to load directory sync configuration', 'error');
     } finally {
       setLoading(false);
@@ -478,7 +479,7 @@ export function DirectorySyncTab({
       );
       setUserSearchResults(res.data);
     } catch (err: unknown) {
-      console.error('User search failed:', err);
+      toast.error('User search failed', err instanceof Error ? err.message : 'Please try again');
       setUserSearchResults([]);
     } finally {
       setSearchingUsers(false);

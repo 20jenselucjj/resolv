@@ -13,7 +13,8 @@ import {
   Edit2, Check, X,
   MessageSquare, Activity, FileText, Book,
   Paperclip, Trash2, User as UserIcon,
-  Download, UserPlus, Eye, ChevronDown, Image, Film, Headphones
+  Download, UserPlus, Eye, ChevronDown, Image, Film, Headphones,
+  PanelRightClose, PanelRightOpen,
 } from 'lucide-react';
 import {
   formatSize,
@@ -22,6 +23,7 @@ import {
   AttachmentPreviewModal,
 } from './components';
 import type { Attachment } from './components';
+import { toast } from '@/components/Toast';
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +45,7 @@ export default function TicketDetailPage() {
   const [closeNotesDraft, setCloseNotesDraft] = useState('');
   const [sendEmailOnClose, setSendEmailOnClose] = useState(true);
   const [sendEmailOnResolution, setSendEmailOnResolution] = useState(true);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   
   // New UI states
   const [showMenu, setShowMenu] = useState(false);
@@ -82,6 +85,12 @@ export default function TicketDetailPage() {
     setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
+  // Split-pane resize state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [leftPct, setLeftPct] = useState(55);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -93,17 +102,17 @@ export default function TicketDetailPage() {
         setDescDraft(res.data.description || '');
         setCloseNotesDraft(res.data.close_notes || '');
       })
-      .catch((err) => console.error('Failed to load ticket:', err))
+      .catch((err) => toast.error('Failed to load ticket', err instanceof Error ? err.message : 'Please try again'))
       .finally(() => setLoading(false));
 
-    api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {});
-    api.get<{ data: Attachment[] }>(`/tickets/${id}/attachments`).then(res => setAttachments(res.data)).catch(() => {});
-    api.get<{ data: User[] }>('/users').then(res => setAllUsers(res.data)).catch(() => {});
+    api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => toast.error('Failed to load categories', 'Please try again'));
+    api.get<{ data: Attachment[] }>(`/tickets/${id}/attachments`).then(res => setAttachments(res.data)).catch(() => toast.error('Failed to load attachments', 'Please try again'));
+    api.get<{ data: User[] }>('/users').then(res => setAllUsers(res.data)).catch(() => toast.error('Failed to load users', 'Please try again'));
     api.get<{ data: string[] }>('/settings/canned-responses')
       .then(res => {
         if (res.data?.length) setCannedResponses(res.data);
       })
-      .catch(() => {});
+      .catch(() => toast.error('Failed to load canned responses', 'Please try again'));
 
     api.get<{ data: Array<{id: string; name: string; email?: string; avatar_url?: string}> }>(`/tickets/${id}/watchers`)
       .then(res => {
@@ -166,7 +175,7 @@ export default function TicketDetailPage() {
           setAttachments(prev => [...prev, data.data]);
         }
       } catch (err) {
-        console.error('Upload failed:', err);
+        toast.error('Upload failed', err instanceof Error ? err.message : 'Please try again');
       }
     }
     setUploading(false);
@@ -194,7 +203,7 @@ export default function TicketDetailPage() {
       setTicket((prev) => prev ? ({ ...prev, ...res.data }) : null);
       updateTicket(id, res.data);
     } catch (err: unknown) {
-      console.error('Update failed:', err);
+      toast.error('Update failed', err instanceof Error ? err.message : 'Please try again');
     }
   }
 
@@ -219,7 +228,13 @@ export default function TicketDetailPage() {
   }
 
   async function saveTitle() {
-    if (!ticket || !titleDraft.trim() || titleDraft === ticket.title) { setEditingTitle(false); return; }
+    if (!ticket) { setEditingTitle(false); return; }
+    if (!titleDraft.trim() || titleDraft.trim().length < 3) {
+      setValidationErrors({ title: 'Title must be at least 3 characters' });
+      return;
+    }
+    if (titleDraft === ticket.title) { setEditingTitle(false); return; }
+    setValidationErrors({});
     await updateField('title', titleDraft);
     setEditingTitle(false);
   }
@@ -273,14 +288,18 @@ export default function TicketDetailPage() {
       setReplyDraft('');
       setReplyingTo(null);
     } catch (err) {
-      console.error('Reply failed:', err);
+      toast.error('Reply failed', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setSubmittingReply(false);
     }
   }
 
   async function handleCloseTicket() {
-    if (!closeNotesDraft.trim()) return;
+    if (!closeNotesDraft.trim()) {
+      setValidationErrors({ closeNotes: 'Close notes are required' });
+      return;
+    }
+    setValidationErrors({});
     setSubmitting(true);
     try {
       const res = await api.patch<{ data: Ticket }>(`/tickets/${id}`, { 
@@ -336,7 +355,7 @@ export default function TicketDetailPage() {
       const data = await res.json();
       setAttachments(prev => [...prev, data.data]);
     } catch (err) {
-      console.error('Upload failed:', err);
+      toast.error('Upload failed', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -365,7 +384,7 @@ export default function TicketDetailPage() {
       await api.delete(`/attachments/${attachmentId}`);
       setAttachments(prev => prev.filter(a => a.id !== attachmentId));
     } catch (err) {
-      console.error('Delete failed:', err);
+      toast.error('Delete failed', err instanceof Error ? err.message : 'Please try again');
     }
   }
 
@@ -382,8 +401,33 @@ export default function TicketDetailPage() {
       });
       setEditingComment(null);
     } catch (err) {
-      console.error('Edit failed:', err);
+      toast.error('Edit failed', err instanceof Error ? err.message : 'Please try again');
     }
+  }
+
+  // ── Resize handler for split pane ──
+  function handleResizeStart(e: React.MouseEvent) {
+    isDragging.current = true;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startPct = leftPct;
+    function onMouseMove(me: MouseEvent) {
+      if (!isDragging.current || !splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const newPct = Math.min(80, Math.max(20, ((me.clientX - rect.left) / rect.width) * 100));
+      setLeftPct(newPct);
+    }
+    function onMouseUp() {
+      isDragging.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   }
 
   if (loading) {
@@ -457,23 +501,31 @@ export default function TicketDetailPage() {
         setSendEmailOnClose={setSendEmailOnClose}
       />
 
-      {/* Main Two-Column Layout — collapsible panels */}
-      <div className="ticket-mobile-stack" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* Main Two-Column Layout — resizable split panes */}
+      <div ref={splitContainerRef} className="ticket-mobile-stack" style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
         
-        {/* Left Column (55%) */}
-        <div className="ticket-main-content" style={{ flex: 1.2, padding: '24px 32px', overflow: 'auto' }}>
+        {/* Left Column (resizable width) */}
+        <div className="ticket-main-content" style={{ width: sidebarCollapsed ? '100%' : `${leftPct}%`, flex: 'none', padding: '24px 32px', overflow: 'auto', transition: isDragging.current ? 'none' : 'width 0.15s ease' }}>
               {/* Title */}
               <div style={{ marginBottom: 16 }}>
                 {editingTitle ? (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <input
-                      autoFocus
-                      value={titleDraft}
-                      onChange={(e) => setTitleDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') setEditingTitle(false); }}
-                      className="input"
-                      style={{ fontSize: 20, fontWeight: 700, height: 40, flex: 1 }}
-                    />
+                    <div style={{ flex: 1 }}>
+                      <input
+                        autoFocus
+                        value={titleDraft}
+                        onChange={(e) => {
+                          setTitleDraft(e.target.value);
+                          if (validationErrors.title) setValidationErrors({});
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') setEditingTitle(false); }}
+                        className="input"
+                        style={{ width: '100%', fontSize: 20, fontWeight: 700, height: 40 }}
+                      />
+                      {validationErrors.title && (
+                        <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.title}</span>
+                      )}
+                    </div>
                     <button onClick={saveTitle} className="btn btn-primary btn-icon"><Check size={16} /></button>
                     <button onClick={() => setEditingTitle(false)} className="btn btn-ghost btn-icon"><X size={16} /></button>
                   </div>
@@ -523,9 +575,20 @@ export default function TicketDetailPage() {
 
               {/* Request Details Card */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '24px' }}>
-                <div onClick={() => toggleSection('details')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.details ? 0 : 16 }}>
+                <div
+                  onClick={() => toggleSection('details')}
+                  className="accordion-header"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    cursor: 'pointer', marginBottom: collapsedSections.details ? 0 : 16,
+                    padding: '4px 0', borderRadius: 'var(--radius-sm)',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
                   <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Request Details</h3>
-                  <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.details ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                  <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.details ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                 </div>
                 {!collapsedSections.details && (editingDesc ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -598,8 +661,14 @@ export default function TicketDetailPage() {
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsedSections.attachments ? 0 : 16 }}>
-                  <div onClick={() => toggleSection('attachments')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.attachments ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                  <div
+                    onClick={() => toggleSection('attachments')}
+                    className="accordion-header"
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 6px 4px 0', borderRadius: 'var(--radius-sm)', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.attachments ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                     <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Attachments</h3>
                   </div>
                   <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer', gap: 6, color: 'var(--accent)' }}>
@@ -671,9 +740,15 @@ export default function TicketDetailPage() {
                 {/* ── Linked Problems ── */}
                 {(ticket as any).linked_problems?.length > 0 && (
                   <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '24px' }}>
-                    <div onClick={() => toggleSection('linkedProblems')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.linkedProblems ? 0 : 12 }}>
+                    <div
+                      onClick={() => toggleSection('linkedProblems')}
+                      className="accordion-header"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.linkedProblems ? 0 : 12, padding: '4px 0', borderRadius: 'var(--radius-sm)', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
                       <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Linked Problems</h3>
-                      <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.linkedProblems ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                      <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.linkedProblems ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                     </div>
                     {!collapsedSections.linkedProblems && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -692,9 +767,15 @@ export default function TicketDetailPage() {
                 {/* ── Custom Fields ── */}
                 {(ticket as any).custom_fields?.length > 0 && (
                   <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '24px' }}>
-                    <div onClick={() => toggleSection('customFields')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.customFields ? 0 : 12 }}>
+                    <div
+                      onClick={() => toggleSection('customFields')}
+                      className="accordion-header"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.customFields ? 0 : 12, padding: '4px 0', borderRadius: 'var(--radius-sm)', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
                       <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Custom Fields</h3>
-                      <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.customFields ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                      <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.customFields ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                     </div>
                     {!collapsedSections.customFields && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -715,9 +796,15 @@ export default function TicketDetailPage() {
                 {/* ── CSAT / Satisfaction ── */}
                 {(ticket.satisfaction_rating != null) && (
                   <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '24px' }}>
-                    <div onClick={() => toggleSection('csat')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.csat ? 0 : 12 }}>
+                    <div
+                      onClick={() => toggleSection('csat')}
+                      className="accordion-header"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.csat ? 0 : 12, padding: '4px 0', borderRadius: 'var(--radius-sm)', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
                       <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Satisfaction</h3>
-                      <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.csat ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                      <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedSections.csat ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                     </div>
                     {!collapsedSections.csat && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -750,16 +837,109 @@ export default function TicketDetailPage() {
 
               </div>
             </div>
-        {/* Right Column (45%) */}
-        <div className="ticket-sidebar" style={{ flex: 1, display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+
+        {/* ── Split Controls: collapse toggle + resize handle ── */}
+        <div style={{
+          width: sidebarCollapsed ? 28 : 5,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          zIndex: 5,
+          transition: isDragging.current ? 'none' : 'width 0.2s ease',
+        }}>
+          {sidebarCollapsed ? (
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="btn btn-ghost btn-icon"
+              data-tooltip="Show activity sidebar"
+              style={{
+                width: 24, height: 48, borderRadius: '0 6px 6px 0',
+                color: 'var(--text-muted)', border: '1px solid var(--border)',
+                borderLeft: 'none', background: 'var(--bg-secondary)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              <PanelRightOpen size={14} />
+            </button>
+          ) : (
+            <>
+              <div
+                onMouseDown={handleResizeStart}
+                className="ticket-resize-handle"
+                style={{
+                  width: 5, height: '100%',
+                  cursor: 'col-resize',
+                  flexShrink: 0,
+                  background: 'transparent',
+                  position: 'absolute',
+                  inset: 0,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.opacity = '0.3'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.opacity = '1'; }}
+              >
+                <div style={{
+                  position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+                  width: 3, height: 32, borderRadius: 2,
+                  background: 'var(--border-strong)', opacity: 0.5,
+                  pointerEvents: 'none',
+                }} />
+              </div>
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="btn btn-ghost btn-icon"
+                data-tooltip="Hide sidebar"
+                style={{
+                  position: 'absolute', top: 8, right: -12,
+                  width: 20, height: 20, padding: 0,
+                  color: 'var(--text-muted)', cursor: 'pointer',
+                  background: 'var(--card)', border: '1px solid var(--border)',
+                  borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  zIndex: 10, opacity: 0,
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                onMouseDown={e => e.stopPropagation()}
+              >
+                <PanelRightClose size={12} />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Right Column (resizable width) */}
+        <div className="ticket-sidebar" style={{
+          width: sidebarCollapsed ? 0 : `${100 - leftPct}%`,
+          flex: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          borderLeft: sidebarCollapsed ? 'none' : '1px solid var(--border)',
+          background: 'var(--bg-secondary)',
+          overflow: sidebarCollapsed ? 'hidden' : 'hidden',
+          minWidth: sidebarCollapsed ? 0 : undefined,
+          opacity: sidebarCollapsed ? 0 : 1,
+          transition: isDragging.current ? 'none' : 'width 0.2s ease, opacity 0.2s ease, border-left 0.2s ease',
+        }}>
           
           {/* Unified Activity Feed Header (click to collapse) */}
           <div
             onClick={() => setCollapsedActivity(!collapsedActivity)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--card)', flexShrink: 0, cursor: 'pointer' }}
+            className="accordion-header"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 24px', borderBottom: '1px solid var(--border)',
+              background: 'var(--card)', flexShrink: 0, cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--card)'}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedActivity ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+              <ChevronDown size={14} style={{ color: 'var(--text-muted)', transform: collapsedActivity ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Activity</span>
               {!collapsedActivity && (
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>

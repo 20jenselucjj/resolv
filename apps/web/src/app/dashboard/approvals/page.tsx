@@ -3,11 +3,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { toast } from '@/components/Toast';
 import {
   CheckCircle, XCircle, Clock, ArrowRight,
   ShieldCheck, ShieldX, AlertCircle, Search,
   ChevronDown, ChevronUp, History, AlertTriangle,
 } from 'lucide-react';
+import { SkeletonPage } from '@/components/Skeleton';
 
 interface PendingApproval {
   id: string;
@@ -393,7 +395,7 @@ export default function ApprovalsPage() {
       const res = await api.get<{ data: ApprovalDetail }>(`/approvals/${requestId}`);
       setDetailApproval(res.data);
     } catch (err) {
-      console.error('Failed to load approval detail', err);
+      toast.error('Failed to load approval detail', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -481,18 +483,14 @@ export default function ApprovalsPage() {
           </div>
         )}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
-            Loading...
-          </div>
+          <SkeletonPage />
         ) : tab === 'pending' ? (
           <>
             {pendingApprovals.length === 0 ? (
-              <div style={{
-                textAlign: 'center', padding: 40, color: 'var(--text-muted)',
-                fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              }}>
-                <CheckCircle size={32} color="var(--text-muted)" opacity={0.4} />
-                <span>No pending approvals</span>
+              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }}>✅</div>
+                <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>No pending approvals</h3>
+                <p style={{ fontSize: 14 }}>All caught up! There are no approvals awaiting your decision.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -556,12 +554,10 @@ export default function ApprovalsPage() {
         ) : (
           <>
             {allApprovals.length === 0 ? (
-              <div style={{
-                textAlign: 'center', padding: 40, color: 'var(--text-muted)',
-                fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              }}>
-                <ShieldCheck size={32} color="var(--text-muted)" opacity={0.4} />
-                <span>No approval requests found</span>
+              <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }}>📋</div>
+                <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>No approvals found</h3>
+                <p style={{ fontSize: 14 }}>There are no approval requests to display yet.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

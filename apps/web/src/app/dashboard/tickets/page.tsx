@@ -31,6 +31,7 @@ import {
 } from './components';
 import type { SortField, SortDir } from './components';
 import { SkeletonPage } from '@/components/Skeleton';
+import { toast } from '@/components/Toast';
 
 // ─── FilterPill Component ─────────────────────────────────────────────────
 function FilterPill({
@@ -130,6 +131,15 @@ export default function TicketsPage() {
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
 
+  const [usePagination, setUsePagination] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try { return localStorage.getItem('resolv_ticket_use_pagination') === 'true'; } catch { /* ignore */ }
+    }
+    return false;
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   // Load initial filters from localStorage or searchParams
   const initialFilters = useMemo(() => {
     if (typeof window === 'undefined') return {};
@@ -219,6 +229,7 @@ export default function TicketsPage() {
   const [showLoadFilter, setShowLoadFilter] = useState(false);
   const [filterName, setFilterName] = useState('');
   const loadFilterRef = useRef<HTMLDivElement>(null);
+  const presetRef = useRef<HTMLDivElement>(null);
 
   // Filter dropdown state
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -239,6 +250,7 @@ export default function TicketsPage() {
   
   useClickOutside(colToggleRef, () => setShowColToggle(false));
   useClickOutside(loadFilterRef as React.RefObject<HTMLElement>, () => setShowLoadFilter(false));
+  useClickOutside(presetRef as React.RefObject<HTMLElement>, () => setShowPresetSwitcher(false));
 
   // Column resizing
 
@@ -258,10 +270,38 @@ export default function TicketsPage() {
   });
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
+  // Column presets (save/load column configurations)
+  const [columnPresets, setColumnPresets] = useState<Array<{ name: string; cols: string[]; widths: Record<string, number>; sort: { field: SortField; dir: SortDir } }>>(() => {
+    if (typeof window !== 'undefined') {
+      try { return JSON.parse(localStorage.getItem('resolv_ticket_col_presets') || '[]'); } catch { /* ignore */ }
+    }
+    return [];
+  });
+  const [activePreset, setActivePreset] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try { return localStorage.getItem('resolv_ticket_active_preset'); } catch { /* ignore */ }
+    }
+    return null;
+  });
+  const [showSavePreset, setShowSavePreset] = useState(false);
+  const [savingPresetName, setSavingPresetName] = useState('');
+  const [showPresetSwitcher, setShowPresetSwitcher] = useState(false);
+
+  // Column order for drag-and-drop reordering
+  const [columnOrder, setColumnOrder] = useState<string[] | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('resolv_ticket_col_order');
+        return saved ? JSON.parse(saved) : null;
+      } catch { /* ignore */ }
+    }
+    return null;
+  });
+
   useEffect(() => {
     api.get<{ data: User[] }>('/users').then(res => {
       setAllUsers(res.data);
-    }).catch(() => {});
+    }).catch(() => toast.error('Failed to load users', 'Please try again'));
   }, []);
 
   useEffect(() => {
@@ -342,6 +382,8 @@ export default function TicketsPage() {
       const res = await api.get<{ data: Ticket[]; total: number }>(`/tickets?${params}`);
       setTickets(append ? [...useStore.getState().tickets, ...res.data] : res.data);
       setTotal(res.total);
+      setCurrentPage(pageNum);
+      setTotalPages(Math.ceil(res.total / PAGE_SIZE));
       pageRef.current = pageNum;
       const more = pageNum * PAGE_SIZE < res.total;
       setHasMore(more);
@@ -388,6 +430,7 @@ export default function TicketsPage() {
 
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
+    if (usePagination) return;
     const el = sentinelRef.current;
     if (!el) return;
 
@@ -399,7 +442,7 @@ export default function TicketsPage() {
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [fetchPage]);
+  }, [fetchPage, usePagination]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -433,6 +476,24 @@ export default function TicketsPage() {
   useEffect(() => {
     localStorage.setItem('resolv_ticket_col_widths', JSON.stringify(colWidths));
   }, [colWidths]);
+
+  useEffect(() => {
+    localStorage.setItem('resolv_ticket_col_presets', JSON.stringify(columnPresets));
+  }, [columnPresets]);
+
+  useEffect(() => {
+    if (activePreset) localStorage.setItem('resolv_ticket_active_preset', activePreset);
+    else localStorage.removeItem('resolv_ticket_active_preset');
+  }, [activePreset]);
+
+  useEffect(() => {
+    if (columnOrder) localStorage.setItem('resolv_ticket_col_order', JSON.stringify(columnOrder));
+    else localStorage.removeItem('resolv_ticket_col_order');
+  }, [columnOrder]);
+
+  useEffect(() => {
+    localStorage.setItem('resolv_ticket_use_pagination', String(usePagination));
+  }, [usePagination]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter(t => {
@@ -490,7 +551,7 @@ export default function TicketsPage() {
       setSelectedIds(new Set());
       resetAndFetch();
     } catch (err) {
-      console.error('Bulk update failed', err);
+      toast.error('Bulk update failed', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -500,7 +561,7 @@ export default function TicketsPage() {
       setSelectedIds(new Set());
       resetAndFetch();
     } catch (err) {
-      console.error('Bulk delete failed', err);
+      toast.error('Bulk delete failed', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -517,7 +578,7 @@ export default function TicketsPage() {
       await api.patch(`/tickets/${ticketId}`, updates);
       resetAndFetch();
     } catch (err) {
-      console.error('Inline update failed', err);
+      toast.error('Inline update failed', err instanceof Error ? err.message : 'Please try again');
     }
   }, [resetAndFetch, sorted]);
 
@@ -574,7 +635,7 @@ export default function TicketsPage() {
         if (matched) setAssigneeFilter(matched);
       }
     } catch (err) {
-      console.error('AI filter failed:', err);
+      toast.error('AI filter failed', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setAiFilterLoading(false);
       setAiFilterQuery('');
@@ -643,6 +704,58 @@ export default function TicketsPage() {
     const newFilters = savedFilters.filter(f => f.name !== name);
     setSavedFilters(newFilters);
     localStorage.setItem('resolv_saved_filters', JSON.stringify(newFilters));
+  }
+
+  // ── Column Presets ─────────────────────────────────────────────────────
+  function handleSavePreset() {
+    const name = savingPresetName.trim();
+    if (!name) return;
+    const preset = {
+      name,
+      cols: [...visibleCols],
+      widths: { ...colWidths },
+      sort: { field: sortField, dir: sortDir },
+    };
+    const existing = columnPresets.findIndex(p => p.name === name);
+    let newPresets: typeof columnPresets;
+    if (existing >= 0) {
+      newPresets = [...columnPresets];
+      newPresets[existing] = preset;
+    } else {
+      newPresets = [...columnPresets, preset];
+    }
+    setColumnPresets(newPresets);
+    setActivePreset(name);
+    setSavingPresetName('');
+    setShowSavePreset(false);
+  }
+
+  function handleApplyPreset(preset: typeof columnPresets[0]) {
+    setVisibleCols(new Set(preset.cols));
+    setColWidths(preset.widths);
+    setSortField(preset.sort.field);
+    setSortDir(preset.sort.dir);
+    setActivePreset(preset.name);
+  }
+
+  function handleDeletePreset(name: string) {
+    setColumnPresets(prev => prev.filter(p => p.name !== name));
+    if (activePreset === name) setActivePreset(null);
+  }
+
+  function handleResetDefault() {
+    setVisibleCols(new Set(ALL_COLUMNS.map(c => c.id)));
+    const initial: Record<string, number> = {};
+    ALL_COLUMNS.forEach(c => { if (c.width) initial[c.id] = c.width; });
+    setColWidths(initial);
+    setSortField('number' as SortField);
+    setSortDir('desc' as SortDir);
+    setColumnOrder(null);
+    setActivePreset(null);
+  }
+
+  function handleColumnReorder(newOrder: string[]) {
+    setColumnOrder(newOrder);
   }
 
   const rowPad = density === 'compact' ? '7px 16px' : '11px 16px';
@@ -913,6 +1026,86 @@ export default function TicketsPage() {
             )}
           </div>
 
+          {/* Save Preset */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowSavePreset(!showSavePreset)} className="btn btn-ghost btn-sm"
+              style={{ fontSize: 11, fontWeight: 500, gap: 3, color: 'var(--text-muted)' }} title="Save column preset">
+              <Book size={11} /> Preset
+            </button>
+            {showSavePreset && (
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', zIndex: 50, width: 220, animation: 'popIn 0.15s ease-out' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase' }}>Save Column Preset</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <input
+                    autoFocus
+                    placeholder="Preset name..."
+                    value={savingPresetName}
+                    onChange={(e) => setSavingPresetName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSavePreset(); if (e.key === 'Escape') { setShowSavePreset(false); setSavingPresetName(''); } }}
+                    style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', fontSize: 12, background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}
+                  />
+                  <button onClick={handleSavePreset} disabled={!savingPresetName.trim()}
+                    style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 600, cursor: savingPresetName.trim() ? 'pointer' : 'not-allowed', opacity: savingPresetName.trim() ? 1 : 0.5 }}>
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Preset Switcher */}
+          <div style={{ position: 'relative' }} ref={presetRef}>
+            <button onClick={() => setShowPresetSwitcher(!showPresetSwitcher)} className="btn btn-ghost btn-sm"
+              style={{ fontSize: 11, fontWeight: 500, gap: 3, color: activePreset ? 'var(--accent)' : 'var(--text-muted)' }}>
+              <Layers size={11} /> {activePreset || 'Default'}
+              {columnPresets.length > 0 && (
+                <span style={{ background: activePreset ? 'var(--accent)' : 'var(--bg-tertiary)', color: activePreset ? '#fff' : 'var(--text-muted)', padding: '0 4px', borderRadius: 6, fontSize: 9, fontWeight: 700, lineHeight: '14px' }}>{columnPresets.length}</span>
+              )}
+            </button>
+            {showPresetSwitcher && (
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', zIndex: 50, width: 220, animation: 'popIn 0.15s ease-out' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, padding: '0 4px', textTransform: 'uppercase' }}>Column Presets</div>
+                {columnPresets.length === 0 ? (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '6px 4px', textAlign: 'center' }}>No saved presets</div>
+                ) : (
+                  columnPresets.map(p => (
+                    <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 6px', borderRadius: 6, cursor: 'pointer', background: activePreset === p.name ? 'var(--accent-subtle)' : 'transparent' }}
+                      onMouseEnter={e => { if (activePreset !== p.name) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                      onMouseLeave={e => { if (activePreset !== p.name) e.currentTarget.style.background = 'transparent'; }}>
+                      <span onClick={() => { handleApplyPreset(p); setShowPresetSwitcher(false); }} style={{ fontSize: 12, color: 'var(--text)', fontWeight: activePreset === p.name ? 600 : 500, flex: 1 }}>{p.name}</span>
+                      <button onClick={() => handleDeletePreset(p.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))
+                )}
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6 }}>
+                  <div onClick={() => { handleResetDefault(); setShowPresetSwitcher(false); }} style={{ padding: '5px 6px', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    Reset to Default
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination Mode Toggle */}
+          <button
+            onClick={() => setUsePagination(!usePagination)}
+            className="btn btn-ghost btn-sm"
+            style={{
+              fontSize: 11, fontWeight: 500, gap: 3,
+              color: usePagination ? 'var(--accent)' : 'var(--text-muted)',
+              border: usePagination ? '1px solid var(--accent-border)' : 'none',
+            }}
+            title="Toggle between infinite scroll and paginated view"
+          >
+            <Layers size={11} /> {usePagination ? 'Paged' : 'Infinite'}
+          </button>
+
           {/* Column Toggle */}
           <div style={{ position: 'relative' }} ref={colToggleRef}>
             <button onClick={() => setShowColToggle(!showColToggle)} className="btn btn-ghost btn-icon"
@@ -943,12 +1136,21 @@ export default function TicketsPage() {
                     <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{c.label}</span>
                   </label>
                 ))}
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', padding: '0 6px', marginBottom: 2 }}>
+                    Preset: <span style={{ color: activePreset ? 'var(--accent)' : 'var(--text-muted)' }}>{activePreset || 'Default'}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '0 6px' }}>
+                    Drag headers to reorder
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
+      <div className="ticket-table-wrapper" style={{ overflowX: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
       <TicketTable
         loading={loading}
         loadingMore={loadingMore}
@@ -973,7 +1175,10 @@ export default function TicketsPage() {
         user={user}
         allUsers={allUsers}
         clearFilters={clearFilters}
+        columnOrder={columnOrder}
+        onColumnReorder={handleColumnReorder}
       />
+      </div>
 
       {selectedIds.size > 0 && (
         <BulkActionToolbar
@@ -1067,7 +1272,7 @@ export default function TicketsPage() {
                   setMergePrimaryId('');
                   resetAndFetch();
                 } catch (err) {
-                  console.error('Merge failed', err);
+                  toast.error('Merge failed', err instanceof Error ? err.message : 'Please try again');
                 }
               }}>Merge Tickets</button>
             </div>
@@ -1097,9 +1302,49 @@ export default function TicketsPage() {
           <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
             Showing {sorted.length} of {total} {total === 1 ? 'ticket' : 'tickets'}
           </span>
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Click column headers to sort <ChevronsUpDown size={12} /></span>
-          </div>
+          {usePagination ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={() => fetchPage(1, false)}
+                disabled={currentPage <= 1}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, fontWeight: 500, opacity: currentPage <= 1 ? 0.4 : 1 }}
+              >
+                First
+              </button>
+              <button
+                onClick={() => fetchPage(currentPage - 1, false)}
+                disabled={currentPage <= 1}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, fontWeight: 500, opacity: currentPage <= 1 ? 0.4 : 1 }}
+              >
+                Prev
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '0 8px' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => fetchPage(currentPage + 1, false)}
+                disabled={currentPage >= totalPages}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, fontWeight: 500, opacity: currentPage >= totalPages ? 0.4 : 1 }}
+              >
+                Next
+              </button>
+              <button
+                onClick={() => fetchPage(totalPages, false)}
+                disabled={currentPage >= totalPages}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, fontWeight: 500, opacity: currentPage >= totalPages ? 0.4 : 1 }}
+              >
+                Last
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Drag headers to reorder &middot; Click to sort <ChevronsUpDown size={12} /></span>
+            </div>
+          )}
         </div>
       )}
       {/* New Ticket Panel */}

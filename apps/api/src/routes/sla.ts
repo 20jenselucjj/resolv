@@ -162,4 +162,181 @@ export default async function slaRoutes(fastify: FastifyInstance) {
     clearCache('sla-policies');
     return reply.send({ message: 'SLA policy deactivated successfully' });
   });
+  // ─── SLA Breach Detection ──────────────────────────────────────────────────
+
+  // POST /sla/breach-detection — Run SLA breach detection manually
+  fastify.post('/sla/breach-detection', {
+    preHandler: [fastify.requirePermission('manage_sla')],
+    schema: {
+      tags: ['sla'],
+      summary: 'Run SLA breach detection scan (marks overdue tickets)',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            message: { type: 'string' },
+            breached_count: { type: 'integer' },
+            breaches: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  ticket_id: { type: 'string' },
+                  ticket_number: { type: 'integer' },
+                  ticket_title: { type: 'string' },
+                  priority: { type: 'string' },
+                  sla_policy_name: { type: 'string' },
+                  hours_overdue: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    try {
+      const { runSlaBreachDetection } = await import('../services/sla-engine');
+      const breaches = await runSlaBreachDetection();
+      return reply.send({
+        message: `SLA breach detection complete. ${breaches.length} ticket(s) newly marked as breached.`,
+        breached_count: breaches.length,
+        breaches: breaches.map(b => ({
+          ticket_id: b.ticket_id,
+          ticket_number: b.ticket_number,
+          ticket_title: b.ticket_title,
+          priority: b.priority,
+          sla_policy_name: b.sla_policy_name,
+          hours_overdue: b.hours_overdue,
+        })),
+      });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'SLA breach detection failed');
+      return reply.status(500).send({ error: 'SLA breach detection failed' });
+    }
+  });
+
+  // ─── SLA Stats ─────────────────────────────────────────────────────────────
+
+  // GET /sla/stats — Get SLA compliance statistics
+  fastify.get('/sla/stats', {
+    preHandler: [fastify.authenticate],
+    schema: {
+      tags: ['sla'],
+      summary: 'Get SLA compliance statistics',
+      querystring: {
+        type: 'object',
+        properties: {
+          dateFrom: { type: 'string', format: 'date-time', description: 'Filter from date' },
+          dateTo: { type: 'string', format: 'date-time', description: 'Filter to date' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                total_tickets_with_sla: { type: 'integer' },
+                breached_count: { type: 'integer' },
+                compliant_count: { type: 'integer' },
+                compliance_rate: { type: 'number' },
+                avg_response_time_hours: { type: 'number' },
+                avg_resolution_time_hours: { type: 'number' },
+                by_priority: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      priority: { type: 'string' },
+                      total: { type: 'integer' },
+                      breached: { type: 'integer' },
+                      compliant: { type: 'integer' },
+                      rate: { type: 'number' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    try {
+      const { getSlaStats } = await import('../services/sla-engine');
+      const query = request.query as { dateFrom?: string; dateTo?: string };
+      const stats = await getSlaStats(query.dateFrom, query.dateTo);
+      return reply.send({ data: stats });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'Failed to get SLA stats');
+      return reply.status(500).send({ error: 'Failed to get SLA stats' });
+    }
+  });
+
+  // ─── Breached Tickets List ────────────────────────────────────────────────
+
+  // GET /sla/breaches — List breached tickets
+  fastify.get('/sla/breaches', {
+    preHandler: [fastify.authenticate],
+    schema: {
+      tags: ['sla'],
+      summary: 'List tickets with SLA breaches',
+      querystring: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', default: 50, description: 'Results per page' },
+          offset: { type: 'integer', default: 0, description: 'Page offset' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Filter by priority' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'object',
+              properties: {
+                tickets: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      number: { type: 'integer' },
+                      title: { type: 'string' },
+                      priority: { type: 'string' },
+                      status: { type: 'string' },
+                      created_at: { type: 'string' },
+                      due_date: { type: 'string' },
+                      sla_breached_at: { type: 'string' },
+                      sla_policy_name: { type: 'string' },
+                      assigned_to_name: { type: 'string' },
+                    },
+                  },
+                },
+                total: { type: 'integer' },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    try {
+      const { getBreachedTickets } = await import('../services/sla-engine');
+      const query = request.query as { limit?: number; offset?: number; priority?: string };
+      const result = await getBreachedTickets(
+        query.limit || 50,
+        query.offset || 0,
+        query.priority
+      );
+      return reply.send({ data: result });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'Failed to get breached tickets');
+      return reply.status(500).send({ error: 'Failed to get breached tickets' });
+    }
+  });
 }
+

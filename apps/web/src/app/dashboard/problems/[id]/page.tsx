@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/date-utils';
+import { toast } from '@/components/Toast';
 import {
   ArrowLeft, ExternalLink, Plus, X, Save, Edit2, Check,
   AlertTriangle, Trash2, Activity, Link2,
@@ -100,7 +101,7 @@ export default function ProblemDetailPage() {
       setWorkaroundDraft(res.data.workaround || '');
       setResolutionDraft(res.data.resolution || '');
     } catch (err) {
-      console.error('Failed to load problem', err);
+      toast.error('Failed to load problem', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setLoading(false);
     }
@@ -115,7 +116,7 @@ export default function ProblemDetailPage() {
       const res = await api.patch<{ data: Problem }>(`/problems/${id}`, { [field]: value });
       setProblem(res.data);
     } catch (err) {
-      console.error('Update failed', err);
+      toast.error('Update failed', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -157,7 +158,7 @@ export default function ProblemDetailPage() {
       await api.delete(`/problems/${id}/link-incident/${incidentId}`);
       fetchProblem();
     } catch (err) {
-      console.error('Failed to unlink incident', err);
+      toast.error('Failed to unlink incident', err instanceof Error ? err.message : 'Please try again');
     }
   };
 

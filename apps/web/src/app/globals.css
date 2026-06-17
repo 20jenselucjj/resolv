@@ -1178,3 +1178,47 @@ select:not([multiple]):focus {
     font-size: 16px !important;
   }
 }
+
+/* ─── Responsive Utilities ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .admin-content {
+    padding: 16px !important;
+  }
+  .admin-health-widget {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+  .ticket-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ticket-main-content {
+    width: 100% !important;
+  }
+  .ticket-resize-handle,
+  [class*="ticket-resize"] {
+    display: none !important;
+  }
+}
+
+/* ─── Accordion Section Animations ─────────────────────────────────── */
+.accordion-header {
+  user-select: none;
+}
+.accordion-header:hover {
+  background: var(--bg-tertiary);
+}
+
+/* ─── Properties Card Grid Enhancement ─────────────────────────────── */
+@media (max-width: 767px) {
+  .ticket-props-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ─── Admin Sidebar Mobile ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .admin-sidebar-overlay {
+    animation: fadeIn 200ms ease forwards;
+  }
+}

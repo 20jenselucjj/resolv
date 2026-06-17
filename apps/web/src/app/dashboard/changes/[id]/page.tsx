@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/date-utils';
+import { toast } from '@/components/Toast';
 import {
   ArrowLeft, AlertTriangle, Check, X, Play, RotateCcw,
   Send, ChevronDown, Activity, User as UserIcon, AlertCircle
@@ -107,7 +108,7 @@ export default function ChangeDetailPage() {
       const res = await api.get<{ data: Change }>(`/changes/${id}`);
       setChange(res.data);
     } catch (err) {
-      console.error('Failed to load change', err);
+      toast.error('Failed to load change', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setLoading(false);
     }
@@ -161,7 +162,7 @@ export default function ChangeDetailPage() {
       const res = await api.patch<{ data: Change }>(`/changes/${id}`, { [field]: value });
       setChange(res.data);
     } catch (err) {
-      console.error('Update failed', err);
+      toast.error('Update failed', err instanceof Error ? err.message : 'Please try again');
     }
   };
 

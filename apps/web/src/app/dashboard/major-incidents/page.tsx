@@ -8,6 +8,7 @@ import {
   User, Phone, MessageSquare, Link,
   ExternalLink, Radio
 } from 'lucide-react';
+import { SkeletonPage } from '@/components/Skeleton';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
@@ -327,12 +328,12 @@ style={{ gap: 6, background: 'var(--danger)', borderColor: 'var(--danger)' }}
           </div>
         )}
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>
+          <SkeletonPage />
         ) : incidents.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center' }}>
-            <AlertTriangle size={32} color="var(--text-muted)" style={{ margin: '0 auto 12px', display: 'block' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>No major incidents</div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 8 }}>
+          <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }}>🚨</div>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>No major incidents</h3>
+            <p style={{ fontSize: 14 }}>
               {statusFilter !== 'all' ? 'No incidents match the current filter.' : 'Declare a major incident from a critical ticket to start.'}
             </p>
           </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Palette, Zap, Globe, LayoutGrid, Eye, Info, MessageSquare, FileText, List, BookOpen, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 
 const QA_COLORS = [
   { color: '#ef4444', bg: '#fef2f2', border: '#fecaca', icon: '🔴' },
@@ -117,7 +118,7 @@ export function PortalCustomizationTab({ showAlert }: { showAlert: (m: string, t
           portal_catalog_no_results: s.portal_catalog_no_results || prev.portal_catalog_no_results,
         }));
       })
-      .catch(() => {})
+      .catch((err) => toast.error('Failed to load portal settings', err instanceof Error ? err.message : 'Please try again'))
       .finally(() => setLoading(false));
   }, []);
 

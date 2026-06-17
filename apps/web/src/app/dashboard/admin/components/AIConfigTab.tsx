@@ -7,6 +7,7 @@ import {
   Ticket, List, UserPlus
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import type { AIConfig, AiGuidelinesSection } from './types';
 
 // ─── Guideline section metadata ──────────────────────────────────────────
@@ -309,7 +310,7 @@ export function AIConfigTab({ showAlert }: { showAlert: (m: string, t?: 'success
         if (res.data.guidelines) setGuidelines(res.data.guidelines);
       }
     } catch (err) {
-      console.error('Failed to fetch AI config:', err);
+      toast.error('Failed to fetch AI config', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setLoading(false);
     }

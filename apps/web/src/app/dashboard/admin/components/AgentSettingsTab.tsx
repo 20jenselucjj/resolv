@@ -6,6 +6,7 @@ import {
   HelpCircle, CheckCircle, AlertTriangle
 } from 'lucide-react';
 import { api, API_BASE, getToken } from '@/lib/api';
+import { toast } from '@/components/Toast';
 
 interface AgentStats {
   total: number;
@@ -73,7 +74,7 @@ export function AgentSettingsTab({ showAlert }: {
       api.get<{ data: Record<string, string> }>('/admin/settings').then(res => {
         const secret = res.data?.agent_secret_key || '';
         setAgentSecret(secret);
-      }).catch(() => {}).finally(() => setLoadingSecret(false)),
+      }).catch((err) => toast.error('Failed to load agent settings', err instanceof Error ? err.message : 'Please try again')).finally(() => setLoadingSecret(false)),
       api.get<{ data: AgentStatsResponse }>('/assets/stats').then(res => {
         if (res.data) {
           const d = res.data;
@@ -85,10 +86,10 @@ export function AgentSettingsTab({ showAlert }: {
             never_connected: byStatus.find((s) => s.agent_status === 'never')?.count || 0,
           });
         }
-      }).catch(() => {}).finally(() => setLoadingStats(false)),
+      }).catch((err) => toast.error('Failed to load agent stats', err instanceof Error ? err.message : 'Please try again')).finally(() => setLoadingStats(false)),
       api.get<{ data: LatestVersion | null }>('/agent-versions/latest').then(res => {
         setLatestVersion(res.data || null);
-      }).catch(() => {}),
+      }).catch((err) => toast.error('Failed to load latest version', err instanceof Error ? err.message : 'Please try again')),
     ]);
   }, []);
 

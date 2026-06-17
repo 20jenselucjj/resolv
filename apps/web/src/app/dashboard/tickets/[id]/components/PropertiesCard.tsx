@@ -16,6 +16,7 @@ import { useStatusConfig } from '@/lib/StatusConfigContext';
 
 import type { Category } from '@/lib/store';
 import { filterStatusesByType } from '@/lib/status-utils';
+import { toast } from '@/components/Toast';
 
 interface PropertiesCardProps {
   ticket: Ticket;
@@ -28,8 +29,16 @@ interface PropertiesCardProps {
   handleReporterChange: (userId: string | null) => Promise<void>;
 }
 
-function GroupDivider() {
-  return <div style={{ gridColumn: '1 / -1', height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />;
+function GroupDivider({ label }: { label?: string }) {
+  return (
+    <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+      {label && (
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+      )}
+      {label && <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />}
+    </div>
+  );
 }
 
 export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, updateField, handleStatusChange, handleAssignToUser, handleReporterChange }: PropertiesCardProps) {
@@ -47,7 +56,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
       setLoadingAssets(true);
       api.get<AssetListResponse>('/assets?limit=1000')
         .then(res => setAssets(res.data || res.assets || []))
-        .catch(err => console.error('Failed to load assets', err))
+        .catch(err => toast.error('Failed to load assets', err instanceof Error ? err.message : 'Please try again'))
         .finally(() => setLoadingAssets(false));
     }
   }, [isAdminOrAgent]);
@@ -118,7 +127,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           </div>
         )}
 
-        <GroupDivider />
+        <GroupDivider label="Assignment" />
 
         {/* ── Assignment ── */}
         <PropField label="Assignee">
@@ -155,7 +164,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           )}
         </PropField>
 
-        <GroupDivider />
+        <GroupDivider label="Classification" />
 
         {/* ── Classification ── */}
         <PropField label="Type">
@@ -187,7 +196,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           ) : <span style={{ fontSize: 13 }}>{ticket.category_name || 'None'}</span>}
         </PropField>
 
-        <GroupDivider />
+        <GroupDivider label="Context" />
 
         {/* ── Context ── */}
         <PropField label="Linked Asset">
@@ -226,7 +235,7 @@ export function PropertiesCard({ ticket, categories, allUsers, isAdminOrAgent, u
           )}
         </PropField>
 
-        <GroupDivider />
+        <GroupDivider label="Timestamps" />
 
         {/* ── Timestamps ── */}
         <PropField label="Created">

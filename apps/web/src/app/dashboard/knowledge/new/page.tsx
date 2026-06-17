@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { WYSIWYGEditor } from '@/components/WYSIWYGEditor';
+import { toast } from '@/components/Toast';
 import { 
   ArrowLeft, AlertTriangle, FileText, 
   Type, Layout, Globe, Save, Link as LinkIcon, Clock, Check
@@ -50,6 +51,7 @@ export default function NewArticlePage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
   
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -64,7 +66,7 @@ export default function NewArticlePage() {
   useEffect(() => {
     api.get<{ data: Category[] }>('/categories')
       .then(res => setCategories(res.data || []))
-      .catch(console.error);
+      .catch(err => toast.error('Failed to load categories', err instanceof Error ? err.message : 'Please try again'));
   }, []);
 
   // Draft saved indicator (local state only — not persisted to server)
@@ -100,11 +102,21 @@ export default function NewArticlePage() {
     return Math.max(1, Math.ceil(words / 200));
   }, [form.body]);
 
+  function validate() {
+    const errors: Record<string, string> = {};
+    if (!form.title.trim()) errors.title = 'Title is required';
+    else if (form.title.trim().length < 3) errors.title = 'Title must be at least 3 characters';
+    if (!form.category_id) errors.category_id = 'Category is required';
+    const strippedBody = form.body?.replace(/<[^>]*>/g, '').trim();
+    if (!strippedBody) errors.body = 'Content is required';
+    else if (strippedBody.length < 20) errors.body = 'Content must be at least 20 characters';
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) { setError('Title is required'); return; }
-    if (!form.body.trim()) { setError('Body is required'); return; }
-    if (!form.category_id) { setError('Category is required'); return; }
+    if (!validate()) return;
 
     setLoading(true);
     setError('');
@@ -173,11 +185,17 @@ export default function NewArticlePage() {
             <input
               autoFocus
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, title: e.target.value });
+                if (validationErrors.title) setValidationErrors(prev => ({ ...prev, title: '' }));
+              }}
               placeholder="e.g. How to reset your password"
               className="input"
               style={{ fontSize: 24, height: 64, fontWeight: 700, border: 'none', borderBottom: '2px solid var(--border)', borderRadius: 0, padding: '0 0 8px 0', background: 'transparent' }}
             />
+            {validationErrors.title && (
+              <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.title}</span>
+            )}
             
             {/* Slug Preview */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: 'var(--muted)' }}>
@@ -195,7 +213,10 @@ export default function NewArticlePage() {
               </label>
               <select
                 value={form.category_id}
-                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, category_id: e.target.value });
+                  if (validationErrors.category_id) setValidationErrors(prev => ({ ...prev, category_id: '' }));
+                }}
                 className="select"
                 style={{ height: 48, fontSize: 15 }}
               >
@@ -204,6 +225,9 @@ export default function NewArticlePage() {
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
+              {validationErrors.category_id && (
+                <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.category_id}</span>
+              )}
             </div>
 
             {/* Status */}
@@ -237,10 +261,16 @@ export default function NewArticlePage() {
             </div>
             <WYSIWYGEditor
               value={form.body}
-              onChange={(val) => setForm({ ...form, body: val })}
+              onChange={(val) => {
+                setForm({ ...form, body: val });
+                if (validationErrors.body) setValidationErrors(prev => ({ ...prev, body: '' }));
+              }}
               height={450}
               placeholder="Write your article content here..."
             />
+            {validationErrors.body && (
+              <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.body}</span>
+            )}
           </div>
 
           {error && (
@@ -260,7 +290,7 @@ export default function NewArticlePage() {
             <button
               type="submit"
               disabled={loading || !isValid}
-              className="btn btn-warm"
+              className="btn btn-primary"
               style={{ padding: '0 32px', height: 56, fontSize: 16, gap: 12, flex: 1 }}
             >
               {loading ? (

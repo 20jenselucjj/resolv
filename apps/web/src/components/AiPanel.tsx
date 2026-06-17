@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { api, getToken } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import {
   Sparkles, X, Trash2, Send, Plus,
   User as UserIcon, Check, Loader2, Paperclip,
@@ -150,7 +151,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           setUploadedFiles(prev => [...prev, { id: data.data.id, filename: data.data.filename, size: data.data.size }]);
         }
       } catch (err) {
-        console.error('File upload failed:', err);
+        toast.error('File upload failed', err instanceof Error ? err.message : 'Please try again');
       } finally {
         setUploadingFile(false);
       }
@@ -169,7 +170,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         setActiveSessionId(data[0].id);
       }
     } catch (err) {
-      console.error('Failed to fetch sessions:', err);
+      toast.error('Failed to fetch sessions', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -188,7 +189,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         return true;
       }));
     } catch (err) {
-      console.error('Failed to fetch messages:', err);
+      toast.error('Failed to fetch messages', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -267,7 +268,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         return filtered;
       });
     } catch (err) {
-      console.error('Failed to delete session:', err);
+      toast.error('Failed to delete session', err instanceof Error ? err.message : 'Please try again');
     }
   };
 
@@ -331,7 +332,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         }
       ]);
     } catch (err: any) {
-      console.error('Failed to send message:', err);
+      toast.error('Failed to send message', err instanceof Error ? err.message : 'Please try again');
       const msg = err?.message || 'Sorry, I encountered an error.';
       setMessages(prev => [...prev, { id: Math.random().toString(36).substr(2, 9) + 'ai', role: 'assistant', content: msg }]);
     } finally {
@@ -365,7 +366,7 @@ export function AiPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         setUploadedFiles(prev => [...prev, { id: data.data.id, filename: data.data.filename, size: data.data.size }]);
       }
     } catch (err) {
-      console.error('File upload failed:', err);
+      toast.error('File upload failed', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setUploadingFile(false);
       if (e.target) e.target.value = '';

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Lock, Info, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
+import { toast } from '@/components/Toast';
 
 export function ReopenTab({ showAlert }: { showAlert: (m: string, t?: 'success' | 'error') => void }) {
   const [reopenDays, setReopenDays] = useState('');
@@ -15,7 +16,7 @@ export function ReopenTab({ showAlert }: { showAlert: (m: string, t?: 'success' 
       .then(res => {
         setReopenDays(res.data['reopen_window_days'] || '');
       })
-      .catch(() => {})
+      .catch((err) => toast.error('Failed to load reopen settings', err instanceof Error ? err.message : 'Please try again'))
       .finally(() => setLoading(false));
   }, []);
 

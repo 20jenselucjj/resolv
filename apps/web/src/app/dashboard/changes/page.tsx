@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { Search, Plus, AlertCircle, ChevronDown, X, Calendar } from 'lucide-react';
+import { toast } from '@/components/Toast';
+import { SkeletonPage } from '@/components/Skeleton';
 import { PRIORITY_OPTIONS } from '@/lib/constants';
 
 const STATUS_OPTIONS = [
@@ -110,6 +112,7 @@ export default function ChangesPage() {
   const [newScheduledStart, setNewScheduledStart] = useState('');
   const [newScheduledEnd, setNewScheduledEnd] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [newCiIds, setNewCiIds] = useState<string[]>([]);
   const [ciSearchQuery, setCiSearchQuery] = useState('');
   const [ciSearchResults, setCiSearchResults] = useState<{ id: string; name: string; ci_type: string }[]>([]);
@@ -156,7 +159,13 @@ export default function ChangesPage() {
   }, [ciSearchQuery]);
 
   const handleCreate = async () => {
-    if (!newTitle.trim()) return;
+    const errors: Record<string, string> = {};
+    if (!newTitle.trim()) errors.title = 'Title is required';
+    if (!newType) errors.change_type = 'Change type is required';
+    if (!newPriority) errors.priority = 'Priority is required';
+    if (!newDesc.trim()) errors.description = 'Description is required';
+    setValidationErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     setSubmitting(true);
     try {
       await api.post('/changes', {
@@ -182,9 +191,10 @@ export default function ChangesPage() {
       setNewScheduledEnd('');
       setNewCiIds([]);
       setShowNewPanel(false);
+      setValidationErrors({});
       fetchChanges();
     } catch (err) {
-      console.error('Failed to create change', err);
+      toast.error('Failed to create change', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setSubmitting(false);
     }
@@ -342,12 +352,12 @@ export default function ChangesPage() {
           </div>
         )}
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>
+          <SkeletonPage />
         ) : changes.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center' }}>
-            <AlertCircle size={32} color="var(--text-muted)" style={{ margin: '0 auto 12px', display: 'block' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>No changes found</div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 8 }}>Create a new change request to start the process.</p>
+          <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }}>📋</div>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>No changes found</h3>
+            <p style={{ fontSize: 14 }}>Create a new change request to start the process.</p>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -423,29 +433,33 @@ export default function ChangesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '70vh', overflow: 'auto' }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Title *</label>
-                <input value={newTitle} onChange={e => setNewTitle(e.target.value)} className="input" placeholder="Brief title describing the change" style={{ width: '100%' }} autoFocus />
+                <input value={newTitle} onChange={e => { setNewTitle(e.target.value); if (validationErrors.title) setValidationErrors(prev => ({ ...prev, title: '' })); }} className="input" placeholder="Brief title describing the change" style={{ width: '100%' }} autoFocus />
+                {validationErrors.title && <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 2, display: 'block' }}>{validationErrors.title}</span>}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Description</label>
-                <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="textarea" placeholder="Detailed description of the change" rows={3} style={{ width: '100%', resize: 'vertical' }} />
+                <textarea value={newDesc} onChange={e => { setNewDesc(e.target.value); if (validationErrors.description) setValidationErrors(prev => ({ ...prev, description: '' })); }} className="textarea" placeholder="Detailed description of the change" rows={3} style={{ width: '100%', resize: 'vertical' }} />
+                {validationErrors.description && <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 2, display: 'block' }}>{validationErrors.description}</span>}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Change Type</label>
-                  <select value={newType} onChange={e => setNewType(e.target.value)} className="select" style={{ width: '100%' }}>
+                  <select value={newType} onChange={e => { setNewType(e.target.value); if (validationErrors.change_type) setValidationErrors(prev => ({ ...prev, change_type: '' })); }} className="select" style={{ width: '100%' }}>
                     <option value="standard">Standard (Pre-approved)</option>
                     <option value="normal">Normal (CAB Approval)</option>
                     <option value="emergency">Emergency (Direct Admin)</option>
                   </select>
+                  {validationErrors.change_type && <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 2, display: 'block' }}>{validationErrors.change_type}</span>}
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Priority</label>
-                  <select value={newPriority} onChange={e => setNewPriority(e.target.value)} className="select" style={{ width: '100%' }}>
+                  <select value={newPriority} onChange={e => { setNewPriority(e.target.value); if (validationErrors.priority) setValidationErrors(prev => ({ ...prev, priority: '' })); }} className="select" style={{ width: '100%' }}>
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                     <option value="critical">Critical</option>
                   </select>
+                  {validationErrors.priority && <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 2, display: 'block' }}>{validationErrors.priority}</span>}
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Risk Level</label>

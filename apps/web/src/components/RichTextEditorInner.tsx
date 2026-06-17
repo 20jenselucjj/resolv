@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import MDEditor, { commands } from '@uiw/react-md-editor';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { API_BASE, getToken } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import { useStore } from '@/lib/store';
 import { Loader2, Image as ImageIcon, UploadCloud, Eye } from 'lucide-react';
 
@@ -52,7 +53,7 @@ export function RichTextEditorInner({
       const origin = new URL(apiBase).origin;
       return origin + relativeUrl;
     } catch (err) {
-      console.error('Image upload failed:', err);
+      toast.error('Image upload failed', err instanceof Error ? err.message : 'Please try again');
       setUploadProgress('');
       return null;
     }

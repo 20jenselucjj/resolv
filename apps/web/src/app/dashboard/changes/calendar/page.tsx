@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { ChevronLeft, ChevronRight, ArrowLeft, AlertCircle } from 'lucide-react';
+import { toast } from '@/components/Toast';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: '#6b7280',
@@ -69,7 +70,7 @@ export default function ChangeCalendarPage() {
       const res = await api.get<{ data: CalendarChange[] }>(`/changes/calendar?start=${start}&end=${end}`);
       setChanges(res.data);
     } catch (err) {
-      console.error('Failed to load calendar changes', err);
+      toast.error('Failed to load calendar changes', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setLoading(false);
     }

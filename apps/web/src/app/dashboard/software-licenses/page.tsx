@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { SkeletonPage } from '@/components/Skeleton';
 import ImportModal from './ImportModal';
 
 interface SoftwareLicense {
@@ -602,14 +603,16 @@ export default function SoftwareLicensesPage() {
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>
-            Loading licenses...
-          </div>
+          <SkeletonPage />
         ) : licenses.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 14 }}>
-            {debouncedSearch || filterCount > 0
-              ? 'No licenses match your search or filters.'
-              : 'No software licenses yet. Click "Add License" to create one.'}
+          <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }}>🔑</div>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>No licenses found</h3>
+            <p style={{ fontSize: 14 }}>
+              {debouncedSearch || filterCount > 0
+                ? 'No licenses match your search or filters.'
+                : 'Click "Add License" to create one.'}
+            </p>
           </div>
         ) : (
           <>

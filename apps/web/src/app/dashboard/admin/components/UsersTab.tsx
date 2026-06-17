@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { UserPlus, MoreVertical, Lock, X, CheckCircle, Trash2, Search, LockKeyhole, Unlock, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Badge } from './SharedUI';
+import { toast } from '@/components/Toast';
 import type { UserProfile } from './types';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -81,7 +82,7 @@ export function UsersTab({ users, onRefresh, onShowPassword, showAlert, setConfi
       showAlert(`User ${user.is_active ? 'deactivated' : 'activated'}`);
       onRefresh();
     } catch (err: any) {
-      console.error('Toggle active error:', err);
+      toast.error('Toggle active error', err instanceof Error ? err.message : 'Please try again');
       showAlert(err?.serverError || err?.message || 'Failed to update user', 'error');
     }
   };
@@ -128,7 +129,7 @@ export function UsersTab({ users, onRefresh, onShowPassword, showAlert, setConfi
           showAlert('User deleted');
           onRefresh();
         } catch (err: any) {
-          console.error('Delete user error:', err);
+          toast.error('Delete user error', err instanceof Error ? err.message : 'Please try again');
           showAlert(err?.serverError || err?.message || 'Failed to delete user', 'error');
         }
       }

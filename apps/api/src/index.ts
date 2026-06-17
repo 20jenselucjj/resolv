@@ -10,6 +10,7 @@ import authPlugin from './plugins/auth';
 import swaggerPlugin from './plugins/swagger';
 import authRoutes from './routes/auth';
 import ticketRoutes from './routes/tickets';
+import ticketCommentRoutes from './routes/ticket-comments';
 import userRoutes from './routes/users';
 import categoryRoutes from './routes/categories';
 import slaRoutes from './routes/sla';
@@ -213,6 +214,7 @@ async function start() {
   // Register routes
   await fastify.register(authRoutes, { prefix: '/api' });
   await fastify.register(ticketRoutes, { prefix: '/api' });
+  await fastify.register(ticketCommentRoutes, { prefix: '/api' });
   await fastify.register(userRoutes, { prefix: '/api' });
   await fastify.register(categoryRoutes, { prefix: '/api' });
   await fastify.register(slaRoutes, { prefix: '/api' });

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, getToken } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
+import { toast } from '@/components/Toast';
 import {
   Upload, MessageSquare, Settings, FlaskConical, BarChart3
 } from 'lucide-react';
@@ -96,7 +97,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
             const res = await api.get<{ data: KnowledgeSource[] }>('/ai/knowledge/sources');
             setSources(res.data || []);
           } catch (err: unknown) {
-            console.error(err);
+            toast.error('Operation failed', err instanceof Error ? err.message : 'Please try again');
           }
         };
         fetchSources();
@@ -136,7 +137,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
         }
       }
     } catch (err: any) {
-      console.error(err);
+      toast.error('Operation failed', err instanceof Error ? err.message : 'Please try again');
       showAlert(err?.serverError || err?.message || 'Failed to fetch data', 'error');
     } finally {
       setLoading(false);
@@ -369,7 +370,7 @@ export function AITrainingTab({ showAlert }: { showAlert: (m: string, t?: 'succe
       const res = await api.get<{ data: Chunk[] }>(`/ai/knowledge/sources/${sourceId}/chunks`);
       setSourceChunks(prev => ({ ...prev, [sourceId]: res.data || [] }));
     } catch (err: any) {
-      console.error(err);
+      toast.error('Operation failed', err instanceof Error ? err.message : 'Please try again');
       showAlert(err?.serverError || err?.message || 'Failed to fetch chunks for this source', 'error');
     } finally {
       setLoadingChunks(prev => ({ ...prev, [sourceId]: false }));

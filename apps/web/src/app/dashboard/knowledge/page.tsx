@@ -6,11 +6,12 @@ import { api } from '@/lib/api';
 import { connectSocket } from '@/lib/socket';
 import { SelectSearch } from '@/components/SelectSearch';
 import { SkeletonPage } from '@/components/Skeleton';
+import { toast } from '@/components/Toast';
 import {
   Plus, Search, Book, Eye, ThumbsUp, ThumbsDown,
   Calendar, Tag, ChevronRight, Filter, X, Clock,
   LayoutGrid, List, ArrowUpDown, TrendingUp, Star,
-  FileText, SortAsc, Link2
+  FileText, SortAsc, Link2, AlertTriangle, ShieldAlert
 } from 'lucide-react';
 
 interface Article {
@@ -26,6 +27,10 @@ interface Article {
   status: 'published' | 'draft' | 'archived';
   created_at: string;
   tags: string[];
+  needs_review?: boolean;
+  review_by?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
 }
 
 interface Category {
@@ -81,6 +86,7 @@ export default function KnowledgeBasePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [needsReviewFilter, setNeedsReviewFilter] = useState<string>('');
 
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
 
@@ -97,18 +103,19 @@ export default function KnowledgeBasePage() {
   const fetchData = useCallback(async () => {
     setLoading(prev => prev ? prev : true);
     try {
+      const needsReviewParam = needsReviewFilter ? `&needs_review=${needsReviewFilter}` : '';
       const [articlesRes, categoriesRes] = await Promise.all([
-        api.get<{ data: Article[] }>(`/knowledge?category=${selectedCategory === 'all' ? '' : selectedCategory}&search=${encodeURIComponent(search)}`),
+        api.get<{ data: Article[] }>(`/knowledge?category=${selectedCategory === 'all' ? '' : selectedCategory}&search=${encodeURIComponent(search)}${needsReviewParam}`),
         api.get<{ data: Category[] }>('/categories')
       ]);
       setArticles(articlesRes.data);
       setCategories(categoriesRes.data);
     } catch (error) {
-      console.error('Failed to fetch knowledge base data:', error);
+      toast.error('Failed to fetch data', error instanceof Error ? error.message : 'Please try again');
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, search]);
+  }, [selectedCategory, search, needsReviewFilter]);
 
   useEffect(() => {
     fetchData();
@@ -195,13 +202,13 @@ export default function KnowledgeBasePage() {
                 onClick={() => router.push('/dashboard/knowledge/new')}
                 style={{
                   height: 34, padding: '0 14px', borderRadius: 8, cursor: 'pointer',
-                  background: 'var(--accent-warm)', color: '#000', border: '1px solid var(--accent-warm)',
+                  background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent-border)',
                   display: 'flex', alignItems: 'center', gap: 6,
                   fontSize: 13, fontWeight: 600,
                   transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#d97706')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'var(--accent-warm)')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--accent)')}
               >
                 <Plus size={14} />
                 New Article
@@ -296,6 +303,41 @@ export default function KnowledgeBasePage() {
               Clear
             </button>
           )}
+
+          {/* Needs Review filter */}
+          {isAdminOrAgent && (
+            <>
+              <button
+                onClick={() => setNeedsReviewFilter(needsReviewFilter === 'true' ? '' : 'true')}
+                style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  cursor: 'pointer', border: '1px solid',
+                  background: needsReviewFilter === 'true' ? 'var(--warning)20' : 'var(--bg)',
+                  color: needsReviewFilter === 'true' ? 'var(--warning)' : 'var(--text-muted)',
+                  borderColor: needsReviewFilter === 'true' ? 'var(--warning)' : 'var(--border)',
+                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                }}
+              >
+                <ShieldAlert size={11} />
+                Needs Review
+              </button>
+              <button
+                onClick={() => setNeedsReviewFilter(needsReviewFilter === 'overdue' ? '' : 'overdue')}
+                style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  cursor: 'pointer', border: '1px solid',
+                  background: needsReviewFilter === 'overdue' ? 'var(--danger)20' : 'var(--bg)',
+                  color: needsReviewFilter === 'overdue' ? 'var(--danger)' : 'var(--text-muted)',
+                  borderColor: needsReviewFilter === 'overdue' ? 'var(--danger)' : 'var(--border)',
+                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                }}
+              >
+                <AlertTriangle size={11} />
+                Overdue
+              </button>
+            </>
+          )}
+
           <div style={{ width: 150 }}>
             <SelectSearch
               options={SORT_OPTIONS}
@@ -354,8 +396,8 @@ export default function KnowledgeBasePage() {
               <button
                 onClick={() => router.push('/dashboard/knowledge/new')}
                 style={{
-                  padding: '8px 18px', borderRadius: 8, border: '1px solid var(--accent-warm)',
-                  background: 'var(--accent-warm)', color: '#000', fontSize: 13,
+                  padding: '8px 18px', borderRadius: 8, border: '1px solid var(--accent-border)',
+                  background: 'var(--accent)', color: '#fff', fontSize: 13,
                   fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                 }}
               >
@@ -422,6 +464,23 @@ export default function KnowledgeBasePage() {
                         textTransform: 'capitalize',
                       }}>
                         {article.status}
+                      </span>
+                    )}
+                    {/* Review / Overdue indicator */}
+                    {isAdminOrAgent && article.needs_review && !article.reviewed_at && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        background: 'var(--warning)15',
+                        color: article.review_by && new Date(article.review_by) < new Date() ? 'var(--danger)' : 'var(--warning)',
+                        border: `1px solid ${article.review_by && new Date(article.review_by) < new Date() ? 'var(--danger)' : 'var(--warning)'}30`,
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                        {article.review_by && new Date(article.review_by) < new Date() ? (
+                          <><AlertTriangle size={10} /> Overdue</>
+                        ) : (
+                          <><ShieldAlert size={10} /> Review</>
+                        )}
                       </span>
                     )}
                   </div>
@@ -561,6 +620,22 @@ export default function KnowledgeBasePage() {
                           textTransform: 'capitalize', flexShrink: 0,
                         }}>
                           {article.status}
+                        </span>
+                      )}
+                      {isAdminOrAgent && article.needs_review && !article.reviewed_at && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '1px 7px',
+                          borderRadius: 'var(--radius-full)',
+                          background: 'var(--warning)15',
+                          color: article.review_by && new Date(article.review_by) < new Date() ? 'var(--danger)' : 'var(--warning)',
+                          border: `1px solid ${article.review_by && new Date(article.review_by) < new Date() ? 'var(--danger)' : 'var(--warning)'}30`,
+                          display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                        }}>
+                          {article.review_by && new Date(article.review_by) < new Date() ? (
+                            <><AlertTriangle size={9} /> Overdue</>
+                          ) : (
+                            <><ShieldAlert size={9} /> Review</>
+                          )}
                         </span>
                       )}
                     </div>

@@ -1,6 +1,7 @@
 'use client';
 import { api } from '@/lib/api';
 import type { Ticket } from '@/lib/store';
+import { toast } from '@/components/Toast';
 
 export function InlineCloseModal({
   inlineCloseTicket,
@@ -42,7 +43,7 @@ export function InlineCloseModal({
               setInlineCloseNote('');
               fetchTickets();
             } catch (err) {
-              console.error('Close failed', err);
+              toast.error('Close failed', err instanceof Error ? err.message : 'Please try again');
             }
           }}>Close Ticket</button>
         </div>

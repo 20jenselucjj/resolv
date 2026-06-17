@@ -8,7 +8,7 @@ import {
   Shield, Link2, Unlink, Loader, ChevronLeft, ChevronRight,
   User as UserIcon, Tag, Map as MapIcon, Info, HelpCircle,
   Layers, GitBranch, ArrowRight, CheckCircle, AlertCircle,
-  SlidersHorizontal
+  SlidersHorizontal, Activity, Clock, GitCompare, List
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -30,6 +30,11 @@ interface CI {
   updated_at: string;
   asset_name: string | null;
   asset_type: string | null;
+  version?: string | null;
+  last_seen?: string | null;
+  health_score?: number | null;
+  health_status?: string | null;
+  last_assessed_at?: string | null;
   relationships?: Relationship[];
 }
 
@@ -68,6 +73,47 @@ interface PaginatedResponse<T> {
 interface SingleResponse<T> {
   data: T;
 }
+
+interface Baseline {
+  id: string;
+  ci_id: string;
+  label: string;
+  snapshot: Record<string, any>;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  notes: string;
+}
+
+interface HealthSummary {
+  total: number;
+  assessed: number;
+  average_health_score: number;
+  health_status_breakdown: Record<string, number>;
+}
+
+interface DiffEntry {
+  field: string;
+  old_value: any;
+  new_value: any;
+  type: 'changed' | 'added' | 'removed';
+}
+
+interface CompareData {
+  baseline_label: string;
+  baseline_created_at: string;
+  baseline_notes: string;
+  diffs: DiffEntry[];
+}
+
+const HEALTH_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  critical: { bg: '#fef2f2', text: '#dc2626', label: 'Critical' },
+  poor: { bg: '#fff7ed', text: '#ea580c', label: 'Poor' },
+  fair: { bg: '#fefce8', text: '#ca8a04', label: 'Fair' },
+  good: { bg: '#f0fdf4', text: '#16a34a', label: 'Good' },
+  excellent: { bg: '#eff6ff', text: '#2563eb', label: 'Excellent' },
+  unknown: { bg: '#f3f4f6', text: '#6b7280', label: 'Unknown' },
+};
 
 const CI_TYPES = [
   { value: 'server', label: 'Server' },
@@ -169,6 +215,19 @@ function statusBorder(status: string): string {
     case 'retired': return 'var(--danger-border)';
     default: return 'var(--border)';
   }
+}
+
+function healthColor(score: number | null | undefined): { bg: string; text: string; border: string } {
+  if (score === null || score === undefined) return { bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb' };
+  if (score < 31) return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' };
+  if (score < 51) return { bg: '#fff7ed', text: '#ea580c', border: '#fed7aa' };
+  if (score < 71) return { bg: '#fefce8', text: '#ca8a04', border: '#fde68a' };
+  if (score < 86) return { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' };
+  return { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' };
+}
+
+function healthStatusLabel(status: string | null | undefined): string {
+  return HEALTH_COLORS[status || 'unknown']?.label || 'Unknown';
 }
 
 function formatDate(d: string): string {
@@ -374,6 +433,28 @@ export function CmdbTab({
   const [relTargetTimeout, setRelTargetTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [relDeleting, setRelDeleting] = useState<string | null>(null);
 
+  // ── Health scoring state ──
+  const [healthSummary, setHealthSummary] = useState<HealthSummary | null>(null);
+  const [healthSummaryLoading, setHealthSummaryLoading] = useState(false);
+  const [needsAttentionCis, setNeedsAttentionCis] = useState<Array<{ id: string; name: string; health_score: number; health_status: string }>>([]);
+  const [assessingHealth, setAssessingHealth] = useState(false);
+  const [assessProgress, setAssessProgress] = useState<string | null>(null);
+
+  // ── Baseline state ──
+  const [showBaselineForm, setShowBaselineForm] = useState(false);
+  const [baselineFormData, setBaselineFormData] = useState({ label: '', notes: '' });
+  const [baselineSaving, setBaselineSaving] = useState(false);
+  const [baselines, setBaselines] = useState<Baseline[]>([]);
+  const [baselinesTotal, setBaselinesTotal] = useState(0);
+  const [baselinesPage, setBaselinesPage] = useState(1);
+  const [baselinesLoading, setBaselinesLoading] = useState(false);
+  const [showBaselines, setShowBaselines] = useState(false);
+
+  // ── Compare state ──
+  const [compareData, setCompareData] = useState<CompareData | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+
   // ── ──────────────────────────────────────────────────────────────────────────
   //  Data fetching
   // ── ──────────────────────────────────────────────────────────────────────────
@@ -439,6 +520,107 @@ export function CmdbTab({
       showAlert('Failed to load relationships', 'error');
     } finally {
       setRelLoading(false);
+    }
+  };
+
+  // ── Health summary ──
+  const loadHealthSummary = async () => {
+    setHealthSummaryLoading(true);
+    try {
+      const res = await api.get<{ data: HealthSummary; needs_attention: Array<{ id: string; name: string; health_score: number; health_status: string }> }>('/cmdb/health-summary');
+      setHealthSummary(res.data);
+      setNeedsAttentionCis(res.needs_attention);
+    } catch {
+      // silently fail — health summary is non-critical
+    } finally {
+      setHealthSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHealthSummary();
+  }, []);
+
+  const assessAllHealth = async () => {
+    setAssessingHealth(true);
+    setAssessProgress('Assessing all CIs...');
+    try {
+      const res = await api.post<{ assessed: number; results: any[] }>('/cmdb/assess-all-health', {});
+      setAssessProgress(`Assessed ${res.assessed} CIs`);
+      await loadHealthSummary();
+      if (selectedCi) loadCiDetail(selectedCi);
+      loadCis(page);
+      showAlert(`Health assessment complete: ${res.assessed} CIs evaluated`);
+    } catch {
+      showAlert('Failed to assess CI health', 'error');
+    } finally {
+      setAssessingHealth(false);
+      setAssessProgress(null);
+    }
+  };
+
+  const assessSingleCi = async (ciId: string) => {
+    try {
+      await api.post(`/cmdb/ci/${ciId}/assess-health`, {});
+      if (selectedCi?.id === ciId) loadCiDetail(selectedCi);
+      loadCis(page);
+      loadHealthSummary();
+      showAlert('Health assessment complete');
+    } catch {
+      showAlert('Failed to assess CI health', 'error');
+    }
+  };
+
+  // ── Baselines ──
+  const loadBaselines = async (ciId: string, p: number = 1) => {
+    setBaselinesLoading(true);
+    try {
+      const res = await api.get<{ data: Baseline[]; total: number; page: number; pageSize: number }>(`/cmdb/ci/${ciId}/baselines?page=${p}&pageSize=20`);
+      setBaselines(res.data);
+      setBaselinesTotal(res.total);
+      setBaselinesPage(res.page);
+    } catch {
+      showAlert('Failed to load baselines', 'error');
+    } finally {
+      setBaselinesLoading(false);
+    }
+  };
+
+  const saveBaseline = async () => {
+    if (!baselineFormData.label.trim()) {
+      showAlert('Label is required', 'error');
+      return;
+    }
+    if (!selectedCi) return;
+    setBaselineSaving(true);
+    try {
+      await api.post(`/cmdb/ci/${selectedCi.id}/baseline`, {
+        label: baselineFormData.label.trim(),
+        notes: baselineFormData.notes.trim(),
+      });
+      showAlert('Baseline created');
+      setShowBaselineForm(false);
+      setBaselineFormData({ label: '', notes: '' });
+      loadCis(page);
+      if (selectedCi) loadCiDetail(selectedCi);
+    } catch {
+      showAlert('Failed to create baseline', 'error');
+    } finally {
+      setBaselineSaving(false);
+    }
+  };
+
+  const loadCompare = async (ciId: string, baselineId: string) => {
+    setCompareLoading(true);
+    setShowCompare(true);
+    try {
+      const res = await api.get<{ data: CompareData }>(`/cmdb/ci/${ciId}/compare/${baselineId}`);
+      setCompareData(res.data);
+    } catch {
+      showAlert('Failed to load comparison', 'error');
+      setShowCompare(false);
+    } finally {
+      setCompareLoading(false);
     }
   };
 
@@ -878,6 +1060,7 @@ export function CmdbTab({
                   <th style={thStyle}>Owner</th>
                   <th style={thStyle}>Department</th>
                   <th style={thStyle}>Tags</th>
+                  <th style={thStyle}>Health</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -937,6 +1120,30 @@ export function CmdbTab({
                           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+{ci.tags.length - 3}</span>
                         )}
                       </div>
+                    </td>
+                    <td style={tdStyle}>
+                      {ci.health_score !== null && ci.health_score !== undefined ? (
+                        <span
+                          title={`Score: ${ci.health_score}/100 — ${healthStatusLabel(ci.health_status)}`}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            fontSize: 11, fontWeight: 700, padding: '2px 8px',
+                            borderRadius: 'var(--radius-full)',
+                            background: healthColor(ci.health_score).bg,
+                            color: healthColor(ci.health_score).text,
+                            border: `1px solid ${healthColor(ci.health_score).border}`,
+                            cursor: 'default',
+                          }}
+                        >
+                          <div style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: healthColor(ci.health_score).text,
+                          }} />
+                          {ci.health_score}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                      )}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
@@ -1051,7 +1258,7 @@ export function CmdbTab({
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button onClick={() => openEditForm(ci)} style={btnGhostStyle}>
               <Edit2 size={13} />
               Edit
@@ -1059,6 +1266,21 @@ export function CmdbTab({
             <button onClick={() => quickAddRel(ci.id)} style={btnGhostStyle}>
               <Link2 size={13} />
               Add Relationship
+            </button>
+            <button onClick={() => assessSingleCi(ci.id)} style={btnGhostStyle}>
+              <Activity size={13} />
+              Assess Health
+            </button>
+            <button onClick={() => { setShowBaselineForm(true); setBaselineFormData({ label: '', notes: '' }); }} style={btnGhostStyle}>
+              <Save size={13} />
+              Create Baseline
+            </button>
+            <button onClick={async () => {
+              setShowBaselines(true);
+              await loadBaselines(ci.id);
+            }} style={btnGhostStyle}>
+              <Clock size={13} />
+              Baselines
             </button>
           </div>
         </div>
@@ -1130,6 +1352,47 @@ export function CmdbTab({
                 )) : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No tags</span>}
               </div>
             </div>
+            <div>
+              <label style={labelStyle}>Health Score</label>
+              <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {ci.health_score !== null && ci.health_score !== undefined ? (
+                  <>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 14, fontWeight: 700, padding: '3px 12px',
+                      borderRadius: 'var(--radius-full)',
+                      background: healthColor(ci.health_score).bg,
+                      color: healthColor(ci.health_score).text,
+                      border: `1px solid ${healthColor(ci.health_score).border}`,
+                    }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: healthColor(ci.health_score).text,
+                      }} />
+                      {ci.health_score}/100
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      textTransform: 'uppercase', letterSpacing: '0.03em',
+                      background: HEALTH_COLORS[ci.health_status || 'unknown']?.bg || '#f3f4f6',
+                      color: HEALTH_COLORS[ci.health_status || 'unknown']?.text || '#6b7280',
+                    }}>
+                      {healthStatusLabel(ci.health_status)}
+                    </span>
+                    {ci.last_assessed_at && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Last assessed: {formatDate(ci.last_assessed_at)}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Not assessed yet — click "Assess Health" to evaluate
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -1189,6 +1452,134 @@ export function CmdbTab({
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Baseline Form */}
+        {showBaselineForm && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
+            <h4 style={{ ...subsectionTitle, margin: 0, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Save size={14} />
+              Create Baseline
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Label *</label>
+                <input
+                  type="text"
+                  value={baselineFormData.label}
+                  onChange={e => setBaselineFormData(prev => ({ ...prev, label: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="e.g., Pre-deployment snapshot"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Notes</label>
+                <input
+                  type="text"
+                  value={baselineFormData.notes}
+                  onChange={e => setBaselineFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="Optional context for this baseline..."
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setShowBaselineForm(false); setBaselineFormData({ label: '', notes: '' }); }}
+                  style={btnGhostStyle}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveBaseline}
+                  style={baselineSaving ? btnDisabledStyle : btnStyle}
+                  disabled={baselineSaving}
+                >
+                  <Save size={14} />
+                  {baselineSaving ? 'Saving...' : 'Save Baseline'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Baselines List */}
+        {showBaselines && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h4 style={{ ...subsectionTitle, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Clock size={14} />
+                Baselines
+                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>
+                  ({baselinesTotal})
+                </span>
+              </h4>
+              <button
+                onClick={() => { setShowBaselines(false); setBaselines([]); }}
+                style={btnGhostStyle}
+              >
+                <X size={12} />
+                Close
+              </button>
+            </div>
+
+            {baselinesLoading ? (
+              <div className="skeleton" style={{ height: 40, borderRadius: 'var(--radius-md)', marginBottom: 8 }} />
+            ) : baselines.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: 12 }}>
+                No baselines captured yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {baselines.map(b => (
+                  <div
+                    key={b.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                      background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--text)' }}>{b.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {formatDate(b.created_at)}
+                        {b.created_by_name ? ` by ${b.created_by_name}` : ''}
+                        {b.notes ? ` — ${b.notes}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => loadCompare(ci.id, b.id)}
+                      style={btnGhostStyle}
+                      title="Compare with current"
+                    >
+                      <GitCompare size={12} />
+                      Compare
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {baselinesTotal > 20 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+                <button
+                  onClick={() => loadBaselines(ci.id, baselinesPage - 1)}
+                  disabled={baselinesPage <= 1}
+                  style={btnGhostStyle}
+                >
+                  <ChevronLeft size={14} />
+                  Previous
+                </button>
+                <button
+                  onClick={() => loadBaselines(ci.id, baselinesPage + 1)}
+                  style={btnGhostStyle}
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </button>
               </div>
             )}
           </div>
@@ -1901,6 +2292,287 @@ export function CmdbTab({
   };
 
   // ── ──────────────────────────────────────────────────────────────────────────
+  //  Render: Health Summary Widget
+  // ── ──────────────────────────────────────────────────────────────────────────
+
+  const renderHealthSummary = () => {
+    if (healthSummaryLoading && !healthSummary) {
+      return (
+        <div style={sectionStyle}>
+          <div className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-md)' }} />
+        </div>
+      );
+    }
+    if (!healthSummary) return null;
+
+    const breakdown = healthSummary.health_status_breakdown || {};
+    const total = healthSummary.total || 1;
+    const segments: Array<{ status: string; count: number; pct: number; color: string }> = [];
+    const colors: Record<string, string> = {
+      excellent: '#2563eb',
+      good: '#16a34a',
+      fair: '#ca8a04',
+      poor: '#ea580c',
+      critical: '#dc2626',
+      unknown: '#6b7280',
+    };
+    let cumulativePct = 0;
+    const order = ['excellent', 'good', 'fair', 'poor', 'critical', 'unknown'];
+    for (const s of order) {
+      const count = breakdown[s] || 0;
+      if (count > 0) {
+        const pct = (count / total) * 100;
+        segments.push({ status: s, count, pct, color: colors[s] || '#6b7280' });
+      }
+    }
+
+    const conicGradient = segments.map((s, i) => {
+      const start = cumulativePct;
+      const end = cumulativePct + s.pct;
+      cumulativePct = end;
+      return `${s.color} ${start}% ${end}%`;
+    }).join(', ');
+
+    return (
+      <div style={sectionStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <h3 style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Activity size={16} />
+              CI Health Overview
+            </h3>
+            <p style={sectionDesc}>
+              Health scores assess CI data completeness and quality. Higher scores indicate better-maintained records.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {assessProgress && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{assessProgress}</span>
+            )}
+            <button
+              onClick={assessAllHealth}
+              style={assessingHealth ? btnDisabledStyle : btnStyle}
+              disabled={assessingHealth}
+            >
+              <Activity size={14} />
+              {assessingHealth ? 'Assessing...' : 'Assess All Health'}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 24, alignItems: 'stretch' }}>
+          {/* Donut chart */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{
+              width: 120, height: 120, borderRadius: '50%',
+              background: `conic-gradient(${conicGradient || '#e5e7eb'})`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative',
+            }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: 'var(--bg-elevated)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
+                  {healthSummary.average_health_score}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>avg</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center', minWidth: 160 }}>
+            {segments.filter(s => s.count > 0).map(s => (
+              <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: 3, flexShrink: 0,
+                  background: s.color,
+                }} />
+                <span style={{ fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize', width: 70 }}>{s.status}</span>
+                <span style={{ color: 'var(--text-muted)', flex: 1 }}>{s.count} CI{s.count !== 1 ? 's' : ''}</span>
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{Math.round(s.pct)}%</span>
+              </div>
+            ))}
+            {segments.length === 0 && (
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>No CIs assessed yet</span>
+            )}
+          </div>
+
+          {/* Needs attention */}
+          {needsAttentionCis.length > 0 && (
+            <div style={{
+              flex: 1, borderLeft: '1px solid var(--border)', paddingLeft: 20,
+              maxHeight: 130, overflowY: 'auto',
+            }}>
+              <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <AlertCircle size={13} />
+                Needs Attention ({needsAttentionCis.length})
+              </h4>
+              {needsAttentionCis.map(ci => (
+                <div
+                  key={ci.id}
+                  onClick={() => {
+                    const found = cis.find(c => c.id === ci.id);
+                    if (found) loadCiDetail(found);
+                  }}
+                  style={{
+                    fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                    borderBottom: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: healthColor(ci.health_score).text,
+                  }} />
+                  <span style={{ flex: 1 }}>{ci.name}</span>
+                  <span style={{ fontWeight: 600, fontSize: 11, color: healthColor(ci.health_score).text }}>
+                    {ci.health_score}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ── ──────────────────────────────────────────────────────────────────────────
+  //  Render: Compare Modal
+  // ── ──────────────────────────────────────────────────────────────────────────
+
+  const renderCompareModal = () => {
+    if (!showCompare) return null;
+
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backdropFilter: 'blur(2px)',
+      }}>
+        <div style={{
+          width: '100%', maxWidth: 640, background: 'var(--card)',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden',
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '16px 20px', borderBottom: '1px solid var(--border)',
+          }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GitCompare size={16} />
+              Compare: {compareData?.baseline_label || 'Baseline'}
+            </h3>
+            <button
+              onClick={() => { setShowCompare(false); setCompareData(null); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Body */}
+          {compareLoading ? (
+            <div style={{ padding: 20 }}>
+              <div className="skeleton" style={{ height: 40, borderRadius: 'var(--radius-md)', marginBottom: 8 }} />
+              <div className="skeleton" style={{ height: 40, borderRadius: 'var(--radius-md)', marginBottom: 8 }} />
+            </div>
+          ) : compareData ? (
+            <div style={{ padding: 20, overflowY: 'auto' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+                Captured: {formatDate(compareData.baseline_created_at)}
+                {compareData.baseline_notes ? ` — ${compareData.baseline_notes}` : ''}
+              </div>
+
+              {compareData.diffs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
+                  <CheckCircle size={32} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
+                  <p style={{ fontSize: 13, margin: 0 }}>No changes detected — CI matches the baseline exactly.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {compareData.diffs.map((diff, i) => {
+                    let rowBg = 'transparent';
+                    let labelText = 'Changed';
+                    if (diff.type === 'added') { rowBg = '#f0fdf4'; labelText = 'Added'; }
+                    else if (diff.type === 'removed') { rowBg = '#fef2f2'; labelText = 'Removed'; }
+                    else { rowBg = '#fefce8'; labelText = 'Changed'; }
+
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                          background: rowBg, border: '1px solid var(--border)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', textTransform: 'capitalize' }}>
+                            {diff.field.replace(/_/g, ' ')}
+                          </span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '1px 6px',
+                            borderRadius: 'var(--radius-full)', textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            background: diff.type === 'added' ? '#dcfce7' : diff.type === 'removed' ? '#fecaca' : '#fef9c3',
+                            color: diff.type === 'added' ? '#16a34a' : diff.type === 'removed' ? '#dc2626' : '#ca8a04',
+                          }}>
+                            {labelText}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12 }}>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Baseline</span>
+                            <span style={{ color: diff.type === 'removed' ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                              {diff.old_value !== null && diff.old_value !== undefined
+                                ? typeof diff.old_value === 'object' ? JSON.stringify(diff.old_value) : String(diff.old_value)
+                                : <em style={{ color: 'var(--text-muted)' }}>not set</em>}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 2 }}>Current</span>
+                            <span style={{ color: diff.type === 'added' ? 'var(--success)' : diff.type === 'removed' ? 'var(--text-muted)' : 'var(--text)' }}>
+                              {diff.new_value !== null && diff.new_value !== undefined
+                                ? typeof diff.new_value === 'object' ? JSON.stringify(diff.new_value) : String(diff.new_value)
+                                : <em style={{ color: 'var(--text-muted)' }}>not set</em>}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p>Failed to load comparison data.</p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{
+            display: 'flex', justifyContent: 'flex-end', gap: 8,
+            padding: '16px 20px', borderTop: '1px solid var(--border)',
+          }}>
+            <button
+              onClick={() => { setShowCompare(false); setCompareData(null); }}
+              style={btnGhostStyle}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── ──────────────────────────────────────────────────────────────────────────
   //  Main Render
   // ── ──────────────────────────────────────────────────────────────────────────
 
@@ -1912,12 +2584,16 @@ export function CmdbTab({
       {/* Main content based on sub-mode */}
       {subMode === 'cis' ? (
         <>
+          {renderHealthSummary()}
           {renderCiList()}
           {renderCiDetail()}
         </>
       ) : (
         renderRelationshipMap()
       )}
+
+      {/* Modals */}
+      {renderCompareModal()}
 
       {/* Info card */}
       <div style={sectionStyle}>

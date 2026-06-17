@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Plus, Edit2, Trash, Mail, ChevronDown, ChevronUp, Copy, Eye, Code, Maximize2, Image, Sparkles, Loader2, X, CheckCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Modal } from './SharedUI';
+import { toast } from '@/components/Toast';
 import type { EmailTemplate } from './types';
 
 interface EmailTemplateItem extends EmailTemplate {
@@ -319,7 +320,7 @@ export function EmailTemplatesTab({ showAlert, setConfirmModal }: {
         });
         setTemplates(merged);
       })
-      .catch(() => {})
+      .catch((err) => toast.error('Failed to load templates', err instanceof Error ? err.message : 'Please try again'))
       .finally(() => setTemplatesLoading(false));
   }
 

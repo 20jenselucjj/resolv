@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS ticket_classification_rules (
 );
 
 -- Add unique constraint on name (safe to re-run)
-ALTER TABLE ticket_classification_rules ADD CONSTRAINT IF NOT EXISTS ticket_classification_rules_name_key UNIQUE (name);
+DO $$ BEGIN
+  ALTER TABLE ticket_classification_rules ADD CONSTRAINT ticket_classification_rules_name_key UNIQUE (name);
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 -- Add default classification rules (safe to re-run)
 INSERT INTO ticket_classification_rules (name, match_type, keywords, ticket_type, priority, is_active) VALUES

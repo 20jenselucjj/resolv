@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { getToken } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import type {
   Ticket, AdminStats, AssetStats, KnowledgeStats, AIAnalytics,
   TimeRange, ProblemReportData, ChangeReportData, ApprovalReportData,
@@ -530,7 +531,7 @@ export function useExport(deps: ExportDeps) {
         subtitle: `Time range: ${deps.timeRange === 'all' ? 'All time' : `Last ${deps.timeRange}`}`,
       });
     } catch (err) {
-      console.error('Excel export failed:', err);
+      toast.error('Excel export failed', err instanceof Error ? err.message : 'Please try again');
     }
   }, [generateSectionExcel, deps.timeRange]);
 
@@ -558,7 +559,7 @@ export function useExport(deps: ExportDeps) {
           subtitle: `Time range: ${deps.timeRange === 'all' ? 'All time' : `Last ${deps.timeRange}`}`,
         });
       } catch (err) {
-        console.error('Excel export failed:', err);
+        toast.error('Excel export failed', err instanceof Error ? err.message : 'Please try again');
       }
     } else {
       // ── CSV export ───────────────────────────────────────────────────
@@ -600,7 +601,7 @@ export function useExport(deps: ExportDeps) {
       a.download = `${name.replace(/[^a-z0-9]/gi, '_')}.${format === 'pdf' ? 'html' : format}`;
       a.click(); URL.revokeObjectURL(blobUrl);
     } catch (err: any) {
-      console.error('Export failed:', err);
+      toast.error('Export failed', err instanceof Error ? err.message : 'Please try again');
     }
   }, []);
 

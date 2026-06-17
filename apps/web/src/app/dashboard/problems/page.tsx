@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { Search, Plus, AlertCircle, ChevronDown, X } from 'lucide-react';
+import { toast } from '@/components/Toast';
+import { SkeletonPage } from '@/components/Skeleton';
 import { PROBLEM_STATUS_OPTIONS, PRIORITY_OPTIONS, PROBLEM_STATUS_COLORS } from '@/lib/constants';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -100,7 +102,7 @@ export default function ProblemsPage() {
       setShowNewPanel(false);
       fetchProblems();
     } catch (err) {
-      console.error('Failed to create problem', err);
+      toast.error('Failed to create problem', err instanceof Error ? err.message : 'Please try again');
     } finally {
       setSubmitting(false);
     }
@@ -211,12 +213,12 @@ export default function ProblemsPage() {
           </div>
         )}
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>
+          <SkeletonPage />
         ) : problems.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center' }}>
-            <AlertCircle size={32} color="var(--text-muted)" style={{ margin: '0 auto 12px', display: 'block' }} />
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>No problems found</div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 8 }}>Create a new problem to start tracking root causes.</p>
+          <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 48, opacity: 0.2, marginBottom: 16 }}>🔍</div>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>No problems found</h3>
+            <p style={{ fontSize: 14 }}>Create a new problem to start tracking root causes.</p>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

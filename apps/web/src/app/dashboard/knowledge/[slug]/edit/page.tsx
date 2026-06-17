@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api, API_BASE, getToken } from '@/lib/api';
 import { useStore } from '@/lib/store';
+import { toast } from '@/components/Toast';
 import {
   ArrowLeft, AlertTriangle, Tag, FileText,
   Type, X, Layout, Send, Save, History, Eye, Edit3,
@@ -55,6 +56,7 @@ export default function EditArticlePage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +90,7 @@ export default function EditArticlePage() {
 
   useEffect(() => {
     fetchArticle();
-    api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data || [])).catch(console.error);
+    api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data || [])).catch(err => toast.error('Failed to load categories', err instanceof Error ? err.message : 'Please try again'));
   }, [fetchArticle]);
 
   const fetchAttachments = useCallback(async (id: string) => {
@@ -156,11 +158,21 @@ export default function EditArticlePage() {
     setForm((f) => ({ ...f, tags: f.tags.filter((t) => t !== tag) }));
   }
 
+  function validate() {
+    const errors: Record<string, string> = {};
+    if (!form.title.trim()) errors.title = 'Title is required';
+    else if (form.title.trim().length < 3) errors.title = 'Title must be at least 3 characters';
+    if (!form.category) errors.category_id = 'Category is required';
+    const strippedBody = form.body?.replace(/<[^>]*>/g, '').trim();
+    if (!strippedBody) errors.body = 'Content is required';
+    else if (strippedBody.length < 20) errors.body = 'Content must be at least 20 characters';
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function handleSubmit(e: React.FormEvent, overrideStatus?: 'published' | 'draft') {
     e.preventDefault();
-    if (!form.title.trim()) { setError('Title is required'); return; }
-    if (!form.body.trim()) { setError('Body is required'); return; }
-    if (!form.category) { setError('Category is required'); return; }
+    if (!validate()) return;
 
     setLoading(true);
     setError('');
@@ -252,11 +264,17 @@ export default function EditArticlePage() {
             <input
               autoFocus
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, title: e.target.value });
+                if (validationErrors.title) setValidationErrors(prev => ({ ...prev, title: '' }));
+              }}
               placeholder="e.g. How to reset your password"
               className="input"
               style={{ fontSize: 24, height: 64, fontWeight: 700, border: 'none', borderBottom: '2px solid var(--border)', borderRadius: 0, padding: '0 0 8px 0', background: 'transparent' }}
             />
+            {validationErrors.title && (
+              <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.title}</span>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
@@ -268,7 +286,10 @@ export default function EditArticlePage() {
               </label>
               <select
                 value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, category: e.target.value });
+                  if (validationErrors.category_id) setValidationErrors(prev => ({ ...prev, category_id: '' }));
+                }}
                 className="select"
                 style={{ height: 48, fontSize: 15 }}
               >
@@ -277,6 +298,9 @@ export default function EditArticlePage() {
                   <option key={cat.id} value={cat.name}>{cat.name}</option>
                 ))}
               </select>
+              {validationErrors.category_id && (
+                <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.category_id}</span>
+              )}
             </div>
 
             {/* Status (Readonly here mostly, controlled by buttons) */}
@@ -331,7 +355,10 @@ export default function EditArticlePage() {
             {viewMode === 'edit' ? (
               <textarea
                 value={form.body}
-                onChange={(e) => setForm({ ...form, body: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, body: e.target.value });
+                  if (validationErrors.body) setValidationErrors(prev => ({ ...prev, body: '' }));
+                }}
                 placeholder="Write your article content here in Markdown..."
                 className="textarea"
                 style={{ fontSize: 16, lineHeight: 1.7, minHeight: 400, padding: 24, background: 'var(--background)', resize: 'vertical' }}
@@ -340,6 +367,9 @@ export default function EditArticlePage() {
               <div style={{ minHeight: 400, padding: 24, background: 'var(--background)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 16, lineHeight: 1.7 }}>
                 {renderPreview()}
               </div>
+            )}
+            {validationErrors.body && (
+              <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.body}</span>
             )}
           </div>
 
@@ -475,7 +505,7 @@ export default function EditArticlePage() {
             <button
               type="submit"
               disabled={loading || !isValid}
-              className="btn btn-warm"
+              className="btn btn-primary"
               style={{ padding: '0 32px', height: 56, fontSize: 16, gap: 12, flex: 1 }}
             >
               {loading ? (

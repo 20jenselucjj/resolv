@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useStore, Category, User, Ticket } from '@/lib/store';
 import { api, API_BASE, getToken } from '@/lib/api';
+import { toast } from '@/components/Toast';
 import {
   X, Maximize2, Minimize2, AlertTriangle, Sparkles, CheckCircle,
   Paperclip, UploadCloud, Loader2, FileText, Trash2
@@ -72,6 +73,7 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
   const [allUsersList, setAllUsersList] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [closeNote, setCloseNote] = useState('');
   const [showCloseNote, setShowCloseNote] = useState(false);
   const [templates, setTemplates] = useState<{ id: string; name: string; title: string; description: string; ticket_type: string; priority: string; category_id: string | null }[]>([]);
@@ -128,22 +130,22 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
   // Fetch data on mount / user change
   useEffect(() => {
     const promises: Promise<void>[] = [
-      api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch(() => {}),
+      api.get<{ data: Category[] }>('/categories').then(res => setCategories(res.data)).catch((err) => { toast.error('Failed to load categories', err instanceof Error ? err.message : 'Please try again'); }),
     ];
     if (user?.role !== 'user') {
       promises.push(
         api.get<{ data: User[] }>('/users').then(res => {
           setAllUsersList(res.data);
           setAgents(res.data.filter((u: User) => u.role === 'admin' || u.role === 'agent'));
-        }).catch(() => {})
+        }).catch((err) => { toast.error('Failed to load users', err instanceof Error ? err.message : 'Please try again'); })
       );
     }
     if (user?.role === 'admin' || user?.role === 'agent') {
       promises.push(
-        api.get<{ data: any[] }>('/templates').then(res => setTemplates(res.data)).catch(() => {})
+        api.get<{ data: any[] }>('/templates').then(res => setTemplates(res.data)).catch((err) => { toast.error('Failed to load templates', err instanceof Error ? err.message : 'Please try again'); })
       );
     }
-    Promise.all(promises).catch(() => {});
+    Promise.all(promises).catch((err) => { toast.error('Failed to load form data', err instanceof Error ? err.message : 'Please try again'); });
   }, [user]);
 
   // Restore draft on mount
@@ -316,9 +318,25 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
     setCloseNote('');
   }
 
+  function validate() {
+    const errors: Record<string, string> = {};
+    if (!form.title.trim()) errors.title = 'Title is required';
+    else if (form.title.trim().length < 3) errors.title = 'Title must be at least 3 characters';
+    if (!form.ticket_type) errors.ticket_type = 'Type is required';
+    if (user?.role !== 'user') {
+      if (!form.priority) errors.priority = 'Priority is required';
+      if (!form.category_id) errors.category_id = 'Category is required';
+    }
+    const strippedDesc = form.description?.replace(/<[^>]*>/g, '').trim();
+    if (!strippedDesc) errors.description = 'Description is required';
+    else if (strippedDesc.length < 10) errors.description = 'Description must be at least 10 characters';
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) { setError('Title is required'); return; }
+    if (!validate()) return;
     if (form.status === 'closed' && !closeNote.trim()) {
       setShowCloseNote(true);
       return;
@@ -587,13 +605,19 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                   <select
                     className="select"
                     value={form.ticket_type}
-                    onChange={e => setForm(f => ({ ...f, ticket_type: e.target.value }))}
+                    onChange={e => {
+                      setForm(f => ({ ...f, ticket_type: e.target.value }));
+                      if (validationErrors.ticket_type) setValidationErrors(prev => ({ ...prev, ticket_type: '' }));
+                    }}
                     style={{ width: '100%', fontSize: 11, height: 32 }}
                   >
                     {typeOptions.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
+                  {validationErrors.ticket_type && (
+                    <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.ticket_type}</span>
+                  )}
                 </div>
                 <div>
                   <label style={panelLabelStyle}>Title <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -601,10 +625,16 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                     autoFocus
                     className="input"
                     value={form.title}
-                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                    onChange={e => {
+                      setForm(f => ({ ...f, title: e.target.value }));
+                      if (validationErrors.title) setValidationErrors(prev => ({ ...prev, title: '' }));
+                    }}
                     placeholder="Brief description of the issue"
                     style={{ fontSize: 13, height: 32, fontWeight: 500 }}
                   />
+                  {validationErrors.title && (
+                    <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.title}</span>
+                  )}
                 </div>
               </div>
 
@@ -613,10 +643,16 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                 <label style={panelLabelStyle}>Description</label>
                 <WYSIWYGEditor
                   value={form.description}
-                  onChange={(val) => setForm(f => ({ ...f, description: val }))}
+                  onChange={(val) => {
+                    setForm(f => ({ ...f, description: val }));
+                    if (validationErrors.description) setValidationErrors(prev => ({ ...prev, description: '' }));
+                  }}
                   height={240}
                   placeholder="Describe the issue in detail..."
                 />
+                {validationErrors.description && (
+                  <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.description}</span>
+                )}
               </div>
 
               {/* Priority — agents+ only */}
@@ -626,7 +662,10 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                   <div style={{ display: 'flex', gap: 6 }}>
                     {PRIORITY_OPTIONS.map(p => (
                       <button key={p.value} type="button"
-                        onClick={() => setForm(f => ({ ...f, priority: p.value }))}
+                        onClick={() => {
+                          setForm(f => ({ ...f, priority: p.value }));
+                          if (validationErrors.priority) setValidationErrors(prev => ({ ...prev, priority: '' }));
+                        }}
                         style={{
                           flex: 1, padding: '5px 4px', borderRadius: 'var(--radius-sm)',
                           border: `1px solid ${form.priority === p.value ? p.color : 'var(--border)'}`,
@@ -642,6 +681,9 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                       </button>
                     ))}
                   </div>
+                  {validationErrors.priority && (
+                    <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.priority}</span>
+                  )}
                 </div>
               )}
 
@@ -679,10 +721,16 @@ export function NewTicketPanel({ onClose, onCreated }: { onClose: () => void; on
                     <CategoryTreeSelect
                       categories={categories}
                       value={form.category_id || null}
-                      onChange={val => setForm(f => ({ ...f, category_id: val || '' }))}
+                      onChange={val => {
+                        setForm(f => ({ ...f, category_id: val || '' }));
+                        if (validationErrors.category_id) setValidationErrors(prev => ({ ...prev, category_id: '' }));
+                      }}
                       placeholder="Select..."
                       allowClear
                     />
+                    {validationErrors.category_id && (
+                      <span style={{ color: 'var(--danger)', fontSize: 11, marginTop: 4, display: 'block' }}>{validationErrors.category_id}</span>
+                    )}
                   </div>
                   <div>
                     <label style={panelLabelStyle}>Assignee</label>
